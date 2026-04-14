@@ -1,0 +1,106 @@
+---
+###########################################################################
+# ⏳ kube_app_wait_ready.yml
+# Wiederverwendbarer Kubernetes App Wait — wartet bis alle Pods Ready
+###########################################################################
+# Benötigte Variablen:
+#   app_name:           Name der App (= Namespace)
+#   kube_user:          Linux-User für kubectl
+#   _app_pod_label:     Label-Selektor für App-Pod (z.B. "directus-web")
+#   _expected_ready:    Anzahl erwarteter Ready Pods (default: 2 = DB + App)
+#
+# Aufruf:
+#   - name: Warte auf App
+#     ansible.builtin.include_tasks: "{{ task_paths.kube_app_wait_ready }}"
+#     vars:
+#       _app_pod_label: directus-web
+###########################################################################
+
+# ============================================================
+# Warte bis App READY (1/1)
+# ============================================================
+- name: ⏳ Warte auf {{ app_name }} App (1/1 Ready) - kube_app_wait_ready.yml
+  ansible.builtin.shell: |
+    echo "=== $(date '+%H:%M:%S') === {{ app_name }} Status ==="
+    kubectl get pods -n {{ app_name }} -o wide 2>/dev/null
+    echo "==========================="
+    TOTAL=$(kubectl get pods -n {{ app_name }} --no-headers 2>/dev/null | wc -l)
+    READY=$(kubectl get pods -n {{ app_name }} --no-headers 2>/dev/null | awk '{print $2}' | grep -c '1/1' || true)
+    echo "Ready: $READY / $TOTAL"
+    [ "$READY" -ge {{ _expected_ready | default(2) }} ] && exit 0 || exit 1
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _app_wait
+  until: _app_wait.rc == 0
+  retries: 40
+  delay: 15
+  changed_when: false
+  failed_when: false
+
+- name: 📊 App Pod-Status - kube_app_wait_ready.yml
+  ansible.builtin.debug:
+    msg: "{{ _app_wait.stdout_lines | default(['Keine Ausgabe']) }}"
+
+# ============================================================
+# App Logs
+# ============================================================
+- name: 📊 App Logs (letzte 5 Zeilen) - kube_app_wait_ready.yml
+  ansible.builtin.shell: >
+    kubectl logs -l app={{ _app_pod_label | default(app_name) }} -n {{ app_name }} --tail=5 2>/dev/null || echo "Keine Logs"
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _app_logs
+  changed_when: false
+  failed_when: false
+
+- name: 📊 App Logs Ausgabe - kube_app_wait_ready.yml
+  ansible.builtin.debug:
+    msg: "{{ _app_logs.stdout_lines | default(['Keine Logs']) }}"
+
+# ============================================================
+# Events bei Problemen
+# ============================================================
+- name: 📊 Events (letzte Warnungen) - kube_app_wait_ready.yml
+  ansible.builtin.shell: >
+    kubectl get events -n {{ app_name }}
+    --field-selector type=Warning
+    --sort-by='.lastTimestamp' 2>/dev/null | tail -10 || echo "Keine Warnungen"
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _events
+  changed_when: false
+  failed_when: false
+
+- name: 📊 Events Ausgabe - kube_app_wait_ready.yml
+  ansible.builtin.debug:
+    msg: "{{ _events.stdout_lines | default(['Keine Events']) }}"
+  when: _events.stdout | default('') | length > 0
+
+# ============================================================
+# Finale Statusübersicht
+# ============================================================
+- name: 📊 Finale Statusübersicht - kube_app_wait_ready.yml
+  ansible.builtin.command: kubectl get pods -n {{ app_name }} -o wide
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _final_status
+  changed_when: false
+
+- name: 📊 {{ app_name }} Deployment Ergebnis - kube_app_wait_ready.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "🚀 {{ app_name }} Deployment Ergebnis"
+      - "=========================================="
+      - "{{ _final_status.stdout_lines }}"
+      - ""
+      - "{{ '✅ Alle Pods Ready!' if _app_wait.rc | default(1) == 0 else '⚠️ Nicht alle Pods Ready — prüfen!' }}"
+      - "=========================================="

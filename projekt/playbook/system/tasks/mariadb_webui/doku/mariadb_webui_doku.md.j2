@@ -1,0 +1,10 @@
+## MariaDB Code-Wissensdatenbank Deployment Dokumentation
+
+**Datum:** {{ ansible_date_time.iso8601 }}
+**Server:** {{ ansible_host }} ({{ ansible_hostname }})
+**App:** {{ app_name }}
+**Deploy-Typ:** {{ app_deploy_type | default('k3s') }}
+**DB:** {{ app_db_type | default('mariadb') }}
+**Port:** {{ app_port | default('8080') }} (Adminer)
+**DB-Host:** {{ app_name }}-db (cluster-intern)
+**Status:** {{ allg_status }}

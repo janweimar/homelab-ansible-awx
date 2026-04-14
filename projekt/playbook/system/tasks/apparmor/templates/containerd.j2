@@ -1,0 +1,44 @@
+# AppArmor Profile für Containerd
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/bin/containerd {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  
+  # Capabilities
+  capability sys_admin,
+  capability sys_chroot,
+  capability sys_ptrace,
+  capability dac_override,
+  capability setuid,
+  capability setgid,
+  capability net_admin,
+  
+  # Netzwerk
+  network unix stream,
+  
+  # Containerd Binary
+  /usr/bin/containerd mr,
+  /usr/bin/containerd-shim* rix,
+  /usr/bin/runc rix,
+  
+  # Konfiguration
+  /etc/containerd/** r,
+  
+  # Storage
+  /var/lib/containerd/** rw,
+  
+  # Runtime
+  /run/containerd/** rw,
+  
+  # Proc/Sys
+  @{PROC}/** r,
+  /sys/** r,
+  
+  # Temp
+  /tmp/** rw,
+}

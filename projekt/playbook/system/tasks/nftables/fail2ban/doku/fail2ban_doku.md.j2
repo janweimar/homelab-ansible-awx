@@ -1,0 +1,77 @@
+# FAIL2BAN + NFTABLES - SYSTEM KONFIGURATION
+
+## FAIL2BAN STATUS
+
+```
+{{ f2b_doku_status.stdout | default('Status nicht verfügbar') }}
+```
+
+---
+
+## KONFIGURATION ÜBERSICHT
+
+### Default-Werte
+- **Bantime:** {{ default_bantime }}
+- **Findtime:** {{ default_findtime }}
+- **Maxretry:** {{ default_maxretry }}
+
+### Aktivierte Jails
+
+| Jail | Status | Bantime | Findtime | Maxretry | Ports |
+|------|--------|---------|----------|----------|-------|
+| SSH | {{ 'aktiviert' if ssh_enable | default(false) | bool else 'deaktiviert' }} | {{ ssh_bantime | default('n/a') }} | {{ ssh_findtime | default('n/a') }} | {{ ssh_maxretry | default('n/a') }} | {{ ssh_ports | default('n/a') }} |
+| Nginx | {{ 'aktiviert' if nginx_enable | default(false) | bool else 'deaktiviert' }} | {{ nginx_bantime | default('n/a') }} | {{ nginx_findtime | default('n/a') }} | {{ nginx_maxretry | default('n/a') }} | {{ nginx_ports | default('n/a') }} |
+| Postfix | {{ 'aktiviert' if mail_postfix_enable | default(false) | bool else 'deaktiviert' }} | {{ mail_postfix_bantime | default('n/a') }} | {{ mail_postfix_findtime | default('n/a') }} | {{ mail_postfix_maxretry | default('n/a') }} | {{ mail_postfix_ports | default('n/a') }} |
+| Dovecot | {{ 'aktiviert' if mail_dovecot_enable | default(false) | bool else 'deaktiviert' }} | {{ mail_dovecot_bantime | default('n/a') }} | {{ mail_dovecot_findtime | default('n/a') }} | {{ mail_dovecot_maxretry | default('n/a') }} | {{ mail_dovecot_ports | default('n/a') }} |
+| Odoo | {{ 'aktiviert' if odoo_enable | default(false) | bool else 'deaktiviert' }} | {{ odoo_bantime | default('n/a') }} | {{ odoo_findtime | default('n/a') }} | {{ odoo_maxretry | default('n/a') }} | {{ odoo_ports | default('n/a') }} |
+| AWX | {{ 'aktiviert' if awx_enable | default(false) | bool else 'deaktiviert' }} | {{ awx_bantime | default('n/a') }} | {{ awx_findtime | default('n/a') }} | {{ awx_maxretry | default('n/a') }} | {{ awx_ports | default('n/a') }} |
+
+### Trusted IPs (Whitelist)
+**IPv4:** {{ ignore_ips_v4 | default([]) | join(', ') }}
+**IPv6:** {{ ignore_ips_v6 | default([]) | join(', ') }}
+
+---
+
+## DEPLOYED KONFIGURATIONEN
+
+### /etc/fail2ban/jail.local
+```ini
+{{ f2b_doku_jail_local.content | b64decode }}
+```
+
+### /etc/fail2ban/jail.d/ (aktive Jails)
+```ini
+{{ f2b_doku_jails_active.stdout | default('Keine Jail-Dateien vorhanden') }}
+```
+
+---
+
+## DEPLOYED ACTIONS
+
+### /etc/fail2ban/action.d/nftables_custom.conf
+```ini
+{{ f2b_doku_action_custom.content | b64decode }}
+```
+
+### /etc/fail2ban/action.d/nftables-allports_custom.conf
+```ini
+{{ f2b_doku_action_allports.content | b64decode }}
+```
+
+### /etc/fail2ban/action.d/nftables-multiport_custom.conf
+```ini
+{{ f2b_doku_action_multiport.content | b64decode }}
+```
+
+---
+
+## NFTABLES INTEGRATION
+
+### Aktives Ruleset (inet f2b_tab)
+```
+{{ f2b_doku_nft_ruleset.stdout | default('Ruleset nicht verfügbar') }}
+```
+
+---
+
+**Status:** ✅ Fail2Ban + nftables erfolgreich konfiguriert

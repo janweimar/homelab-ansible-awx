@@ -1,0 +1,56 @@
+# 🔒 WIREGUARD VPN CLIENT - SYSTEM KONFIGURATION
+
+## ✅ WIREGUARD CLIENT STATUS
+
+```
+{{ vpn_doku_status.stdout | default('Status nicht verfuegbar') }}
+```
+
+---
+
+## 🔧 VPN CLIENT KONFIGURATION
+
+### Client Details
+- **Interface:** {{ vpn_interface | default('wg0') }}
+- **Client Name:** {{ my_vpn_config.name | default('unbekannt') }}
+- **Client VPN IP:** {{ my_vpn_config.vpn_ip | default('nicht konfiguriert') }}
+- **Client External IP:** {{ ansible_default_ipv4.address }}
+- **Server Endpoint:** {{ vpn_server_endpoint }}:{{ vpn_port }}
+- **Server VPN IP:** {{ vpn_server_ip }}
+
+---
+
+## 🌐 VPN VERBINDUNG
+
+### Verbindungstest
+```
+{{ vpn_ping.stdout | default('Ping nicht ausgefuehrt') }}
+```
+**Ergebnis:** {{ 'ERFOLGREICH' if (vpn_ping.rc | default(1)) == 0 else 'FEHLGESCHLAGEN' }}
+
+### Interface Details
+```
+{{ vpn_doku_interface.stdout | default('Interface Details nicht verfuegbar') }}
+```
+
+---
+
+## 📁 KONFIGURATIONSDATEIEN
+
+| Pfad | Beschreibung |
+|------|-------------|
+| `/etc/wireguard/wg0.conf` | Client WireGuard Konfiguration |
+| `/etc/systemd/system/wg-quick@wg0.service` | Systemd Service |
+
+---
+
+## 📊 DEPLOYMENT STATISTIKEN
+
+- **Deployment Zeit:** {{ ansible_date_time.iso8601 }}
+- **Hostname:** {{ ansible_hostname }}
+- **OS:** {{ ansible_distribution }} {{ ansible_distribution_version }}
+- **VPN Server:** {{ vpn_server_endpoint }}
+
+---
+
+**Status:** {{ '✅ VPN Client verbunden' if (vpn_ping.rc | default(1)) == 0 else '❌ VPN Client NICHT verbunden' }}

@@ -1,0 +1,37 @@
+---
+###########################################################################
+# Debug-Ausgabe für GeoIP Blocking nftables Playbook
+###########################################################################
+
+- name: 🐛 Debug - GeoIP Blocking nftables Variablen
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "🧱 GEOIP BLOCKING NFTABLES DEBUG"
+      - "=========================================="
+      - ""
+      - "📦 Hauptanwendung:"
+      - "  var_pack_name: {{ var_pack_name }}"
+      - "  var_dependencies_list: {{ var_dependencies_list }}"
+      - ""
+      - "🔧 Playbook-Variablen:"
+      - "  templates_paths_pb: {{ templates_paths_pb | default('nicht gesetzt') }}"
+      - "  pb_doku_template: {{ pb_doku_template | default('nicht gesetzt') }}"
+      - ""
+      - "🌍 GeoIP Konfiguration:"
+      - "  geo_mode: {{ geo_mode | default('nicht gesetzt') }}"
+      - "  geo_rollback_timer: {{ geo_rollback_timer | default('nicht gesetzt') }}"
+      - "  geo_priority_geo_chain: {{ geo_priority_geo_chain | default('nicht gesetzt') }}"
+      - "  geo_priority_trust_geo_chain: {{ geo_priority_trust_geo_chain | default('nicht gesetzt') }}"
+      - ""
+      - "🌍 System-Info:"
+      - "  ansible_os_family: {{ ansible_os_family }}"
+      - "  ansible_distribution: {{ ansible_distribution }}"
+      - "  ansible_distribution_version: {{ ansible_distribution_version }}"
+      - ""
+      - "📋 Status:"
+      - "  fire_geo_main_status: {{ fire_geo_main_status | default('nicht gesetzt') }}"
+      - "  allg_status: {{ allg_status | default('nicht gesetzt') }}"
+      - ""
+      - "=========================================="
+  when: debug_output | default(false) | bool

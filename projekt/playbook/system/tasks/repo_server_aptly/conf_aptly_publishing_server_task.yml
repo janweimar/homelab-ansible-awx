@@ -1,0 +1,369 @@
+---
+# ============================================================
+# DATEI: conf_aptly_publishing_server_task.yml
+# ============================================================
+
+# ============================================================
+# SCHRITT 1: Prüfen ob repo_self Publikation existiert
+# ============================================================
+- name: "APTLY – Bestehende Publikationen auflisten - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.shell: |
+    aptly publish list -json || echo '[]'
+  register: existing_publications
+  changed_when: false
+  failed_when: false
+
+- name: "APTLY – Publikationen parsen - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    publication_list: "{{ existing_publications.stdout | from_json }}"
+
+- name: "APTLY – Prüfen ob repo_self existiert - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    repo_self_exists: "{{ publication_list | selectattr('Prefix', 'equalto', 'repo_self') | list | length > 0 }}"
+
+# ============================================================
+# SCHRITT 2: Alte Publikation löschen (falls vorhanden)
+# ============================================================
+- name: "APTLY – Alte repo_self Publikation löschen - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.shell: |
+    aptly publish drop {{ aptly_publish_defaults.distribution_publish }} repo_self
+  register: drop_old_publish
+  changed_when: "'successfully removed' in drop_old_publish.stdout"
+  failed_when: false
+  when: repo_self_exists
+
+# ============================================================
+# SCHRITT 3: GPG-Key ermitteln
+# ============================================================
+- name: "APTLY – Aptly-Repo GPG-Key ermitteln - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.shell: |
+    gpg --list-secret-keys --with-colons | awk -F: '/^uid.*aptly_key/{getline; if(/^sec/) print $5; else {while(getline && !/^sec/); print $5}}'
+  register: gpg_key_detection_first
+  changed_when: false
+  failed_when: false
+  when: aptly_publish_defaults.gpg_apt_key_id is not defined
+  environment:
+    GNUPGHOME: "{{ aptly_gpg_home | default('/root/.gnupg') }}"
+
+- name: "APTLY – Aptly-Repo GPG-Key ermitteln (Fallback) - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.shell: |
+    gpg --list-secret-keys --with-colons 'aptly_key' 2>/dev/null | grep '^sec' | head -1 | cut -d: -f5
+  register: gpg_key_detection
+  changed_when: false
+  failed_when: gpg_key_detection.stdout == ''
+  when:
+    - aptly_publish_defaults.gpg_apt_key_id is not defined
+    - gpg_key_detection_first.stdout == ''
+  environment:
+    GNUPGHOME: "{{ aptly_gpg_home | default('/root/.gnupg') }}"
+
+- name: "APTLY – GPG-Key setzen - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    aptly_gpg_key: "{{ aptly_publish_defaults.gpg_apt_key_id | default(gpg_key_detection_first.stdout | default(gpg_key_detection.stdout)) }}"
+
+# ============================================================
+# SCHRITT 4: Initial-Publikation erstellen (MIT SIGNATUR)
+# ============================================================
+- name: "APTLY – Leeren Initial-Snapshot erstellen - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.command:
+    cmd: "aptly snapshot create repo_self-initial empty"
+  register: initial_snapshot
+  changed_when: "'successfully created' in initial_snapshot.stdout"
+  failed_when:
+    - initial_snapshot.rc != 0
+    - "'already exists' not in initial_snapshot.stderr"
+
+- name: "APTLY – Initial-Publikation erstellen (MIT GPG-Signatur) - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.shell: |
+    aptly publish snapshot \
+      -distribution={{ aptly_publish_defaults.distribution_publish }} \
+      -component={{ aptly_publish_defaults.component_publish }} \
+      -architectures={{ aptly_publish_defaults.Architectures_publish }} \
+      -gpg-key={{ aptly_gpg_key }} \
+      -batch \
+      -passphrase-file=<(echo "{{ aptly_publish_defaults.gpg_passphrase }}") \
+      repo_self-initial \
+      repo_self
+  args:
+    executable: /bin/bash
+  environment:
+    GPG_TTY: /dev/null
+    GNUPGHOME: "{{ aptly_gpg_home | default('/root/.gnupg') }}"
+  register: initial_publish
+  changed_when: "'successfully published' in initial_publish.stdout"
+  failed_when:
+    - initial_publish.rc != 0
+    - "'already exists' not in initial_publish.stderr"
+
+# ============================================================
+# SCHRITT 5: Aktuellen Snapshot aus Publikation ermitteln
+# ============================================================
+- name: "APTLY – Aktuellen Snapshot ermitteln - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.shell: |
+    aptly publish show {{ aptly_publish_defaults.distribution_publish }} repo_self | grep 'Snapshot:' | awk '{print $2}'
+  register: current_snapshot_name
+  changed_when: false
+  failed_when: false
+
+- name: "APTLY – Snapshot-Name setzen - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    active_snapshot: "{{ current_snapshot_name.stdout if current_snapshot_name.stdout != '' else 'repo_self-initial' }}"
+
+- name: "APTLY – Debug: Aktueller Snapshot - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.debug:
+    msg: "Aktueller Snapshot: {{ active_snapshot }}"
+
+# ============================================================
+# SCHRITT 6: IST-Liste aus Snapshot auslesen
+# ============================================================
+- name: "APTLY – Paketliste aus Snapshot auslesen - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.shell: |
+    aptly snapshot show -with-packages {{ active_snapshot }} | grep -E '^\s+[a-z]' | awk '{print $1"@"$2}'
+  register: snapshot_packages
+  changed_when: false
+  failed_when: false
+
+- name: "APTLY – IST-Liste (String-Format) - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    ist_liste: "{{ snapshot_packages.stdout_lines | default([]) }}"
+
+- name: "APTLY – IST-Liste in Dict-Format umwandeln - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    ist_liste_dict: []
+
+- name: "APTLY – IST-Liste aufarbeiten - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    ist_liste_dict: "{{ ist_liste_dict + [{'mirror': [], 'package': parts[0], 'version': parts[1]}] }}"
+  loop: "{{ ist_liste }}"
+  vars:
+    parts: "{{ item.split('@') }}"
+  when: ist_liste | length > 0
+
+- name: "APTLY – Debug: IST-Liste (Dict-Format) - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.debug:
+    msg: "{{ ist_liste_dict | length }} Pakete im aktuellen Snapshot: {{ ist_liste_dict }}"
+
+# ============================================================
+# SCHRITT 7: SOLL-Liste aus repo_self_list bauen
+# ============================================================
+- name: "APTLY – SOLL-Liste initialisieren - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    mirror_freeze_list: []
+
+- name: "APTLY – Mirror-Namen extrahieren - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    repo_self_mirrors: "{{ repo_self_list[ansible_os_family].apt_source_list.keys() | list }}"
+
+- name: "APTLY – SOLL-Liste aufbauen (Include Loop) - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.include_tasks: "{{ task_paths.aptly_publish_management }}"
+  loop: "{{ repo_self_mirrors }}"
+  loop_control:
+    loop_var: current_mirror_name
+
+- name: "APTLY – Mirror-Namen mit Freeze filtern - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    repo_self_mirrors_with_freeze: []
+
+- name: "APTLY – Mirrors mit Freeze sammeln - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    repo_self_mirrors_with_freeze: "{{ repo_self_mirrors_with_freeze + [item] }}"
+  loop: "{{ repo_self_mirrors }}"
+  when:
+    - repo_self_list[ansible_os_family].apt_source_list[item] is defined
+    - repo_self_list[ansible_os_family].apt_source_list[item].freeze is defined
+    - repo_self_list[ansible_os_family].apt_source_list[item].freeze | length > 0
+
+- name: "APTLY – Debug: SOLL-Liste (mirror_freeze_list) - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.debug:
+    msg: "{{ mirror_freeze_list | length }} Pakete in SOLL-Liste: {{ mirror_freeze_list }}"
+
+# ============================================================
+# SCHRITT 8: Vergleich IST vs SOLL
+# ============================================================
+- name: "APTLY – Vergleichs-Strings erstellen - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    ist_compare: "{{ ist_liste_dict | map('regex_replace', '^(.*)$', '\\g<0>') | map('combine', {'compare': ''}) | map(attribute='package') | zip(ist_liste_dict | map(attribute='version')) | map('join', '@') | list }}"
+    soll_compare: "{{ mirror_freeze_list | map(attribute='package') | zip(mirror_freeze_list | map(attribute='version')) | map('join', '@') | list }}"
+
+- name: "APTLY – Vergleichs-Listen vereinfachen - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    ist_pkg_versions: "{{ ist_liste_dict | map(attribute='package') | zip(ist_liste_dict | map(attribute='version')) | map('join', '@') | list }}"
+    soll_pkg_versions: "{{ mirror_freeze_list | map(attribute='package') | zip(mirror_freeze_list | map(attribute='version')) | map('join', '@') | list }}"
+
+- name: "APTLY – Delete-Differenz ermitteln (IST - SOLL) - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    delete_diff_packages: "{{ ist_pkg_versions | difference(soll_pkg_versions) }}"
+
+- name: "APTLY – Add-Differenz ermitteln (SOLL - IST) - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    add_diff_packages: "{{ soll_pkg_versions | difference(ist_pkg_versions) }}"
+
+- name: "APTLY – Delete-Differenz (komplette Objekte) - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    delete_diff: []
+
+- name: "APTLY – Delete-Differenz aufbauen - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    delete_diff: "{{ delete_diff + [item] }}"
+  loop: "{{ ist_liste_dict }}"
+  when: (item.package + '@' + item.version) in delete_diff_packages
+
+- name: "APTLY – Add-Differenz (komplette Objekte) - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    add_diff: []
+
+- name: "APTLY – Add-Differenz aufbauen - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    add_diff: "{{ add_diff + [item] }}"
+  loop: "{{ mirror_freeze_list }}"
+  when: (item.package + '@' + item.version) in add_diff_packages
+
+- name: "APTLY – Keine Änderung prüfen - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    keine_aenderung: "{{ (delete_diff | length == 0) and (add_diff | length == 0) }}"
+
+- name: "APTLY – Debug: Keine Änderungen - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.debug:
+    msg: "✓ Keine Änderungen - Publish ist aktuell"
+  when: keine_aenderung
+
+- name: "APTLY – Debug: Änderungen erkannt - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.debug:
+    msg: |
+      Änderungen erforderlich:
+        Zu löschen: {{ delete_diff | length }} Pakete
+        Hinzuzufügen: {{ add_diff | length }} Pakete
+      Delete: {{ delete_diff }}
+      Add: {{ add_diff }}
+  when: not keine_aenderung
+
+# ============================================================
+# SCHRITT 9: Publikation aktualisieren (bei Änderungen)
+# ============================================================
+- block:
+    - name: "APTLY – Temporäre Snapshots aufräumen (Vorbereitung) - conf_aptly_publishing_server_task.yml"
+      ansible.builtin.command: "aptly snapshot drop {{ item }}"
+      loop:
+        - repo_self-all-mirrors
+        - repo_self-new
+      failed_when: false
+      changed_when: false
+
+    - name: "APTLY – Filter-String für SOLL-Pakete bauen - conf_aptly_publishing_server_task.yml"
+      ansible.builtin.set_fact:
+        aptly_filter_string: >-
+          {%- set filters = [] -%}
+          {%- for item in mirror_freeze_list -%}
+            {%- set _ = filters.append('(Name (= ' + item.package + '), $Version (= ' + item.version + '))') -%}
+          {%- endfor -%}
+          {{ filters | join(' | ') }}
+      when: mirror_freeze_list | length > 0
+
+    - name: "APTLY – Alle Mirror-Snapshots zusammenführen - conf_aptly_publishing_server_task.yml"
+      ansible.builtin.command:
+        cmd: "aptly snapshot merge repo_self-all-mirrors {{ repo_self_mirrors_with_freeze | join(' ') }}"
+      register: merge_all_result
+      changed_when: "'successfully created' in merge_all_result.stdout"
+      failed_when:
+        - merge_all_result.rc != 0
+        - "'already exists' not in merge_all_result.stderr"
+
+    - name: "APTLY – Alten Merge-Snapshot entfernen (falls vorhanden) - conf_aptly_publishing_server_task.yml"
+      ansible.builtin.command: "aptly snapshot drop repo_self-all-mirrors"
+      when: "'already exists' in merge_all_result.stderr"
+      failed_when: false
+      changed_when: false
+
+    - name: "APTLY – Merge erneut erstellen - conf_aptly_publishing_server_task.yml"
+      ansible.builtin.command:
+        cmd: "aptly snapshot merge repo_self-all-mirrors {{ repo_self_mirrors_with_freeze | join(' ') }}"
+      when: "'already exists' in merge_all_result.stderr"
+      changed_when: true
+
+    - name: "APTLY – Neuen Snapshot mit Filter erstellen - conf_aptly_publishing_server_task.yml"
+      ansible.builtin.command:
+        cmd: "aptly snapshot filter repo_self-all-mirrors repo_self-new '{{ aptly_filter_string }}'"
+      register: new_snapshot
+      changed_when: "'successfully created' in new_snapshot.stdout"
+      when: mirror_freeze_list | length > 0
+
+    - name: "APTLY – Leeren Snapshot erstellen - conf_aptly_publishing_server_task.yml"
+      ansible.builtin.command:
+        cmd: "aptly snapshot create repo_self-new empty"
+      register: empty_snapshot
+      changed_when: "'successfully created' in empty_snapshot.stdout"
+      when: mirror_freeze_list | length == 0
+
+    - name: "APTLY – GPG-Key für Switch ermitteln - conf_aptly_publishing_server_task.yml"
+      ansible.builtin.shell: |
+        gpg --list-secret-keys --with-colons | grep '^sec' | cut -d: -f5 | head -n1
+      register: gpg_key_for_switch
+      changed_when: false
+      environment:
+        GNUPGHOME: "{{ aptly_gpg_home | default('/root/.gnupg') }}"
+      when: aptly_publish_defaults.gpg_apt_key_id is not defined
+
+    - name: "APTLY – GPG-Key setzen - conf_aptly_publishing_server_task.yml"
+      ansible.builtin.set_fact:
+        aptly_gpg_key_switch: "{{ aptly_publish_defaults.gpg_apt_key_id | default(gpg_key_for_switch.stdout) }}"
+
+    - name: "APTLY – Publish Switch auf neuen Snapshot (MIT GPG-Signatur) - conf_aptly_publishing_server_task.yml"
+      ansible.builtin.shell: |
+        aptly publish switch \
+          -gpg-key={{ aptly_gpg_key_switch }} \
+          -batch \
+          -passphrase-file=<(echo "{{ aptly_publish_defaults.gpg_passphrase }}") \
+          {{ aptly_publish_defaults.distribution_publish }} \
+          repo_self \
+          repo_self-new
+      args:
+        executable: /bin/bash
+      environment:
+        GPP_TTY: /dev/null
+        GNUPGHOME: "{{ aptly_gpg_home | default('/root/.gnupg') }}"
+      register: publish_switch
+      changed_when: "'successfully switched' in publish_switch.stdout"
+
+    - name: "APTLY – Debug: Publish erfolgreich aktualisiert - conf_aptly_publishing_server_task.yml"
+      ansible.builtin.debug:
+        msg: |
+          ✓ Publish erfolgreich aktualisiert
+            Hinzugefügt: {{ add_diff | length }} Pakete
+            Entfernt: {{ delete_diff | length }} Pakete
+
+    - name: "APTLY – Alten aktiven Snapshot aufräumen - conf_aptly_publishing_server_task.yml"
+      ansible.builtin.command: "aptly snapshot drop {{ active_snapshot }}"
+      failed_when: false
+      changed_when: false
+
+    - name: "APTLY – Temporären Merge-Snapshot aufräumen - conf_aptly_publishing_server_task.yml"
+      ansible.builtin.command: "aptly snapshot drop repo_self-all-mirrors"
+      failed_when: false
+      changed_when: false
+
+  when: not keine_aenderung
+
+# ============================================================
+# SCHRITT 10: Debug-Ausgabe
+# ============================================================
+- name: "APTLY – Paketliste aus aktuellem Snapshot - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.shell: |
+    aptly snapshot show -with-packages repo_self-new | grep -E '^\s+[a-z]' | sed 's/^  //'
+  register: package_list_raw
+  changed_when: false
+  failed_when: false
+
+- name: "APTLY – Paketanzahl zählen - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.set_fact:
+    package_count: "{{ package_list_raw.stdout_lines | length }}"
+
+- name: "APTLY – Veröffentlichte Pakete - conf_aptly_publishing_server_task.yml"
+  ansible.builtin.debug:
+    msg: |
+      ═══════════════════════════════════════════════════════
+      REPO_SELF - {{ package_count }} PAKETE VERÖFFENTLICHT
+      ═══════════════════════════════════════════════════════
+      {% for pkg in package_list_raw.stdout_lines %}
+      {{ pkg }}
+      {% endfor %}
+      ═══════════════════════════════════════════════════════

@@ -1,0 +1,123 @@
+---
+###########################################################################
+# 🔧 Generischer App Test
+# =========================================================================
+# Zweck  : Fallback-Test für alle Apps/Services ohne eigenes Testmodul
+#          Ebene 1: Paket installiert?
+#          Ebene 2: Service aktiv und enabled?
+#          Ebene 3: Log-Einträge (Fehler/Warnungen)
+#          Ebene 4: Ressourcenverbrauch
+# Variable: current_app (wird vom test_runner gesetzt)
+# Schreibt in: app_results (wird angehängt)
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+# =========================================================================
+# Ebene 1 — Service-Status
+# =========================================================================
+
+- name: "GEN | {{ current_app }} — Service-Status prüfen"
+  ansible.builtin.command: "systemctl is-active {{ current_app }}"
+  register: reg_gen_active
+  changed_when: false
+  failed_when: false
+
+- name: "GEN | {{ current_app }} — Enabled-Status prüfen"
+  ansible.builtin.command: "systemctl is-enabled {{ current_app }}"
+  register: reg_gen_enabled
+  changed_when: false
+  failed_when: false
+
+- name: "GEN | {{ current_app }} — Service-Details"
+  ansible.builtin.shell: "systemctl show {{ current_app }} --property=ActiveState,SubState,MainPID,ExecMainStartTimestamp --no-pager"
+  register: reg_gen_details
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ebene 2 — Neustart-Zähler
+# =========================================================================
+
+- name: "GEN | {{ current_app }} — Neustart-Zähler prüfen"
+  ansible.builtin.shell: "systemctl show {{ current_app }} --property=NRestarts --value"
+  register: reg_gen_restarts
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ebene 3 — Letzte Log-Einträge
+# =========================================================================
+
+- name: "GEN | {{ current_app }} — Letzte Log-Einträge"
+  ansible.builtin.shell: "journalctl -u {{ current_app }} --no-pager -n 20 -q 2>/dev/null"
+  register: reg_gen_logs
+  changed_when: false
+  failed_when: false
+
+- name: "GEN | {{ current_app }} — Fehler in Logs zählen"
+  ansible.builtin.shell: "journalctl -u {{ current_app }} --no-pager -p err -n 50 -q 2>/dev/null | wc -l"
+  register: reg_gen_log_fehler
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ebene 4 — Ressourcen
+# =========================================================================
+
+- name: "GEN | {{ current_app }} — Ressourcenverbrauch"
+  ansible.builtin.shell: >
+    pid=$(systemctl show {{ current_app }} --property=MainPID --value 2>/dev/null);
+    [ -n "$pid" ] && [ "$pid" != "0" ] &&
+    ps -p "$pid" -o %cpu,%mem,rss --no-headers 2>/dev/null ||
+    echo "0.0 0.0 0"
+  register: reg_gen_ressourcen
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ergebnis anhängen
+# =========================================================================
+
+- name: "GEN | {{ current_app }} — Ergebnis in app_results speichern"
+  ansible.builtin.set_fact:
+    app_results: >-
+      {{
+        app_results + [{
+          'app': current_app,
+          'typ': 'generisch',
+          'status': (
+            'FEHLER' if reg_gen_active.stdout != 'active'
+            else 'WARNUNG' if (reg_gen_log_fehler.stdout | int) > 10
+            else 'WARNUNG' if (reg_gen_restarts.stdout | default(0) | int) > 3
+            else 'OK'
+          ),
+          'details': [
+            {
+              'name': 'Service aktiv',
+              'status': 'OK' if reg_gen_active.stdout == 'active' else 'FEHLER',
+              'wert': reg_gen_active.stdout,
+              'hinweis': '' if reg_gen_active.stdout == 'active' else current_app + ' läuft nicht!'
+            },
+            {
+              'name': 'Service enabled',
+              'status': 'OK' if reg_gen_enabled.stdout in ['enabled', 'static'] else 'WARNUNG',
+              'wert': reg_gen_enabled.stdout,
+              'hinweis': '' if reg_gen_enabled.stdout in ['enabled', 'static'] else 'Service nicht enabled — startet nicht nach Reboot'
+            },
+            {
+              'name': 'Neustarts',
+              'status': 'OK' if (reg_gen_restarts.stdout | default(0) | int) <= 3 else 'WARNUNG',
+              'wert': reg_gen_restarts.stdout | default(0) | string + ' Neustarts',
+              'hinweis': 'Viele Neustarts — Service instabil?' if (reg_gen_restarts.stdout | default(0) | int) > 3 else ''
+            },
+            {
+              'name': 'Log-Fehler',
+              'status': 'OK' if (reg_gen_log_fehler.stdout | int) == 0 else 'WARNUNG',
+              'wert': reg_gen_log_fehler.stdout | trim + ' Fehler in Logs',
+              'hinweis': 'Fehler in Service-Logs vorhanden' if (reg_gen_log_fehler.stdout | int) > 0 else ''
+            }
+          ],
+          'spezialtest': false
+        }]
+      }}
+  when: reg_gen_active.stdout in ['active', 'inactive', 'failed']

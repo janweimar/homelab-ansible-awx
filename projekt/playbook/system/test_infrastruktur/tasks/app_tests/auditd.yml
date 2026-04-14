@@ -1,0 +1,91 @@
+---
+###########################################################################
+# 📋 Spezialtest: auditd
+# =========================================================================
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+- name: "AUD | Paket installiert"
+  ansible.builtin.command: dpkg -s auditd
+  register: reg_aud_pkg
+  changed_when: false
+  failed_when: false
+
+- name: "AUD | Service aktiv"
+  ansible.builtin.command: systemctl is-active auditd
+  register: reg_aud_active
+  changed_when: false
+  failed_when: false
+
+- name: "AUD | Audit-Regeln lesen"
+  ansible.builtin.command: auditctl -l
+  register: reg_aud_regeln
+  changed_when: false
+  failed_when: false
+
+- name: "AUD | Regelanzahl"
+  ansible.builtin.shell: auditctl -l 2>/dev/null | grep -v "^-e\|^No rules" | wc -l
+  register: reg_aud_regelanzahl
+  changed_when: false
+  failed_when: false
+
+- name: "AUD | Audit-Log vorhanden"
+  ansible.builtin.stat:
+    path: /var/log/audit/audit.log
+  register: reg_aud_log
+
+- name: "AUD | Audit-Zusammenfassung"
+  ansible.builtin.command: aureport --summary
+  register: reg_aud_summary
+  changed_when: false
+  failed_when: false
+
+- name: "AUD | Fehlgeschlagene Logins im Audit-Log"
+  ansible.builtin.shell: aureport --auth --failed 2>/dev/null | wc -l
+  register: reg_aud_failed_auth
+  changed_when: false
+  failed_when: false
+
+- name: "AUD | Ergebnis in app_results speichern"
+  ansible.builtin.set_fact:
+    app_results: >-
+      {{
+        app_results + [{
+          'app': 'auditd',
+          'typ': 'spezial',
+          'status': (
+            'FEHLER' if reg_aud_active.stdout != 'active'
+            else 'WARNUNG' if (reg_aud_regelanzahl.stdout | int) == 0
+            else 'WARNUNG' if not reg_aud_log.stat.exists
+            else 'OK'
+          ),
+          'details': [
+            {
+              'name': 'Service aktiv',
+              'status': 'OK' if reg_aud_active.stdout == 'active' else 'FEHLER',
+              'wert': reg_aud_active.stdout,
+              'hinweis': 'auditd läuft nicht!' if reg_aud_active.stdout != 'active' else ''
+            },
+            {
+              'name': 'Audit-Regeln',
+              'status': 'OK' if (reg_aud_regelanzahl.stdout | int) > 0 else 'WARNUNG',
+              'wert': reg_aud_regelanzahl.stdout | trim + ' Regeln konfiguriert',
+              'hinweis': 'Keine Audit-Regeln konfiguriert — Auditing erfasst nichts' if (reg_aud_regelanzahl.stdout | int) == 0 else ''
+            },
+            {
+              'name': 'Audit-Log',
+              'status': 'OK' if reg_aud_log.stat.exists else 'FEHLER',
+              'wert': 'vorhanden' if reg_aud_log.stat.exists else 'FEHLT',
+              'hinweis': 'Audit-Log fehlt!' if not reg_aud_log.stat.exists else ''
+            },
+            {
+              'name': 'Fehlgeschlagene Auth-Versuche',
+              'status': 'WARNUNG' if (reg_aud_failed_auth.stdout | int) > 5 else 'OK',
+              'wert': reg_aud_failed_auth.stdout | trim + ' fehlgeschlagene Authentifizierungen',
+              'hinweis': 'Erhöhte Anzahl fehlgeschlagener Logins im Audit-Log!' if (reg_aud_failed_auth.stdout | int) > 5 else ''
+            }
+          ],
+          'spezialtest': true
+        }]
+      }}
+  when: reg_aud_pkg.rc == 0

@@ -1,0 +1,304 @@
+---
+###########################################################################
+# stalwart_csv_import.yml
+# Stalwart Mail Server — API-Konfiguration + Account-Synchronisierung
+#
+# Läuft NACH der Installation und NACH nginx-Konfiguration!
+# Spricht die Stalwart API über die nginx-Domain an.
+#
+# Ablauf:
+#   1. API-Erstkonfiguration (Admin-PW, Domain, DKIM)
+#   2. CSV einlesen
+#   3. Accounts synchronisieren (anlegen / aktualisieren / löschen)
+#
+# CSV ist die einzige Wahrheit:
+#   - Accounts nicht in CSV → löschen
+#   - Accounts in CSV aber nicht vorhanden → anlegen
+#   - Accounts in beiden → aktualisieren
+#
+# CSV-Datei: playbook/system/tasks/stalwart/daten/accounts.csv
+# Format: name,description,password,email,aliases,quota_bytes,role,lists
+###########################################################################
+
+# ============================================================
+# 0) Variablen
+# ============================================================
+- name: 🔧 Setze Stalwart API-URL - stalwart_csv_import.yml
+  ansible.builtin.set_fact:
+    _stalwart_mail_domain: "{{ urls[ansible_host].stalwart.mail_domain }}"
+    _stalwart_hostname: "{{ urls[ansible_host].stalwart.hostname }}"
+    _stalwart_api: "http://{{ urls[ansible_host].stalwart.domain }}"
+
+# ============================================================
+# 1) API-Erstkonfiguration
+# ============================================================
+
+# Admin-Passwort aus Pod-Logs holen (Erststart)
+- name: 🔑 Hole initiales Admin-Passwort (Kubernetes) - stalwart_csv_import.yml
+  ansible.builtin.shell: >
+    kubectl logs -n {{ app_name }}
+    -l app={{ app_name }} --tail=50
+    | grep -oP '(?<=password )[^\s]+' | head -1
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _initial_password
+  changed_when: false
+  failed_when: false
+  when: _is_kubernetes | bool
+
+- name: 🔑 Hole initiales Admin-Passwort (Docker) - stalwart_csv_import.yml
+  ansible.builtin.shell: docker logs stalwart 2>&1 | grep -oP '(?<=password )[^\s]+' | head -1
+  register: _initial_password_docker
+  changed_when: false
+  failed_when: false
+  when: _deploy_type_base == 'docker'
+
+- name: 🔧 Setze initiales Passwort - stalwart_csv_import.yml
+  ansible.builtin.set_fact:
+    _init_pw: >-
+      {%- if _is_kubernetes | bool -%}
+      {{ _initial_password.stdout | default(app_admin_password) }}
+      {%- else -%}
+      {{ _initial_password_docker.stdout | default(app_admin_password) }}
+      {%- endif -%}
+
+# API erreichbar?
+- name: ⏳ Warte bis Stalwart API erreichbar - stalwart_csv_import.yml
+  ansible.builtin.uri:
+    url: "{{ _stalwart_api }}/healthz/live"
+    status_code: 200
+  register: _api_health
+  retries: 10
+  delay: 5
+  until: _api_health.status == 200
+
+# Admin-Passwort setzen
+- name: 🔑 Setze Admin-Passwort - stalwart_csv_import.yml
+  ansible.builtin.uri:
+    url: "{{ _stalwart_api }}/api/principal/admin"
+    method: PATCH
+    user: admin
+    password: "{{ _init_pw }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      - action: "set"
+        field: "secrets"
+        value: "{{ app_admin_password }}"
+    status_code: [200, 204]
+  failed_when: false
+
+# Domain anlegen
+- name: 🌐 Domain anlegen - stalwart_csv_import.yml
+  ansible.builtin.uri:
+    url: "{{ _stalwart_api }}/api/principal"
+    method: POST
+    user: admin
+    password: "{{ app_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      type: "domain"
+      name: "{{ _stalwart_mail_domain }}"
+      description: "{{ _stalwart_mail_domain }}"
+    status_code: [200, 409]
+  register: _domain_result
+  failed_when: false
+
+- name: 📊 Domain Status - stalwart_csv_import.yml
+  ansible.builtin.debug:
+    msg: "{{ '✅ Domain angelegt' if _domain_result.status | default(0) == 200 else '⚠️ Domain existiert bereits' }}: {{ _stalwart_mail_domain }}"
+
+# DKIM generieren
+- name: 🔐 DKIM generieren - stalwart_csv_import.yml
+  ansible.builtin.uri:
+    url: "{{ _stalwart_api }}/api/dkim"
+    method: POST
+    user: admin
+    password: "{{ app_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      algorithm: "Ed25519"
+      domain: "{{ _stalwart_mail_domain }}"
+    status_code: [200, 409]
+  register: _dkim_result
+  failed_when: false
+
+- name: 📊 DKIM Status - stalwart_csv_import.yml
+  ansible.builtin.debug:
+    msg: "{{ '✅ DKIM generiert' if _dkim_result.status | default(0) == 200 else '⚠️ DKIM existiert bereits' }}: {{ _stalwart_mail_domain }}"
+
+# ============================================================
+# 2) CSV einlesen
+# ============================================================
+- name: 📋 CSV-Datei einlesen - stalwart_csv_import.yml
+  ansible.builtin.slurp:
+    src: "{{ playbook_dir }}/playbook/system/tasks/stalwart/daten/accounts.csv"
+  register: _csv_raw
+  delegate_to: localhost
+  become: false
+
+- name: 🔧 CSV parsen - stalwart_csv_import.yml
+  ansible.builtin.set_fact:
+    _csv_accounts: >-
+      {%- set rows = [] -%}
+      {%- set lines = (_csv_raw.content | b64decode).splitlines() -%}
+      {%- set headers = lines[0].split(',') -%}
+      {%- for line in lines[1:] -%}
+        {%- if line | trim | length > 0 -%}
+          {%- set cols = line.split(',') -%}
+          {%- set row = {} -%}
+          {%- for i in range(headers | length) -%}
+            {%- set _ = row.update({headers[i] | trim: cols[i] | default('') | trim}) -%}
+          {%- endfor -%}
+          {%- set _ = rows.append(row) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ rows }}
+    _csv_names: >-
+      {%- set names = [] -%}
+      {%- set lines = (_csv_raw.content | b64decode).splitlines() -%}
+      {%- set headers = lines[0].split(',') -%}
+      {%- for line in lines[1:] -%}
+        {%- if line | trim | length > 0 -%}
+          {%- set _ = names.append(line.split(',')[0] | trim) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ names }}
+
+- name: 📊 DEBUG CSV - stalwart_csv_import.yml
+  ansible.builtin.debug:
+    msg:
+      - "📋 CSV-Accounts: {{ _csv_accounts | length }}"
+      - "{{ _csv_names }}"
+
+# ============================================================
+# 3) Bestehende Accounts holen
+# ============================================================
+- name: 🔍 Hole bestehende Accounts - stalwart_csv_import.yml
+  ansible.builtin.uri:
+    url: "{{ _stalwart_api }}/api/principal?types=individual&limit=1000"
+    method: GET
+    user: admin
+    password: "{{ app_admin_password }}"
+    force_basic_auth: true
+    return_content: true
+    status_code: 200
+  register: _existing_accounts
+  failed_when: false
+
+- name: 🔧 Setze bestehende Namen - stalwart_csv_import.yml
+  ansible.builtin.set_fact:
+    _existing_names: >-
+      {{ _existing_accounts.json.data.items
+         | default([])
+         | map(attribute='name')
+         | reject('equalto', 'admin')
+         | list }}
+
+- name: 📊 DEBUG Account-Vergleich - stalwart_csv_import.yml
+  ansible.builtin.debug:
+    msg:
+      - "📊 Bestehend: {{ _existing_names }}"
+      - "🗑️  Löschen:  {{ _existing_names | difference(_csv_names) }}"
+      - "➕ Anlegen:   {{ _csv_names | difference(_existing_names) }}"
+      - "🔄 Update:    {{ _csv_names | intersect(_existing_names) }}"
+
+# ============================================================
+# 4) Accounts löschen
+# ============================================================
+- name: 🗑️ Lösche Accounts nicht in CSV - stalwart_csv_import.yml
+  ansible.builtin.uri:
+    url: "{{ _stalwart_api }}/api/principal/{{ item }}"
+    method: DELETE
+    user: admin
+    password: "{{ app_admin_password }}"
+    force_basic_auth: true
+    status_code: [200, 204, 404]
+  loop: "{{ _existing_names | difference(_csv_names) }}"
+  loop_control:
+    label: "🗑️ {{ item }}"
+  failed_when: false
+
+# ============================================================
+# 5) Neue Accounts anlegen
+# ============================================================
+- name: ➕ Lege neue Accounts an - stalwart_csv_import.yml
+  ansible.builtin.uri:
+    url: "{{ _stalwart_api }}/api/principal"
+    method: POST
+    user: admin
+    password: "{{ app_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      type: "individual"
+      name: "{{ item.name }}"
+      description: "{{ item.description | default('') }}"
+      secrets:
+        - "{{ item.password }}"
+      emails: >-
+        {{ [item.email] + (item.aliases.split('|') | reject('equalto', '') | list
+           if item.aliases | default('') | length > 0 else []) }}
+      quota: "{{ (item.quota_bytes | default(0)) | int }}"
+      roles:
+        - "{{ item.role | default('user') }}"
+      lists:
+        - "all"
+    status_code: [200, 201]
+  loop: "{{ _csv_accounts | selectattr('name', 'in', _csv_names | difference(_existing_names)) | list }}"
+  loop_control:
+    label: "➕ {{ item.name }} ({{ item.email }})"
+  failed_when: false
+
+# ============================================================
+# 6) Bestehende Accounts aktualisieren
+# ============================================================
+- name: 🔄 Aktualisiere Accounts - stalwart_csv_import.yml
+  ansible.builtin.uri:
+    url: "{{ _stalwart_api }}/api/principal/{{ item.name }}"
+    method: PATCH
+    user: admin
+    password: "{{ app_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      - action: "set"
+        field: "description"
+        value: "{{ item.description | default('') }}"
+      - action: "set"
+        field: "emails"
+        value: >-
+          {{ [item.email] + (item.aliases.split('|') | reject('equalto', '') | list
+             if item.aliases | default('') | length > 0 else []) }}
+      - action: "set"
+        field: "quota"
+        value: "{{ (item.quota_bytes | default(0)) | int }}"
+      - action: "set"
+        field: "roles"
+        value:
+          - "{{ item.role | default('user') }}"
+    status_code: [200, 204]
+  loop: "{{ _csv_accounts | selectattr('name', 'in', _csv_names | intersect(_existing_names)) | list }}"
+  loop_control:
+    label: "🔄 {{ item.name }}"
+  failed_when: false
+
+# ============================================================
+# 7) Zusammenfassung
+# ============================================================
+- name: 📊 CSV-Import Zusammenfassung - stalwart_csv_import.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "📋 CSV-Import Ergebnis"
+      - "=========================================="
+      - "✅ Gesamt in CSV:  {{ _csv_names | length }}"
+      - "🗑️  Gelöscht:      {{ _existing_names | difference(_csv_names) | length }}"
+      - "➕ Neu angelegt:   {{ _csv_names | difference(_existing_names) | length }}"
+      - "🔄 Aktualisiert:   {{ _csv_names | intersect(_existing_names) | length }}"
+      - "⚠️  DNS setzen:    MX + DKIM + SPF + DMARC!"
+      - "=========================================="

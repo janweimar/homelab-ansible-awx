@@ -1,0 +1,126 @@
+- name: 🔥 Ensure iptables uses nftables backend
+  ansible.builtin.command: update-alternatives --set iptables /usr/sbin/iptables-nft
+  register: iptables_switch
+  changed_when: "'using /usr/sbin/iptables-nft' in iptables_switch.stdout"
+  failed_when: false
+
+- name: 🧪 Check active iptables backend
+  ansible.builtin.command: iptables -V
+  register: iptables_version
+  changed_when: false
+
+- name: 🧪 Debug iptables backend
+  ansible.builtin.debug:
+    msg: "{{ iptables_version.stdout }}"
+
+- name: ❌ Abort if iptables legacy backend is active
+  ansible.builtin.fail:
+    msg: "iptables läuft noch im legacy-Modus – Abbruch, da Kubernetes nftables benötigt."
+  when: "'legacy' in iptables_version.stdout"
+
+- name: 🔥 Ensure ip6tables uses nftables backend
+  ansible.builtin.command: update-alternatives --set ip6tables /usr/sbin/ip6tables-nft
+  register: ip6tables_switch
+  changed_when: "'using /usr/sbin/ip6tables-nft' in ip6tables_switch.stdout"
+  failed_when: false
+
+- name: 🧪 Check active ip6tables backend
+  ansible.builtin.command: ip6tables -V
+  register: ip6tables_version
+  changed_when: false
+
+- name: 🧪 Debug ip6tables backend
+  ansible.builtin.debug:
+    msg: "{{ ip6tables_version.stdout }}"
+
+- name: ❌ Abort if ip6tables legacy backend is active
+  ansible.builtin.fail:
+    msg: "ip6tables läuft noch im legacy-Modus – Abbruch, da Kubernetes nftables benötigt."
+  when: "'legacy' in ip6tables_version.stdout"
+# ------------------------------------------------------------------
+# nftables / iptables Backend ist jetzt konsistent (nf_tables)
+# Ab hier dürfen kubeadm reset / init ausgeführt werden
+# ------------------------------------------------------------------
+
+
+- name: 🧹 Reset Kubernetes control plane (if exists)
+  ansible.builtin.command: kubeadm reset -f
+  register: reset_result
+  failed_when: false # niemals als Fehler werten
+  changed_when: "'[reset]' in reset_result.stdout"
+
+- name: 🧹 Stop kubelet if present
+  ansible.builtin.service:
+    name: kubelet
+    state: stopped
+  ignore_errors: true
+
+- name: 🧹 Stop containerd if present
+  ansible.builtin.service:
+    name: containerd
+    state: stopped
+  ignore_errors: true
+
+- name: 👤 Ensure kube user exists - kubernet_pre_task.yml
+  ansible.builtin.user:
+    name: "{{ kube_user }}"
+    create_home: true
+    shell: /bin/bash
+    password: "{{ kube_password | password_hash('sha512') }}"
+    update_password: always
+    state: present
+
+- name: 🧹 Remove Kubernetes config dirs
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/kubernetes
+    - /var/lib/etcd
+    - /var/lib/cni
+    - /var/lib/kubelet
+    - /etc/cni/net.d
+  ignore_errors: true
+
+# Swap deaktivieren
+- name: Disable swap immediately
+  ansible.builtin.command: swapoff -a
+  when: ansible_swaptotal_mb > 0
+
+- name: Remove swap from fstab
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^\s*([^#]\S*\s+swap\s+)'
+    replace: '# \1'
+
+# Kernelmodule
+- name: Load overlay kernel module - kubernet_pre_task.yml
+  ansible.builtin.command: modprobe overlay
+  changed_when: true
+
+- name: Load br_netfilter kernel module - kubernet_pre_task.yml
+  ansible.builtin.command: modprobe br_netfilter
+  changed_when: true
+
+- name: Persist kernel modules - kubernet_pre_task.yml
+  ansible.builtin.copy:
+    content: |
+      overlay
+      br_netfilter
+    dest: /etc/modules-load.d/kubernetes.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+# Sysctl
+- name: Set Kubernetes sysctl params
+  ansible.builtin.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_set: true
+    state: present
+    reload: true
+  loop:
+    - { name: "net.bridge.bridge-nf-call-iptables", value: 1 }
+    - { name: "net.ipv4.ip_forward", value: 1 }
+    - { name: "net.bridge.bridge-nf-call-ip6tables", value: 1 }

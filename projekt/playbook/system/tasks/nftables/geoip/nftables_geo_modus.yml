@@ -1,0 +1,233 @@
+##########################################################################
+# 🧪      Prüfen ob Tabelle inet
+#                 'geo_tab'
+# 🧪 existiert, wenn nicht wird sie angelegt
+###########################################################################
+# Wichtige Anmerkung:
+# Diese Chain dient dazu, um GeoIP-Blockierungsregeln zu implementieren,
+# abhängig vom gewählten Modus (allow/block).
+# Table name: geo_tab
+# Chain name: geo_chain
+###########################################################################
+
+###########################################################################
+# 🧪         Prüfen ob Tabelle
+#                'geo_tab'
+# 🧪      existiert, wenn nicht wird sie angelegt
+###########################################################################
+- block:
+    - name: ⚙️ Prüfen, ob Tabelle inet 'geo_tab' existiert -nftabls_geo_modus.yml
+      ansible.builtin.shell: nft list table inet geo_tab >/dev/null 2>&1
+      register: nft_table_check__geo_tab
+      ignore_errors: true
+      changed_when: false
+
+    - name: 🧱 Tabelle inet 'geo_tab' anlegen, falls nicht vorhanden
+      ansible.builtin.shell: nft add table inet geo_tab
+      when: nft_table_check__geo_tab.rc != 0
+      become: true
+      changed_when: true
+
+###########################################################################
+# 🧪         Prüfen ob chain
+#              geo_chain
+#            in Tabelle inet 'geo_tab'
+# 🧪        existiert, wenn nicht wird sie angelegt
+###########################################################################
+- block:
+    - name: ⚙️ Prüfen, ob Chain 'geo_chain' existiert-nftabls_geo_modus.yml
+      ansible.builtin.shell: >
+        nft list chain inet geo_tab geo_chain >/dev/null 2>&1
+      register: nft_geo_chain_check
+      ignore_errors: true
+      failed_when: false
+      changed_when: false
+
+      ###########################################################################
+      # 🔄 Policy vor flush auf accep
+      ###########################################################################
+    - name: 🔄 Setze Policy auf accept vor Flush-nftabls_geo_modus.yml
+      ansible.builtin.command: >
+        nft chain inet geo_tab geo_chain '{ policy accept; }'
+      when: nft_geo_chain_check.rc == 0
+      changed_when: true
+
+    - name: 🧹 GeoIP chain geo_chain leeren (falls vorhanden)-nftabls_geo_modus.yml
+      ansible.builtin.command: >
+        nft flush chain inet geo_tab geo_chain
+      when: nft_geo_chain_check.rc == 0
+      register: nft_flush_result
+      ignore_errors: true
+      become: true
+      changed_when: false
+
+    - name: 🔗 Alte GeoIP chain geo_chain entfernen (falls vorhanden)-nftabls_geo_modus.yml
+      ansible.builtin.command: >
+        nft delete chain inet geo_tab geo_chain
+      when: nft_geo_chain_check.rc == 0
+      register: nft_delete_result
+      ignore_errors: true
+      become: true
+      changed_when: false
+
+    - name: 🧱 Neue GeoIP chain geo_chain erstellen-nftabls_geo_modus.yml
+      ansible.builtin.command: >
+        nft add chain inet geo_tab geo_chain '{ type filter hook input priority -200; policy accept; }'
+      become: true
+      ignore_errors: true
+      changed_when: true
+
+###########################################################################
+# 🧠 ct state established/related erlauben (optional über Bool)
+###########################################################################
+- name: Erlaube Antworten auf bestehende Verbindungen (ct state)
+  ansible.builtin.shell: |
+    nft add rule inet geo_tab geo_chain ct state established,related accept
+  args:
+    executable: /bin/bash
+  become: true
+  when: allow_established | bool
+  changed_when: true
+
+##########################################################################
+# ⚙️ fire_geo_countries in Liste umwandeln
+###########################################################################
+- name: 🔧 Geo-Liste vorbereiten
+  set_fact:
+    fire_geo_list: "{{ fire_geo_countries | default('') | lower | regex_replace('\\s+', '') | split(',') }}"
+
+##########################################################################
+# ⚙️ GeoIP-Sets generieren (für beide Modi allow/block)
+###########################################################################
+- block:
+    - name: ⚙️ GeoIP-Sets generieren (für beide Modi allow/block)-nftabls_geo_modus.yml
+      ansible.builtin.command: >
+        /tmp/nft_geoip.py
+        --file-location /etc/nftables/geoip_src/location.csv
+        --file-address /etc/nftables/geoip_src/dbip-country-lite.csv
+        --output-dir /etc/nftables
+        -c {{ var_geo_countries | join(',') }}
+      become: true
+      register: geoip_gen_allow
+      changed_when: geoip_gen_allow.rc == 0
+
+    - name: 📦 GeoIP-Definitionsdateien einbinden (automatisch nach Modus)-nftabls_geo_modus.yml
+      ansible.builtin.shell: |
+        # Grund-Definitionen (Länder-Codes)
+        nft -f {{ fire_geoip_db_path }}/geoip-def-all.nft
+
+        # Modusabhängig gegeo_tabte Maps laden
+        if [ "{{ fire_geo_mode }}" = "allow" ]; then
+          nft -f {{ fire_geoip_db_path }}/geoip-ipv4-interesting.nft
+          nft -f {{ fire_geoip_db_path }}/geoip-ipv6-interesting.nft
+        elif [ "{{ fire_geo_mode }}" = "block" ]; then
+          nft -f {{ fire_geoip_db_path }}/geoip-ipv4.nft
+          nft -f {{ fire_geoip_db_path }}/geoip-ipv6.nft
+        fi
+      args:
+        executable: /bin/bash
+      become: true
+      changed_when: true
+  when: "'all' not in fire_geo_list"
+
+###########################################################################
+# 🛡️ Failsafe-Regeln neu setzen (IPv4 + IPv6)
+###########################################################################
+- name: ✅ GeoIP-Regeln in die Haupt-Chain einfügen (IPv4 + IPv6)
+  ansible.builtin.shell: |
+    # IPv4 Failsafe-Netze
+    for NET in {{ in_os_networks_v4 | join(' ') }}; do
+      nft add rule inet geo_tab geo_chain ip saddr $NET accept comment '"Trusted IPv4 $NET"' || true
+    done
+
+    # IPv6 Failsafe-Netze
+    for NET6 in {{ in_os_networks_v6 | join(' ') }}; do
+      nft add rule inet geo_tab geo_chain ip6 saddr $NET6 accept comment '"Trusted IPv6 $NET6"' || true
+    done
+
+    {% if 'all' not in fire_geo_list %}
+    nft add rule inet geo_tab geo_chain ip saddr @geoip4 accept
+    nft add rule inet geo_tab geo_chain ip6 saddr @geoip6 accept
+    {% endif %}
+
+    {% if allow_http | bool %}
+    nft add rule inet geo_tab geo_chain tcp dport 80 accept
+    {% endif %}
+
+    {% if allow_https | bool %}
+    nft add rule inet geo_tab geo_chain tcp dport 443 accept
+    {% endif %}
+
+###########################################################################
+# 🔄 Policy nach Regel-Erstellung auf DROP setzen außer bei allow all
+###########################################################################
+- name: 🔄 Setze Policy für geo_chain auf DROP-nftabls_geo_modus.yml
+  ansible.builtin.command: >
+    nft chain inet geo_tab geo_chain '{ policy drop; }'
+  changed_when: true
+  when: not (fire_geo_mode == "allow" and ('all' in fire_geo_countries))
+
+###########################################################################
+# 🔄 count setzten drop
+###########################################################################
+- name: 🔄 counter setzen
+  ansible.builtin.command: >
+    nft add rule inet geo_tab geo_chain counter drop
+  changed_when: true
+
+###########################################################################
+# 🐛 Debug-Ausgabe des aktuellen Rulesets (auf 100 Zeilen begrenzt)
+###########################################################################
+- block:
+    - name: 🐛 Debug-Ausgabe nftables Ruleset (max 100 Zeilen)-nftabls_geo_modus.yml
+      ansible.builtin.shell: >
+        nft list table inet geo_tab | head -n 100
+      register: nft_ruleset_debug
+      changed_when: false
+
+    - name: 📋 Zeige Debug-Ausgabe-nftabls_geo_modus.yml
+      ansible.builtin.debug:
+        var: nft_ruleset_debug.stdout_lines
+
+###########################################################################
+# 🐛 Firewall Ruleset in Datei speichern - für reboot)
+###########################################################################
+- block:
+    - name: 🗑️ Alte geoIP_ruleset.nft löschen-nftabls_geo_modus.yml
+      ansible.builtin.file:
+        path: /etc/nftables.d/00_geoIP_ruleset.nft
+        state: absent
+
+    - name: 📥 Tabelle geo_tab dumpen-nftabls_geo_modus.yml
+      ansible.builtin.command: nft list table inet geo_tab
+      register: geo_tab_dump
+      changed_when: false
+
+    - name: 💾 Dump von geo_tab speichern-nftabls_geo_modus.yml
+      ansible.builtin.copy:
+        dest: /etc/nftables.d/00_geoIP_ruleset.nft
+        content: "{{ geo_tab_dump.stdout }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Ensure 10_firewall_ruleset.nft exists-nftabls_geo_modus.yml
+      ansible.builtin.file:
+        path: /etc/nftables.d/10_firewall_ruleset.nft
+        state: touch
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Ensure 20_f2b_ruleset.nft exists-nftabls_geo_modus.yml
+      ansible.builtin.file:
+        path: /etc/nftables.d/20_f2b_ruleset.nft
+        state: touch
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: 🔄 nftables beim Systemstart aktivieren-nftabls_geo_modus.yml
+      ansible.builtin.service:
+        name: nftables
+        enabled: true

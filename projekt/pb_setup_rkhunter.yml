@@ -1,0 +1,129 @@
+---
+###########################################################################
+# 🛡️ Rootkit Hunter (rkhunter) Installation & Konfiguration
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials (extra_vars):
+#   allg_status:  aktiviert | deaktiviert | deinstalliert
+#
+# Voraussetzungen:
+#   msmtp muss installiert sein (fuer Mail-Benachrichtigung)
+#   admin_email kommt ueber SMTP-Credential
+#
+# Beschreibung:
+# Installiert und konfiguriert rkhunter (Rootkit Hunter).
+# Taeglicher Scan per Cron um 03:00 Uhr.
+# Mail-Benachrichtigung bei Warnungen ueber msmtp.
+# Kein Daemon — nur CLI-Tool + Cron.
+#
+# BEST PRACTICES:
+# - Wenn moeglich kein Code im Playbook, sondern in task auslagern
+# - Nicht benoetigte Service-Includes loeschen (nicht auskommentieren)
+###########################################################################
+
+- name: pb_setup_rkhunter.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+    - playbooks_paths.yml
+
+  vars:
+    # Hauptanwendung(en)
+    var_pack_name:
+      - rkhunter
+
+    # Abhaengigkeiten
+    var_dependencies_list:
+
+    # Voraussetzungen
+    var_prerequisites:
+
+    # Installationsreihenfolge
+    var_inst_order: 0
+
+    # Zusaetzliche Services (keine — rkhunter ist kein Daemon)
+    var_sonder_start:
+    var_sonder_autostart:
+
+    # Nicht unterstuetzte OS
+    unsupported_systems:
+      - FreeBSD
+
+    # Playbook-Log-Dokumentation (Template-Pfad)
+    pb_doku_template: rkhunter_doku
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden
+    ###########################################################################
+    - name: Lade alle Variablen-Dateien - pb_setup_rkhunter.yml
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop: "{{ var_files }}"
+
+    ###########################################################################
+    # Hook: Pre-Start
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start - pb_setup_rkhunter.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck
+    ###########################################################################
+    - name: 🔄 Systemcheck - pb_setup_rkhunter.yml
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Systemcheck Prerequisites - pb_setup_rkhunter.yml
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks
+    ###########################################################################
+    - name: 🔄 Paketmanager-Lock pruefen - pb_setup_rkhunter.yml
+      ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+    - name: 🔄 Debug Ausgabe Playbook-Start - pb_setup_rkhunter.yml
+      ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+  tasks:
+    ###########################################################################
+    # INSTALLATION & KONFIGURATION
+    ###########################################################################
+    - block:
+        - name: 🔧 Hook Pre-Install - pb_setup_rkhunter.yml
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        - name: Installation rkhunter - pb_setup_rkhunter.yml
+          ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+        - name: rkhunter Konfiguration - pb_setup_rkhunter.yml
+          ansible.builtin.include_tasks: "{{ task_paths.rkhunter_task }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # DEINSTALLATION
+    ###########################################################################
+    - block:
+        - name: 🔄 Deinstallation rkhunter - pb_setup_rkhunter.yml
+          ansible.builtin.include_tasks: "{{ include_paths.deinstall_allg }}"
+
+        - name: 🗑️ Cronjob entfernen - pb_setup_rkhunter.yml
+          ansible.builtin.cron:
+            name: "rkhunter - taeglicher Rootkit Check"
+            state: absent
+
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # Hook: End
+    ###########################################################################
+    - name: 🔧 Hook End - pb_setup_rkhunter.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

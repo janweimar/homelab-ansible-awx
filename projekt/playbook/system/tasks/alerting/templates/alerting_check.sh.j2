@@ -1,0 +1,92 @@
+#!/bin/bash
+###########################################################################
+# Alerting Check Script
+# Verwaltet durch Ansible - pb_inst_conf_alerting.yml
+# Aenderungen werden beim naechsten Playbook-Lauf ueberschrieben!
+###########################################################################
+
+HOSTNAME=$(hostname)
+DATE=$(date '+%Y-%m-%d %H:%M:%S')
+ADMIN_EMAIL="{{ urls[ansible_host].msmtp.admin_email }}"
+MSMTP_ACCOUNT="{{ urls[ansible_host].msmtp.account }}"
+SMTP_FROM="{{ smtp_user }}"
+SUBJECT_PREFIX="{{ urls[ansible_host].msmtp.subject_prefix }}"
+LOGFILE="/var/log/alerting/alerting.log"
+
+# Funktion: Mail senden
+send_alert() {
+    local SUBJECT="$1"
+    local BODY="$2"
+    echo -e "Subject: [${SUBJECT_PREFIX}] [ALERT] ${SUBJECT}\nFrom: ${SMTP_FROM}\nTo: ${ADMIN_EMAIL}\n\n${BODY}\n\n---\nHost: ${HOSTNAME}\nZeit: ${DATE}" \
+    | msmtp -a ${MSMTP_ACCOUNT} ${ADMIN_EMAIL}
+    echo "${DATE} - ALERT gesendet: ${SUBJECT}" >> ${LOGFILE}
+}
+
+{% if alerting_enable_disk | bool %}
+###########################################################################
+# DISK-SPACE CHECK
+###########################################################################
+THRESHOLD={{ alerting_disk_threshold }}
+
+df -h --output=pcent,target | tail -n +2 | while read line; do
+    USAGE=$(echo "$line" | awk '{print $1}' | tr -d '%')
+    MOUNT=$(echo "$line" | awk '{print $2}')
+
+    if [ "$USAGE" -ge "$THRESHOLD" ]; then
+        DISK_INFO=$(df -h "$MOUNT" | tail -1)
+        send_alert "Disk-Space ${MOUNT} bei ${USAGE}%" \
+            "Partition ${MOUNT} hat ${USAGE}% Belegung erreicht (Schwellwert: ${THRESHOLD}%).\n\n${DISK_INFO}"
+    fi
+done
+{% endif %}
+
+{% if alerting_enable_services | bool %}
+###########################################################################
+# SERVICE CHECK
+###########################################################################
+SERVICES="{{ alerting_services }}"
+
+IFS=',' read -ra SVC_ARRAY <<< "$SERVICES"
+for SVC in "${SVC_ARRAY[@]}"; do
+    SVC=$(echo "$SVC" | xargs)  # Trim whitespace
+    # Prüfe ob Service ueberhaupt existiert
+    if systemctl list-unit-files "${SVC}.service" 2>/dev/null | grep -q "${SVC}.service"; then
+        if ! systemctl is-active --quiet "$SVC" 2>/dev/null; then
+            STATUS=$(systemctl status "$SVC" 2>&1 | head -5)
+            send_alert "Service ${SVC} ausgefallen!" \
+                "Der Service ${SVC} laeuft NICHT!\n\nStatus:\n${STATUS}"
+        fi
+    fi
+done
+{% endif %}
+
+{% if alerting_enable_nginx | bool %}
+###########################################################################
+# NGINX CHECK
+###########################################################################
+if command -v nginx &>/dev/null; then
+    if ! systemctl is-active --quiet nginx 2>/dev/null; then
+        NGINX_STATUS=$(systemctl status nginx 2>&1 | head -10)
+        NGINX_ERROR=$(tail -20 /var/log/nginx/error.log 2>/dev/null || echo "Kein Error-Log verfuegbar")
+        send_alert "nginx ist DOWN!" \
+            "Der nginx Webserver laeuft NICHT!\n\nStatus:\n${NGINX_STATUS}\n\nLetzte Fehler:\n${NGINX_ERROR}"
+    fi
+fi
+{% endif %}
+
+{% if alerting_enable_ssh | bool %}
+###########################################################################
+# SSH LOGIN CHECK (fehlgeschlagene Versuche der letzten Pruefperiode)
+###########################################################################
+if command -v journalctl &>/dev/null; then
+    SSH_FAILS=$(journalctl -u ssh --since "{{ alerting_check_interval }} minutes ago" --no-pager 2>/dev/null \
+        | grep -c "Failed password\|Failed publickey\|Invalid user" || echo "0")
+
+    if [ "$SSH_FAILS" -gt 0 ]; then
+        SSH_DETAILS=$(journalctl -u ssh --since "{{ alerting_check_interval }} minutes ago" --no-pager 2>/dev/null \
+            | grep "Failed password\|Failed publickey\|Invalid user" | tail -10)
+        send_alert "SSH: ${SSH_FAILS} fehlgeschlagene Login-Versuche" \
+            "In den letzten {{ alerting_check_interval }} Minuten gab es ${SSH_FAILS} fehlgeschlagene SSH-Login-Versuche.\n\nDetails:\n${SSH_DETAILS}"
+    fi
+fi
+{% endif %}

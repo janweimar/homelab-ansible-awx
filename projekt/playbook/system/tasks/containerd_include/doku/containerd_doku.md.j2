@@ -1,0 +1,38 @@
+# CONTAINERD - SYSTEM KONFIGURATION
+
+## INSTALLIERTE KOMPONENTEN
+
+### Containerd Runtime
+- **Version:** {{ packages.containerd[ansible_os_family] }}
+- **Status:** {{ allg_status }}
+- **Service:** containerd
+
+### Deployed Konfigurationsdateien
+- **Containerd Config:** {{ paths.containerd_config[ansible_os_family] }}
+- **crictl Config:** /etc/crictl.yaml
+- **Config-Verzeichnis:** {{ paths.containerd_paths[ansible_os_family] }}
+
+---
+
+## DURCHGEFÜHRTE AKTIONEN
+
+### Pre-Task
+- Alte Containerd-Konfiguration entfernt
+- Alle Container im default-namespace gelöscht
+- Swap deaktiviert (temporär und permanent)
+- Alte Docker-Komponenten entfernt (docker, docker-engine, docker.io, containerd alt, runc alt)
+
+### Installation
+- Containerd installiert: {{ packages.containerd[ansible_os_family] }}
+- Config-Verzeichnis erstellt: {{ paths.containerd_paths[ansible_os_family] }}
+- Containerd-Konfiguration deployed
+- crictl-Konfiguration deployed
+- Paket-Hold gesetzt (apt-mark hold containerd)
+
+### Swap-Deaktivierung
+- Swap permanent deaktiviert
+- Eintrag in {{ paths.swap_paths_fstab[ansible_os_family] }} auskommentiert
+
+---
+
+**Status:** ✅ Containerd erfolgreich installiert

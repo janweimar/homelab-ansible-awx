@@ -1,0 +1,34 @@
+# KUBERNETES CLUSTER - SYSTEM KONFIGURATION
+
+## ☸️ Status
+
+- **Status:** {{ allg_status }}
+- **Host:** {{ ansible_host }}
+- **OS:** {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
+
+---
+
+## 📋 Installierte Komponenten
+
+| Paket | Beschreibung |
+|-------|-------------|
+| kubeadm | Cluster-Initialisierung |
+| kubelet | Node-Agent |
+| kubectl | CLI-Tool |
+| cri-tools | Container Runtime Interface |
+| kubernetes-cni | Container Network Interface |
+
+---
+
+## 🔧 Wichtige Pfade
+
+| Pfad | Beschreibung |
+|------|-------------|
+| `/etc/kubernetes/` | Kubernetes Konfiguration |
+| `/var/lib/kubelet/` | Kubelet Daten |
+| `/etc/cni/net.d/` | CNI Konfiguration |
+
+---
+
+**Zeitstempel:** {{ ansible_date_time.iso8601 | default('n/a') }}
+**Status:** ✅ Kubernetes Cluster konfiguriert

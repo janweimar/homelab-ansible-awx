@@ -1,0 +1,141 @@
+---
+###########################################################################
+# Directus Kubernetes Manifest (nur App-spezifisch)
+# DB wird separat über db_deploy.yml erstellt
+# Variablen: app_name, app_secret_key, app_admin_email, app_admin_password
+###########################################################################
+
+# Directus Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ app_name }}-secret
+  namespace: {{ app_name }}
+type: Opaque
+stringData:
+  SECRET: "{{ app_secret_key }}"
+  ADMIN_EMAIL: "{{ app_admin_email }}"
+  ADMIN_PASSWORD: "{{ app_admin_password }}"
+---
+# Directus Uploads PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ app_name }}-uploads-pvc
+  namespace: {{ app_name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+{% set _port = (app_port | default('', true) | string | trim) or '8055' %}
+---
+# Directus Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ app_name }}-web
+  namespace: {{ app_name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ app_name }}-web
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}-web
+    spec:
+      containers:
+        - name: directus
+          image: directus/directus:latest
+{% if app_no_update | default(false) | bool %}
+          imagePullPolicy: IfNotPresent
+{% endif %}
+          ports:
+            - containerPort: {{ _port | int }}
+          env:
+            - name: DB_CLIENT
+              value: "mysql"
+            - name: DB_HOST
+              value: "{{ app_name }}-db"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_DATABASE
+              value: "{{ _app_base_name | default(app_name) }}"
+            - name: DB_USER
+              value: "{{ _app_base_name | default(app_name) }}"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ app_name }}-db-secret
+                  key: MARIADB_PASSWORD
+            - name: SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ app_name }}-secret
+                  key: SECRET
+            - name: ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ app_name }}-secret
+                  key: ADMIN_EMAIL
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ app_name }}-secret
+                  key: ADMIN_PASSWORD
+{% set _domain = urls[ansible_host][_app_base_name | default(app_name)].domain | default('') %}
+{% if app_vpn_only | default(false) | bool %}
+{% set _vpn_port = (app_port | default('', true) | string | trim) or '8080' %}
+            - name: PUBLIC_URL
+              value: "http://{{ ansible_wg0.ipv4.address }}:{{ _vpn_port }}"
+{% elif _domain | length > 0 %}
+            - name: PUBLIC_URL
+              value: "https://{{ _domain }}"
+{% endif %}
+          resources:
+            requests:
+              memory: "{{ app_resources[app_name].memory_request }}"
+              cpu: "{{ app_resources[app_name].cpu_request }}"
+            limits:
+              memory: "{{ app_resources[app_name].memory_limit }}"
+              cpu: "{{ app_resources[app_name].cpu_limit }}"
+          volumeMounts:
+            - name: uploads
+              mountPath: /directus/uploads
+          readinessProbe:
+            httpGet:
+              path: /server/health
+              port: {{ _port | int }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 15
+          livenessProbe:
+            httpGet:
+              path: /server/health
+              port: {{ _port | int }}
+            initialDelaySeconds: 120
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 10
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: {{ app_name }}-uploads-pvc
+---
+# Directus Service (NodePort)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ app_name }}-service
+  namespace: {{ app_name }}
+spec:
+  type: NodePort
+  selector:
+    app: {{ app_name }}-web
+  ports:
+    - port: {{ _port | int }}
+      targetPort: {{ _port | int }}

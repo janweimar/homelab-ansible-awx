@@ -1,0 +1,11 @@
+[nginx-http-auth]
+enabled      = {{ nginx_enable }}
+filter       = nginx-http-auth
+bantime      = {{ nginx_bantime }}
+findtime     = {{ nginx_findtime }}
+maxretry     = {{ nginx_maxretry }}
+port         = {{ nginx_ports }}
+action       = nftables_custom[name=NGINX, port="{{ nginx_ports }}"]
+logpath      = /var/log/nginx/error.log
+backend      = auto
+allownofiles = true

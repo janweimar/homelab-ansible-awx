@@ -1,0 +1,20 @@
+# HELM CHART CACHE - SYSTEM KONFIGURATION
+
+## 📦 GECACHTE HELM CHARTS
+
+{% if helm_charts is defined %}
+- **Anzahl Repos:** {{ helm_charts | length }}
+{% for repo in helm_charts %}
+- **{{ repo.repo_name }}** ({{ repo.repo_url }})
+{% for chart in repo.charts %}
+  - {{ chart.name }} {{ chart.version }}
+{% endfor %}
+{% endfor %}
+{% endif %}
+
+- **Cache-Verzeichnis:** {{ paths.helm_charts_base[ansible_os_family] }}
+- **Lokales Repo:** https://{{ server_urls.repo_server_apt.domain }}/helm/
+
+---
+
+**Status:** ✅ Helm Chart Cache konfiguriert

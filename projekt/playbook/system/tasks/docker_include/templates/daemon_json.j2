@@ -1,0 +1,14 @@
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  },
+  "storage-driver": "overlay2",
+  "exec-opts": ["native.cgroupdriver=systemd"],
+  "dns": ["8.8.8.8", "1.1.1.1"],
+{% if insecure_registries is defined and insecure_registries | length > 0 %}
+  "insecure-registries": {{ insecure_registries | to_json }},
+{% endif %}
+  "live-restore": true
+}

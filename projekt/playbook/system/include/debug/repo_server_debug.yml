@@ -1,0 +1,20 @@
+---
+###########################################################################
+# Debug-Ausgabe fuer Repo-Server Playbook
+###########################################################################
+
+- name: "📋 Debug: Repo-Server Variablen - repo_server_debug.yml"
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "Repo-Server Konfiguration"
+      - "=========================================="
+      - "allg_status: {{ allg_status }}"
+      - "install_aptly: {{ install_aptly }}"
+      - "install_cgit: {{ install_cgit }}"
+      - "install_helm: {{ install_helm }}"
+      - "server_ssl: {{ server_ssl }}"
+      - "nginx_modsecurity: {{ nginx_modsecurity }}"
+      - "repo_server_domain: {{ server_urls.repo_server_apt.domain }}"
+      - "update_before_install: {{ update_before_install }}"
+      - "=========================================="

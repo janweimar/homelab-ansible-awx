@@ -1,0 +1,247 @@
+---
+###########################################################################
+# 🗄️ db_mariadb.yml
+# MariaDB Deployment — Kubernetes / Docker / Podman / Nativ
+###########################################################################
+# Benötigte Variablen:
+#   app_name:         Name der App (= Namespace/Container-Prefix)
+#   app_db_password:  Datenbank Passwort
+#   app_deploy_type:  minikube | k3s | k8s | docker | podman | nativ
+#   kube_user:        Linux-User für kubectl (nur bei Kubernetes)
+#
+# Aufruf: Wird von db_deploy.yml inkludiert
+###########################################################################
+
+# ============================================================
+# KUBERNETES (minikube / k3s / k8s)
+# ============================================================
+- block:
+    - name: 📁 Namespace {{ app_name }} erstellen - db_mariadb.yml
+      ansible.builtin.command: kubectl create namespace {{ app_name }}
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      register: _ns_create
+      failed_when:
+        - _ns_create.rc != 0
+        - "'already exists' not in _ns_create.stderr"
+      changed_when: "'created' in _ns_create.stdout"
+
+    - name: 📁 Manifests-Verzeichnis sicherstellen - db_mariadb.yml
+      ansible.builtin.file:
+        path: "/home/{{ kube_user }}/manifests"
+        state: directory
+        owner: "{{ kube_user }}"
+        group: "{{ kube_user }}"
+        mode: "0755"
+
+    - name: 📝 MariaDB Manifest erstellen - db_mariadb.yml
+      ansible.builtin.template:
+        src: playbook/system/tasks/common/templates/kube_db_mariadb.yml.j2
+        dest: "/home/{{ kube_user }}/manifests/{{ app_name }}_db.yaml"
+        owner: "{{ kube_user }}"
+        group: "{{ kube_user }}"
+        mode: "0644"
+
+    - name: 🚀 MariaDB deployen - db_mariadb.yml
+      ansible.builtin.command: kubectl apply -f /home/{{ kube_user }}/manifests/{{ app_name }}_db.yaml
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      register: _db_deploy
+      changed_when: "'created' in _db_deploy.stdout or 'configured' in _db_deploy.stdout"
+
+    - name: ⏳ Warte auf MariaDB (1/1 Ready) - db_mariadb.yml
+      ansible.builtin.shell: |
+        echo "=== $(date '+%H:%M:%S') === MariaDB Status ==="
+        kubectl get pods -n {{ app_name }} -l app={{ app_name }}-mariadb -o wide 2>/dev/null || echo "Noch kein Pod"
+        READY=$(kubectl get pods -n {{ app_name }} -l app={{ app_name }}-mariadb --no-headers 2>/dev/null | awk '{print $2}' | grep -c '1/1' || true)
+        RESTARTS=$(kubectl get pods -n {{ app_name }} -l app={{ app_name }}-mariadb --no-headers 2>/dev/null | awk '{print $4}' || echo "?")
+        echo "Ready: $READY | Restarts: $RESTARTS"
+        [ "$READY" -ge 1 ] && exit 0 || exit 1
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      register: _db_wait
+      until: _db_wait.rc == 0
+      retries: 40
+      delay: 15
+      changed_when: false
+      failed_when: false
+
+    - name: "{{ '✅ MariaDB ist Ready!' if _db_wait.rc | default(1) == 0 else '⚠️ MariaDB nicht Ready!' }}"
+      ansible.builtin.debug:
+        msg: "{{ '✅ MariaDB läuft!' if _db_wait.rc | default(1) == 0 else '⚠️ MariaDB nicht bereit — bitte prüfen!' }}"
+
+  when: app_deploy_type in ['minikube', 'k3s', 'k8s']
+
+# ============================================================
+# DOCKER
+# ============================================================
+- block:
+    - name: 📁 Docker-Verzeichnis erstellen - db_mariadb.yml
+      ansible.builtin.file:
+        path: "/opt/{{ app_name }}/db"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: 📝 Docker-Compose erstellen - db_mariadb.yml
+      ansible.builtin.template:
+        src: playbook/system/tasks/common/templates/docker_db_mariadb.yml.j2
+        dest: "/opt/{{ app_name }}/db/docker-compose.yml"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: 🔄 Docker Autostart sicherstellen (Reboot-Sicherheit) - db_mariadb.yml
+      ansible.builtin.systemd:
+        name: docker
+        enabled: true
+
+    - name: 🚀 MariaDB starten (Docker) - db_mariadb.yml
+      ansible.builtin.command: docker compose up -d
+      args:
+        chdir: "/opt/{{ app_name }}/db"
+      register: _docker_up
+      changed_when: "'Started' in _docker_up.stderr or 'Created' in _docker_up.stderr"
+
+    - name: ⏳ Warte auf MariaDB (Docker) - db_mariadb.yml
+      ansible.builtin.command: docker exec {{ app_name }}-db mariadb-admin ping -h localhost -u root -p{{ app_db_password }}
+      register: _docker_wait
+      until: _docker_wait.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+      failed_when: false
+
+    - name: "{{ '✅ MariaDB (Docker) ist Ready!' if _docker_wait.rc | default(1) == 0 else '⚠️ MariaDB (Docker) nicht Ready!' }}"
+      ansible.builtin.debug:
+        msg: "{{ '✅ MariaDB läuft!' if _docker_wait.rc | default(1) == 0 else '⚠️ MariaDB nicht bereit — bitte prüfen!' }}"
+
+  when: app_deploy_type == 'docker'
+
+# ============================================================
+# PODMAN
+# ============================================================
+- block:
+    - name: 📁 Podman-Verzeichnis erstellen - db_mariadb.yml
+      ansible.builtin.file:
+        path: "/opt/{{ app_name }}/db"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: 📝 Podman-Compose erstellen - db_mariadb.yml
+      ansible.builtin.template:
+        src: playbook/system/tasks/common/templates/docker_db_mariadb.yml.j2
+        dest: "/opt/{{ app_name }}/db/docker-compose.yml"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: 🚀 MariaDB starten (Podman) - db_mariadb.yml
+      ansible.builtin.command: podman-compose up -d
+      args:
+        chdir: "/opt/{{ app_name }}/db"
+      register: _podman_up
+      changed_when: true
+
+    - name: 📝 Systemd Service erstellen (Reboot-Sicherheit) - db_mariadb.yml
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/{{ app_name }}-db.service
+        content: |
+          [Unit]
+          Description={{ app_name }} MariaDB (Podman)
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=oneshot
+          RemainAfterExit=yes
+          WorkingDirectory=/opt/{{ app_name }}/db
+          ExecStart=/usr/bin/podman-compose up -d
+          ExecStop=/usr/bin/podman-compose down
+
+          [Install]
+          WantedBy=multi-user.target
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: 🔄 Systemd Service aktivieren (Reboot-Sicherheit) - db_mariadb.yml
+      ansible.builtin.systemd:
+        name: "{{ app_name }}-db"
+        enabled: true
+        daemon_reload: true
+
+    - name: ⏳ Warte auf MariaDB (Podman) - db_mariadb.yml
+      ansible.builtin.command: podman exec {{ app_name }}-db mariadb-admin ping -h localhost -u root -p{{ app_db_password }}
+      register: _podman_wait
+      until: _podman_wait.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+      failed_when: false
+
+    - name: "{{ '✅ MariaDB (Podman) ist Ready!' if _podman_wait.rc | default(1) == 0 else '⚠️ MariaDB (Podman) nicht Ready!' }}"
+      ansible.builtin.debug:
+        msg: "{{ '✅ MariaDB läuft!' if _podman_wait.rc | default(1) == 0 else '⚠️ MariaDB nicht bereit — bitte prüfen!' }}"
+
+  when: app_deploy_type == 'podman'
+
+# ============================================================
+# NATIV (apt install)
+# ============================================================
+- block:
+    - name: 📦 MariaDB installieren - db_mariadb.yml
+      ansible.builtin.apt:
+        name:
+          - mariadb-server
+          - mariadb-client
+        state: present
+        update_cache: true
+
+    - name: 🔄 MariaDB aktivieren und starten - db_mariadb.yml
+      ansible.builtin.systemd:
+        name: mariadb
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: ⏳ Warte auf MariaDB (Nativ) - db_mariadb.yml
+      ansible.builtin.command: mariadb-admin ping -h localhost -u root
+      register: _nativ_wait
+      until: _nativ_wait.rc == 0
+      retries: 15
+      delay: 5
+      changed_when: false
+
+    - name: 🗄️ Datenbank erstellen - db_mariadb.yml
+      ansible.builtin.command: >
+        mariadb -u root -e
+        "CREATE DATABASE IF NOT EXISTS \`{{ app_name }}\`
+        CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+      register: _db_create
+      changed_when: "'Query OK' in _db_create.stdout or _db_create.rc == 0"
+
+    - name: 👤 DB-User erstellen - db_mariadb.yml
+      ansible.builtin.command: >
+        mariadb -u root -e
+        "CREATE USER IF NOT EXISTS '{{ app_name }}'@'localhost' IDENTIFIED BY '{{ app_db_password }}';
+        GRANT ALL PRIVILEGES ON \`{{ app_name }}\`.* TO '{{ app_name }}'@'localhost';
+        FLUSH PRIVILEGES;"
+      register: _user_create
+      changed_when: _user_create.rc == 0
+      no_log: true
+
+    - name: ✅ MariaDB (Nativ) ist Ready!
+      ansible.builtin.debug:
+        msg: "✅ MariaDB läuft nativ — DB: {{ app_name }}, User: {{ app_name }}@localhost"
+
+  when: app_deploy_type == 'nativ'

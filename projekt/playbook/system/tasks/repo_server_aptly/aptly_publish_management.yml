@@ -1,0 +1,98 @@
+# ============================================================
+# Input: current_mirror_name
+# Output: mirror_freeze_list erweitern
+# ============================================================
+
+- name: "APTLY – Paketliste für Mirror laden - {{ current_mirror_name }} - aptly_publish_management.yml"
+  ansible.builtin.set_fact:
+    current_mirror_packages: "{{ repo_self_list[ansible_os_family].apt_source_list[current_mirror_name] }}"
+
+- name: "APTLY – Debug: Struktur prüfen - {{ current_mirror_name }} - aptly_publish_management.yml"
+  ansible.builtin.debug:
+    msg: "{{ current_mirror_packages }}"
+
+# ------------------------------------------------------------
+- name: "APTLY – Debug: Verfügbare Mirrors auflisten - aptly_publish_management.yml"
+  ansible.builtin.shell: aptly mirror list
+  register: aptly_mirror_list_debug
+  changed_when: false
+  environment:
+    APTLY_ROOT: /src/aptly
+
+- name: "APTLY – Debug: Zeige Mirror-Liste - aptly_publish_management.yml"
+  ansible.builtin.debug:
+    var: aptly_mirror_list_debug.stdout_lines
+
+# ------------------------------------------------------------
+- name: "DEBUG – Namen-Check - aptly_publish_management.yml"
+  ansible.builtin.debug:
+    msg: "Der Name ist: >{{ current_mirror_name }}< (Länge: {{ current_mirror_name | length }})"
+
+# ------------------------------------------------------------
+- name: "APTLY – Snapshot-Existenz Default setzen - aptly_publish_management.yml"
+  ansible.builtin.set_fact:
+    snapshot_exists:
+      rc: 1
+
+- name: "APTLY – Snapshot-Existenz prüfen - {{ current_mirror_name }} - aptly_publish_management.yml"
+  ansible.builtin.shell: |
+    aptly snapshot list -raw | grep -qx "{{ current_mirror_name | trim }}"
+  register: snapshot_exists
+  changed_when: false
+  failed_when: false
+  when:
+    - current_mirror_packages is defined
+    - current_mirror_packages.freeze is defined
+    - current_mirror_packages.freeze | length > 0
+  environment:
+    APTLY_ROOT: /src/aptly
+
+# ------------------------------------------------------------
+- name: "APTLY – Alten Snapshot löschen - {{ current_mirror_name }} - aptly_publish_management.yml"
+  ansible.builtin.shell: |
+    aptly snapshot drop -force "{{ current_mirror_name | trim }}" 2>&1
+  register: snapshot_drop_result
+  changed_when: "'successfully deleted' in snapshot_drop_result.stdout"
+  failed_when:
+    - snapshot_drop_result.rc != 0
+    - "'does not exist' not in snapshot_drop_result.stdout"
+  when:
+    - current_mirror_packages.freeze is defined
+    - current_mirror_packages.freeze | length > 0
+    - snapshot_exists.rc == 0
+  environment:
+    APTLY_ROOT: /src/aptly
+
+# ------------------------------------------------------------
+- name: "APTLY – Basis-Snapshot vom Mirror erstellen - {{ current_mirror_name }} - aptly_publish_management.yml"
+  ansible.builtin.shell: |
+    aptly -db-open-attempts=100 snapshot create "{{ current_mirror_name | trim }}" from mirror "{{ current_mirror_name | trim }}"
+  register: snapshot_base_result
+  changed_when: "'successfully created' in snapshot_base_result.stdout"
+  failed_when:
+    - snapshot_base_result.rc != 0
+    - "'already exists' not in snapshot_base_result.stdout"
+  when:
+    - current_mirror_packages.freeze is defined
+    - current_mirror_packages.freeze | length > 0
+  environment:
+    APTLY_ROOT: /src/aptly
+
+# ------------------------------------------------------------
+- name: "APTLY – Freeze-Pakete verarbeiten - {{ current_mirror_name }} - aptly_publish_management.yml"
+  ansible.builtin.set_fact:
+    mirror_freeze_list: "{{ mirror_freeze_list + [{'mirror': current_mirror_name, 'package': package_name, 'version': version}] }}"
+  loop: "{{ current_mirror_packages.freeze | dict2items | subelements('value') }}"
+  loop_control:
+    loop_var: pkg_version_pair
+  vars:
+    package_name: "{{ pkg_version_pair[0].key }}"
+    version: "{{ pkg_version_pair[1] }}"
+  when:
+    - current_mirror_packages.freeze is defined
+
+- name: "APTLY – Debug: Pakete aus Mirror - {{ current_mirror_name }} - aptly_publish_management.yml"
+  ansible.builtin.debug:
+    msg: "{{ current_mirror_packages.freeze | dict2items | length }} Pakete aus Mirror {{ current_mirror_name }} verarbeitet"
+  when:
+    - current_mirror_packages.freeze is defined

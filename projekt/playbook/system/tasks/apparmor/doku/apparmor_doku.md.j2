@@ -1,0 +1,21 @@
+# APPARMOR - SYSTEM KONFIGURATION
+
+## 🛡️ DEPLOYED PROFILE
+
+### Modus
+- **Enforce:** {{ apparmor_d[ansible_default_ipv4.address].enforce | default([]) | length }} Profile
+- **Complain:** {{ apparmor_d[ansible_default_ipv4.address].complain | default([]) | length }} Profile
+
+### Enforce Profile
+{% for profile in apparmor_d[ansible_default_ipv4.address].enforce | default([]) %}
+- {{ profile | basename | replace('.j2', '') }}
+{% endfor %}
+
+### Complain Profile
+{% for profile in apparmor_d[ansible_default_ipv4.address].complain | default([]) %}
+- {{ profile | basename | replace('.j2', '') }}
+{% endfor %}
+
+---
+
+**Status:** ✅ AppArmor Profile deployed

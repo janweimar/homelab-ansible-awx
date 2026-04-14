@@ -1,0 +1,33 @@
+---
+###########################################################################
+# 🗄️ db_deploy.yml
+# Router für Datenbank-Deployment — wählt DB-Typ automatisch
+###########################################################################
+# Benötigte Variablen:
+#   app_name:         Name der App (= Namespace/Container-Prefix)
+#   app_db_type:      mariadb | postgresql | mysql
+#   app_db_password:  Datenbank Passwort
+#   app_deploy_type:  minikube | k3s | k8s | docker | podman | nativ
+#   kube_user:        Linux-User für kubectl (nur bei Kubernetes)
+#
+# Aufruf:
+#   - name: DB deployen
+#     ansible.builtin.include_tasks: "{{ task_paths.db_deploy }}"
+###########################################################################
+
+- name: 🗄️ MariaDB deployen - db_deploy.yml
+  ansible.builtin.include_tasks: "{{ task_paths.db_mariadb }}"
+  when: app_db_type == 'mariadb'
+
+- name: 🗄️ PostgreSQL deployen - db_deploy.yml
+  ansible.builtin.include_tasks: "{{ task_paths.db_postgresql }}"
+  when: app_db_type == 'postgresql'
+
+- name: 🗄️ MySQL deployen - db_deploy.yml
+  ansible.builtin.include_tasks: "{{ task_paths.db_mysql }}"
+  when: app_db_type == 'mysql'
+
+- name: ❌ Unbekannter DB-Typ - db_deploy.yml
+  ansible.builtin.fail:
+    msg: "Unbekannter app_db_type: '{{ app_db_type }}' — erlaubt: mariadb, postgresql, mysql"
+  when: app_db_type not in ['mariadb', 'postgresql', 'mysql']

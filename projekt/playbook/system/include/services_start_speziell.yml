@@ -1,0 +1,16 @@
+---
+###########################################################################
+# 🚀 Spezielles Playbook zum Start eines definierten App
+# 🚀 Definiert am Anfang var_sonder_start = nftables
+###########################################################################
+- name: 🚀 Starte speziellen Dienst var_sonder_start = "{{ var_sonder_start }}"
+  ansible.builtin.command: "{{ services[var_sonder_start].start[ansible_os_family] }}"
+  changed_when: false
+  ignore_errors: true
+  when:
+    - var_sonder_start is defined
+    - (var_sonder_start | length) > 0
+
+- name: 💤 Info
+  ansible.builtin.debug:
+    msg: "Dienst {{ var_sonder_start }} wurde gestartet und Regeln geladen (falls vorhanden)."

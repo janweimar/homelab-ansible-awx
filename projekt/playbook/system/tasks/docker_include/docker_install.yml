@@ -1,0 +1,94 @@
+---
+###########################################################################
+# Docker Konfiguration - docker_install.yml
+# NUR Konfiguration! Installation erfolgt über das Hauptplaybook (install_allg).
+# Prüft ob Docker installiert ist, konfiguriert vollständig für eigenständige Nutzung.
+# Kann von verschiedenen Playbooks eingebunden werden.
+###########################################################################
+
+# ============================================================
+# PRÜFUNG - Docker installiert?
+# ============================================================
+- name: Prüfe ob docker-ce installiert ist - docker_install.yml
+  ansible.builtin.package_facts:
+    manager: apt
+
+- name: Abbruch wenn docker-ce nicht installiert - docker_install.yml
+  ansible.builtin.assert:
+    that:
+      - "'docker-ce' in ansible_facts.packages"
+      - "'docker-ce-cli' in ansible_facts.packages"
+      - "'docker-compose-plugin' in ansible_facts.packages"
+    fail_msg: "Docker ist nicht installiert! Installation muss über das Hauptplaybook (var_pack_name) erfolgen."
+    success_msg: "Docker ist installiert - starte Konfiguration."
+
+# ============================================================
+# KONFIGURATION - Verzeichnis & daemon.json
+# ============================================================
+- name: Docker Konfigurationsverzeichnis anlegen - docker_install.yml
+  ansible.builtin.file:
+    path: "{{ paths.docker_conf_dir[ansible_os_family] }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Docker daemon.json aus Template bereitstellen - docker_install.yml
+  ansible.builtin.template:
+    src: templates/daemon_json.j2
+    dest: "{{ paths.docker_daemon_json[ansible_os_family] }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: docker_daemon_changed
+
+- name: Docker neustarten nach daemon.json Änderung - docker_install.yml
+  ansible.builtin.systemd:
+    name: docker
+    state: restarted
+  when: docker_daemon_changed.changed
+
+# ============================================================
+# KONFIGURATION - Nutzer zur docker-Gruppe hinzufügen
+# ============================================================
+- name: Nutzer zur docker-Gruppe hinzufügen - docker_install.yml
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: docker
+    append: true
+  loop: "{{ docker_users | default([]) }}"
+  when: docker_users is defined and docker_users | length > 0
+
+# ============================================================
+# SERVICE - Docker starten & aktivieren
+# ============================================================
+- name: Docker Service starten und aktivieren - docker_install.yml
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Docker Socket aktivieren - docker_install.yml
+  ansible.builtin.service:
+    name: docker.socket
+    state: started
+    enabled: true
+
+# ============================================================
+# VALIDIERUNG
+# ============================================================
+- name: Docker Version prüfen - docker_install.yml
+  ansible.builtin.command: docker --version
+  register: docker_version
+  changed_when: false
+
+- name: Docker Compose Version prüfen - docker_install.yml
+  ansible.builtin.command: docker compose version
+  register: docker_compose_version
+  changed_when: false
+
+- name: Docker Konfiguration erfolgreich - docker_install.yml
+  ansible.builtin.debug:
+    msg:
+      - "Docker: {{ docker_version.stdout }}"
+      - "Docker Compose: {{ docker_compose_version.stdout }}"

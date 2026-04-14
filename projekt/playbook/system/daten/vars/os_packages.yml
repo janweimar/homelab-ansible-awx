@@ -1,0 +1,274 @@
+---
+###########################################################################
+# 📦 OS-abhängige Paketlisten
+#    → zentrale Matrix für Installation/Deinstallation je nach Distribution
+#    → jedes Paket als Dict mit name + version
+###########################################################################
+# Struktur:
+# packages:
+#   apt:
+#     <Paketgruppe>:
+#       <Debian>:
+#         - { name: "<Paketname>", version: "<Version>" }
+#       <RedHat>:
+#   gem:
+#     <Debian>:
+#       <Distribution>:
+#         - { name: "<Paketname>", version: "<Version>" }
+#   pip:
+#     <Debian>:
+#
+
+packages:
+  apt:
+    nftables:
+      Debian:
+        24: # {{ sys_major }}
+          - { name: "nftables", version: "" }
+          - { name: "python3-nftables", version: "" }
+          - { name: "netfilter-persistent", version: "" }
+          - { name: "at", version: "" }
+
+    fail2ban:
+      Debian:
+        24:
+          - { name: "fail2ban", version: "" }
+          - { name: "whois", version: "" }
+
+    geoip:
+      Debian:
+        24:
+          - { name: "geoip-database", version: "" }
+          - { name: "curl", version: "" }
+          - { name: "python3-babel", version: "" }
+          - { name: "python3-requests", version: "" }
+          - { name: "geoip-bin", version: "" }
+
+    suricata:
+      Debian:
+        24:
+          - { name: "suricata", version: "" }
+          - { name: "suricata-update", version: "" }
+          - { name: "jq", version: "" }
+
+    inotify:
+      Debian:
+        24:
+          - { name: "inotify-tools", version: "" }
+
+    apparmor:
+      Debian:
+        24:
+          - { name: "apparmor", version: "" }
+          - { name: "apparmor-utils", version: "" }
+          - { name: "apparmor-profiles", version: "" }
+          - { name: "apparmor-profiles-extra", version: "" }
+          - { name: "python3-apparmor", version: "" }
+
+    audit:
+      Debian:
+        24:
+          - { name: "auditd", version: "" }
+          - { name: "audispd-plugins", version: "" }
+
+    awx:
+      Debian:
+        24:
+          - { name: "awx", version: "24.6.1" }
+
+    awx_dep:
+      Debian:
+        24:
+          - { name: "git", version: "" }
+          - { name: "python3-pip", version: "" }
+
+    kube:
+      Debian:
+        24:
+          - { name: "kubernetes-cni", version: "1.7.1-1.1" }
+          - { name: "cri-tools", version: "1.34.0-1.1" }
+          - { name: "kubelet", version: "1.34.3-1.1" }
+          - { name: "kubectl", version: "1.34.3-1.1" }
+          - { name: "kubeadm", version: "1.34.3-1.1" }
+          - { name: "acl", version: "" }
+
+    containerd:
+      Debian:
+        24:
+          - { name: "containerd", version: "" }
+          - { name: "runc", version: "" }
+          - { name: "cri-tools", version: "" }
+          - { name: "ca-certificates", version: "" }
+          - { name: "curl", version: "" }
+          - { name: "gnupg", version: "" }
+
+    containerd_kube:
+      Debian:
+        24:
+          # containerd + runc: Version muss mit freeze in os_repo.yml übereinstimmen!
+          # Kompatibilität: containerd >= 1.7 für Kubernetes >= 1.28
+          - { name: "containerd", version: "1.7.28-0ubuntu1~24.04.2" }
+          - { name: "runc", version: "1.3.3-0ubuntu1~24.04.3" }
+          - { name: "cri-tools", version: "1.34.0-1.1" }
+          - { name: "ca-certificates", version: "" }
+          - { name: "curl", version: "" }
+          - { name: "gnupg", version: "" }
+
+    helm_binary:
+      Debian:
+        24:
+          - { name: "helm", version: "3.19.3-1" }
+          - { name: "acl", version: "" }
+
+    repo:
+      Debian:
+        24:
+          - { name: "aptly", version: "" }
+          - { name: "gnupg", version: "" }
+          - { name: "cgit", version: "" }
+          - { name: "git", version: "" }
+          - { name: "docker-ce", version: "" }
+          - { name: "docker-ce-cli", version: "" }
+          - { name: "containerd.io", version: "" }
+    nginx:
+      Debian:
+        24:
+          - { name: "nginx", version: "" }
+          - { name: "libnginx-mod-http-modsecurity", version: "" }
+          - { name: "modsecurity-crs", version: "" }
+          - { name: "fcgiwrap", version: "" }  # Für cgit (Repo-Server)
+          - { name: "certbot", version: "" }
+          - { name: "python3-certbot-nginx", version: "" }
+    nginx_reverse_proxy:
+      Debian:
+        24:
+          - { name: "nginx", version: "" }
+          - { name: "libnginx-mod-http-modsecurity", version: "" }
+          - { name: "modsecurity-crs", version: "" }
+          - { name: "certbot", version: "" }
+          - { name: "python3-certbot-nginx", version: "" }
+    helm:
+      Debian:
+        24:
+          - { name: "helm", version: "3.19.3-1" }
+    bookstack:
+      Debian:
+        24:
+          - { name: "docker-ce", version: "" }
+          - { name: "docker-ce-cli", version: "" }
+          - { name: "docker-compose-plugin", version: "" }
+          - { name: "containerd.io", version: "" }
+    bookstack_nginx:
+      Debian:
+        24:
+          - { name: "nginx", version: "" }
+          - { name: "libnginx-mod-http-modsecurity", version: "" }
+          - { name: "modsecurity-crs", version: "" } # ← FEHLT: OWASP Regeln
+          - { name: "fcgiwrap", version: "" } # ← FEHLT: Für cgit
+          - { name: "certbot", version: "" }
+          - { name: "python3-certbot-nginx", version: "" }
+    auto_update:
+      Debian:
+        24:
+          - { name: "unattended-upgrades", version: "" }
+          - { name: "apt-listchanges", version: "" }
+      RedHat:
+        8:
+          - { name: "dnf-automatic", version: "" }
+        9:
+          - { name: "dnf-automatic", version: "" }
+      Suse:
+        15:
+          - { name: "dnf-automatic", version: "" }
+
+    logrotate:
+      Debian:
+        24:
+          - { name: "logrotate", version: "" }
+
+    msmtp:
+      Debian:
+        24:
+          - { name: "msmtp", version: "" }
+          - { name: "msmtp-mta", version: "" } # Sendmail-Ersatz
+          - { name: "mailutils", version: "" } # mail-Befehl für Testmails
+          - { name: "ca-certificates", version: "" }
+
+    net_conf:
+      Debian:
+        24:
+          - { name: "nload", version: "" }
+          - { name: "iftop", version: "" }
+          - { name: "nethogs", version: "" }
+          - { name: "mtr", version: "" }
+          - { name: "tcpdump", version: "" }
+          - { name: "vnstat", version: "" }
+    docker:
+      Debian:
+        24:
+          - { name: "docker-ce", version: "" }
+          - { name: "docker-ce-cli", version: "" }
+          - { name: "docker-compose-plugin", version: "" }
+          - { name: "containerd.io", version: "" }
+    docker_v27:
+      Debian:
+        24:
+          - { name: "docker-ce", version: "" }
+          - { name: "docker-ce-cli", version: "" }
+          - { name: "docker-compose-plugin", version: "" }
+          - { name: "containerd.io", version: "" }
+          - { name: "iptables-nft", version: "" }
+    docker_minikube:
+      Debian:
+        24:
+          - { name: "docker.io", version: "" }
+          - { name: "acl", version: "" }
+    k3s_deps:
+      Debian:
+        24:
+          - { name: "curl", version: "" }
+          - { name: "acl", version: "" }
+    podman:
+      Debian:
+        24:
+          - { name: "podman", version: "" }
+          - { name: "buildah", version: "" }
+          - { name: "skopeo", version: "" }
+ 
+    nginx_deinstall:
+      Debian:
+        24:
+          - { name: "nginx", version: "" }
+          - { name: "nginx-common", version: "" }
+          - { name: "libnginx-mod-http-modsecurity", version: "" }
+
+    ansible_pkg:
+      Debian:
+        24:
+          - { name: "ansible", version: "" }
+
+    wireguard:
+      Debian:
+        24:
+          - { name: "wireguard", version: "" }
+          - { name: "wireguard-tools", version: "" }
+          - { name: "qrencode", version: "" }
+          - { name: "iptables", version: "" }
+          - { name: "resolvconf", version: "" }
+
+    rkhunter:
+      Debian:
+        24:
+          - { name: "rkhunter", version: "" }
+      RedHat:
+        8:
+          - { name: "rkhunter", version: "" }
+        9:
+          - { name: "rkhunter", version: "" }
+      Suse:
+        15:
+          - { name: "rkhunter", version: "" }
+
+  #gem:
+  #  repo:
+  #    Debian:

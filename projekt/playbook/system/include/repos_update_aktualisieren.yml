@@ -1,0 +1,38 @@
+---
+###############################################################
+# 📦 Update durchführen
+###############################################################
+- name: Aktualisiere Paketlisten (Debian) -install_allg.yml
+  ansible.builtin.apt:
+    update_cache: yes
+  register: update_result
+  when:
+    - ansible_os_family == "Debian"
+# - name: Aktualisiere Paketlisten (RedHat)-install_allg.yml
+#   ansible.builtin.yum:
+#     update_cache: yes
+#   register: update_result
+#   when:
+#     - ansible_os_family == "RedHat"
+#
+# - name: Aktualisiere Paketlisten (Suse) -install_allg.yml
+#   ansible.builtin.zypper:
+#     update_cache: yes
+#   register: update_result
+#   when:
+#     - ansible_os_family == "Suse"
+#
+# - name: Aktualisiere Paketlisten (Archlinux) -install_allg.yml
+#   community.general.pacman:
+#     update_cache: yes
+#   register: update_result
+#   when:
+#     - ansible_os_family == "Archlinux"
+#
+# - name: Aktualisiere Paketlisten (FreeBSD) -install_allg.yml
+#   community.general.pkgng:
+#     update_cache: yes
+#   register: update_result
+#   when:
+#     - ansible_os_family == "FreeBSD"
+#

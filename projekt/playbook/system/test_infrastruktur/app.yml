@@ -1,0 +1,79 @@
+---
+###########################################################################
+# 📋 App-Liste (app.yml)
+# =========================================================================
+# Zweck  : Grundlage für dedizierte Spezialtests
+#          ALLE Apps auf dem Client werden generisch geprüft.
+#          Nur Apps in dieser Liste bekommen ZUSÄTZLICH einen Spezialtest.
+#
+# Hinweis: Diese Liste wächst kontinuierlich.
+#          Neue App → neues Testmodul in tasks/app_tests/<n>.yml anlegen
+###########################################################################
+
+apps:
+
+  # =========================================================================
+  # Webserver
+  # =========================================================================
+  - name: nginx
+    kategorie: webserver
+    beschreibung: "nginx Webserver"
+
+  # =========================================================================
+  # Firewall
+  # =========================================================================
+  - name: nftables
+    kategorie: firewall
+    beschreibung: "nftables Firewall"
+
+  # =========================================================================
+  # Security
+  # =========================================================================
+  - name: fail2ban
+    kategorie: security
+    beschreibung: "fail2ban Brute-Force Schutz"
+
+  - name: apparmor
+    kategorie: security
+    beschreibung: "AppArmor Mandatory Access Control"
+
+  - name: libnginx-mod-http-modsecurity
+    kategorie: security
+    beschreibung: "ModSecurity WAF für nginx"
+
+  # =========================================================================
+  # SSL
+  # =========================================================================
+  - name: certbot
+    kategorie: ssl
+    beschreibung: "Let's Encrypt SSL-Zertifikate"
+
+  # =========================================================================
+  # Container
+  # =========================================================================
+  - name: docker
+    kategorie: container
+    beschreibung: "Docker Container Engine"
+
+  # =========================================================================
+  # Auditing / SIEM
+  # =========================================================================
+  - name: auditd
+    kategorie: auditing
+    beschreibung: "Linux Audit Daemon"
+
+  # =========================================================================
+  # Zukünftige Einträge (Testmodul noch nicht vorhanden)
+  # Neue App hinzufügen: Eintrag hier + tasks/app_tests/<n>.yml erstellen
+  # =========================================================================
+  # - name: bookstack
+  #   kategorie: anwendung
+  #   beschreibung: "BookStack Wiki"
+  #
+  # - name: gitea
+  #   kategorie: anwendung
+  #   beschreibung: "Gitea Git-Server"
+  #
+  # - name: wazuh-agent
+  #   kategorie: siem
+  #   beschreibung: "Wazuh SIEM Agent"

@@ -1,0 +1,106 @@
+---
+###########################################################################
+# MySQL Kubernetes Manifest (wiederverwendbar)
+# Variablen: app_name, app_db_password, app_resources
+# Erstellt: Secret, PVC, StatefulSet, Headless Service
+###########################################################################
+
+# MySQL Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ app_name }}-db-secret
+  namespace: {{ app_name }}
+type: Opaque
+stringData:
+  MYSQL_ROOT_PASSWORD: "{{ app_db_password }}"
+  MYSQL_DATABASE: "{{ app_name }}"
+  MYSQL_USER: "{{ app_name }}"
+  MYSQL_PASSWORD: "{{ app_db_password }}"
+---
+# MySQL PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ app_name }}-db-pvc
+  namespace: {{ app_name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+# MySQL StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ app_name }}-mysql
+  namespace: {{ app_name }}
+spec:
+  serviceName: {{ app_name }}-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ app_name }}-mysql
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}-mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8
+          ports:
+            - containerPort: 3306
+          envFrom:
+            - secretRef:
+                name: {{ app_name }}-db-secret
+          resources:
+            requests:
+              memory: "{{ app_resources[app_name + '-db'].memory_request }}"
+              cpu: "{{ app_resources[app_name + '-db'].cpu_request }}"
+            limits:
+              memory: "{{ app_resources[app_name + '-db'].memory_limit }}"
+              cpu: "{{ app_resources[app_name + '-db'].cpu_limit }}"
+          volumeMounts:
+            - name: db-data
+              mountPath: /var/lib/mysql
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - mysqladmin ping -h localhost -u root -p$MYSQL_ROOT_PASSWORD
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - mysqladmin ping -h localhost -u root -p$MYSQL_ROOT_PASSWORD
+            initialDelaySeconds: 120
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 10
+      volumes:
+        - name: db-data
+          persistentVolumeClaim:
+            claimName: {{ app_name }}-db-pvc
+---
+# MySQL Headless Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ app_name }}-db
+  namespace: {{ app_name }}
+spec:
+  selector:
+    app: {{ app_name }}-mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+  clusterIP: None

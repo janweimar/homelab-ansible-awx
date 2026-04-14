@@ -1,0 +1,249 @@
+---
+###########################################################################
+# 🗄️ db_postgresql.yml
+# PostgreSQL Deployment — Kubernetes / Docker / Podman / Nativ
+###########################################################################
+# Benötigte Variablen:
+#   app_name:         Name der App (= Namespace/Container-Prefix)
+#   app_db_password:  Datenbank Passwort
+#   app_deploy_type:  minikube | k3s | k8s | docker | podman | nativ
+#   kube_user:        Linux-User für kubectl (nur bei Kubernetes)
+#
+# Aufruf: Wird von db_deploy.yml inkludiert
+###########################################################################
+
+# ============================================================
+# KUBERNETES (minikube / k3s / k8s)
+# ============================================================
+- block:
+    - name: 📁 Namespace {{ app_name }} erstellen - db_postgresql.yml
+      ansible.builtin.command: kubectl create namespace {{ app_name }}
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      register: _ns_create
+      failed_when:
+        - _ns_create.rc != 0
+        - "'already exists' not in _ns_create.stderr"
+      changed_when: "'created' in _ns_create.stdout"
+
+    - name: 📁 Manifests-Verzeichnis sicherstellen - db_postgresql.yml
+      ansible.builtin.file:
+        path: "/home/{{ kube_user }}/manifests"
+        state: directory
+        owner: "{{ kube_user }}"
+        group: "{{ kube_user }}"
+        mode: "0755"
+
+    - name: 📝 PostgreSQL Manifest erstellen - db_postgresql.yml
+      ansible.builtin.template:
+        src: playbook/system/tasks/common/templates/kube_db_postgresql.yml.j2
+        dest: "/home/{{ kube_user }}/manifests/{{ app_name }}_db.yaml"
+        owner: "{{ kube_user }}"
+        group: "{{ kube_user }}"
+        mode: "0644"
+
+    - name: 🚀 PostgreSQL deployen - db_postgresql.yml
+      ansible.builtin.command: kubectl apply -f /home/{{ kube_user }}/manifests/{{ app_name }}_db.yaml
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      register: _db_deploy
+      changed_when: "'created' in _db_deploy.stdout or 'configured' in _db_deploy.stdout"
+
+    - name: ⏳ Warte auf PostgreSQL (1/1 Ready) - db_postgresql.yml
+      ansible.builtin.shell: |
+        echo "=== $(date '+%H:%M:%S') === PostgreSQL Status ==="
+        kubectl get pods -n {{ app_name }} -l app={{ app_name }}-postgresql -o wide 2>/dev/null || echo "Noch kein Pod"
+        READY=$(kubectl get pods -n {{ app_name }} -l app={{ app_name }}-postgresql --no-headers 2>/dev/null | awk '{print $2}' | grep -c '1/1' || true)
+        RESTARTS=$(kubectl get pods -n {{ app_name }} -l app={{ app_name }}-postgresql --no-headers 2>/dev/null | awk '{print $4}' || echo "?")
+        echo "Ready: $READY | Restarts: $RESTARTS"
+        [ "$READY" -ge 1 ] && exit 0 || exit 1
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      register: _db_wait
+      until: _db_wait.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+      failed_when: false
+
+    - name: "{{ '✅ PostgreSQL ist Ready!' if _db_wait.rc | default(1) == 0 else '⚠️ PostgreSQL nicht Ready!' }}"
+      ansible.builtin.debug:
+        msg: "{{ '✅ PostgreSQL läuft!' if _db_wait.rc | default(1) == 0 else '⚠️ PostgreSQL nicht bereit — bitte prüfen!' }}"
+
+  when: app_deploy_type in ['minikube', 'k3s', 'k8s']
+
+# ============================================================
+# DOCKER
+# ============================================================
+- block:
+    - name: 📁 Docker-Verzeichnis erstellen - db_postgresql.yml
+      ansible.builtin.file:
+        path: "/opt/{{ app_name }}/db"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: 📝 Docker-Compose erstellen - db_postgresql.yml
+      ansible.builtin.template:
+        src: playbook/system/tasks/common/templates/docker_db_postgresql.yml.j2
+        dest: "/opt/{{ app_name }}/db/docker-compose.yml"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: 🔄 Docker Autostart sicherstellen (Reboot-Sicherheit) - db_postgresql.yml
+      ansible.builtin.systemd:
+        name: docker
+        enabled: true
+
+    - name: 🚀 PostgreSQL starten (Docker) - db_postgresql.yml
+      ansible.builtin.command: docker compose up -d
+      args:
+        chdir: "/opt/{{ app_name }}/db"
+      register: _docker_up
+      changed_when: "'Started' in _docker_up.stderr or 'Created' in _docker_up.stderr"
+
+    - name: ⏳ Warte auf PostgreSQL (Docker) - db_postgresql.yml
+      ansible.builtin.command: docker exec {{ app_name }}-db pg_isready -U {{ app_name }}
+      register: _docker_wait
+      until: _docker_wait.rc == 0
+      retries: 20
+      delay: 5
+      changed_when: false
+      failed_when: false
+
+    - name: "{{ '✅ PostgreSQL (Docker) ist Ready!' if _docker_wait.rc | default(1) == 0 else '⚠️ PostgreSQL (Docker) nicht Ready!' }}"
+      ansible.builtin.debug:
+        msg: "{{ '✅ PostgreSQL läuft!' if _docker_wait.rc | default(1) == 0 else '⚠️ PostgreSQL nicht bereit — bitte prüfen!' }}"
+
+  when: app_deploy_type == 'docker'
+
+# ============================================================
+# PODMAN
+# ============================================================
+- block:
+    - name: 📁 Podman-Verzeichnis erstellen - db_postgresql.yml
+      ansible.builtin.file:
+        path: "/opt/{{ app_name }}/db"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: 📝 Podman-Compose erstellen - db_postgresql.yml
+      ansible.builtin.template:
+        src: playbook/system/tasks/common/templates/docker_db_postgresql.yml.j2
+        dest: "/opt/{{ app_name }}/db/docker-compose.yml"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: 🚀 PostgreSQL starten (Podman) - db_postgresql.yml
+      ansible.builtin.command: podman-compose up -d
+      args:
+        chdir: "/opt/{{ app_name }}/db"
+      register: _podman_up
+      changed_when: true
+
+    - name: 📝 Systemd Service erstellen (Reboot-Sicherheit) - db_postgresql.yml
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/{{ app_name }}-db.service
+        content: |
+          [Unit]
+          Description={{ app_name }} PostgreSQL (Podman)
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=oneshot
+          RemainAfterExit=yes
+          WorkingDirectory=/opt/{{ app_name }}/db
+          ExecStart=/usr/bin/podman-compose up -d
+          ExecStop=/usr/bin/podman-compose down
+
+          [Install]
+          WantedBy=multi-user.target
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: 🔄 Systemd Service aktivieren (Reboot-Sicherheit) - db_postgresql.yml
+      ansible.builtin.systemd:
+        name: "{{ app_name }}-db"
+        enabled: true
+        daemon_reload: true
+
+    - name: ⏳ Warte auf PostgreSQL (Podman) - db_postgresql.yml
+      ansible.builtin.command: podman exec {{ app_name }}-db pg_isready -U {{ app_name }}
+      register: _podman_wait
+      until: _podman_wait.rc == 0
+      retries: 20
+      delay: 5
+      changed_when: false
+      failed_when: false
+
+    - name: "{{ '✅ PostgreSQL (Podman) ist Ready!' if _podman_wait.rc | default(1) == 0 else '⚠️ PostgreSQL (Podman) nicht Ready!' }}"
+      ansible.builtin.debug:
+        msg: "{{ '✅ PostgreSQL läuft!' if _podman_wait.rc | default(1) == 0 else '⚠️ PostgreSQL nicht bereit — bitte prüfen!' }}"
+
+  when: app_deploy_type == 'podman'
+
+# ============================================================
+# NATIV (apt install)
+# ============================================================
+- block:
+    - name: 📦 PostgreSQL installieren - db_postgresql.yml
+      ansible.builtin.apt:
+        name:
+          - postgresql
+          - postgresql-client
+        state: present
+        update_cache: true
+
+    - name: 🔄 PostgreSQL aktivieren und starten - db_postgresql.yml
+      ansible.builtin.systemd:
+        name: postgresql
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: ⏳ Warte auf PostgreSQL (Nativ) - db_postgresql.yml
+      ansible.builtin.command: pg_isready
+      register: _nativ_wait
+      until: _nativ_wait.rc == 0
+      retries: 15
+      delay: 5
+      changed_when: false
+
+    - name: 🗄️ DB-User erstellen - db_postgresql.yml
+      ansible.builtin.command: >
+        sudo -u postgres psql -c
+        "DO \$\$ BEGIN
+          IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{{ app_name }}') THEN
+            CREATE ROLE {{ app_name }} WITH LOGIN PASSWORD '{{ app_db_password }}';
+          END IF;
+        END \$\$;"
+      register: _user_create
+      changed_when: _user_create.rc == 0
+      no_log: true
+
+    - name: 🗄️ Datenbank erstellen - db_postgresql.yml
+      ansible.builtin.command: >
+        sudo -u postgres psql -c
+        "SELECT 'CREATE DATABASE {{ app_name }} OWNER {{ app_name }}'
+        WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{{ app_name }}')\gexec"
+      register: _db_create
+      changed_when: _db_create.rc == 0
+
+    - name: ✅ PostgreSQL (Nativ) ist Ready!
+      ansible.builtin.debug:
+        msg: "✅ PostgreSQL läuft nativ — DB: {{ app_name }}, User: {{ app_name }}"
+
+  when: app_deploy_type == 'nativ'

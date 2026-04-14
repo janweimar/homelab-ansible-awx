@@ -1,0 +1,63 @@
+---
+###########################################################################
+# stalwart_bootstrap_job.yml.j2
+# Stalwart Bootstrap Job — läuft nach Deployment
+# Konfiguriert den Server komplett per REST-API (intern im Cluster)
+#
+# Enthält:
+#   - Aktualisierte CSV ConfigMap (immer frisch aus Ansible)
+#   - K3s Job der den bootstrap.py Script ausführt
+###########################################################################
+
+# CSV ConfigMap immer aktuell halten
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ app_name }}-csv
+  namespace: {{ app_name }}
+data:
+  domains.csv: |
+    {{ _stalwart_csv_domains | indent(4) }}
+  groups.csv: |
+    {{ _stalwart_csv_groups | indent(4) }}
+  lists.csv: |
+    {{ _stalwart_csv_lists | indent(4) }}
+  accounts.csv: |
+    {{ _stalwart_csv_accounts | indent(4) }}
+---
+# Bootstrap Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ app_name }}-bootstrap
+  namespace: {{ app_name }}
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: bootstrap
+          image: python:3.11-alpine
+          command: ["python3", "/scripts/bootstrap.py"]
+          env:
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ app_name }}-secret
+                  key: admin_password
+            - name: STALWART_HOSTNAME
+              value: "{{ urls[ansible_host].stalwart.hostname }}"
+          volumeMounts:
+            - name: bootstrap-script
+              mountPath: /scripts
+            - name: csv-data
+              mountPath: /csv
+      volumes:
+        - name: bootstrap-script
+          configMap:
+            name: {{ app_name }}-bootstrap-script
+        - name: csv-data
+          configMap:
+            name: {{ app_name }}-csv

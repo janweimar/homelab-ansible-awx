@@ -1,0 +1,96 @@
+---
+###########################################################################
+# 📚 BookStack Installation Task
+# Hauptinstallation mit Docker-Compose
+###########################################################################
+
+- name: 🗑️ Lösche alte docker-compose.yml (Force Recreate) - bookstack_task.yml
+  ansible.builtin.file:
+    path: "{{ paths.bookstack_base[ansible_os_family] }}/docker-compose.yml"
+    state: absent
+
+- name: 📝 Erstelle docker-compose.yml für BookStack - bookstack_task.yml
+  ansible.builtin.template:
+    src: templates/docker-compose.yml.j2
+    dest: "{{ paths.bookstack_base[ansible_os_family] }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: 🔐 Speichere DB-Passwort sicher - bookstack_task.yml
+  ansible.builtin.template:
+    src: templates/credentials.j2
+    dest: "{{ paths.bookstack_base[ansible_os_family] }}/.credentials"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: 🗑️ Entferne alte Container komplett - bookstack_task.yml
+  ansible.builtin.shell: "{{ command.docker_compose_down[ansible_os_family] }} --remove-orphans && docker system prune -f"
+  args:
+    chdir: "{{ paths.bookstack_base[ansible_os_family] }}"
+  register: docker_compose_down
+  changed_when: "'Stopping' in docker_compose_down.stdout or 'Removing' in docker_compose_down.stdout"
+  ignore_errors: true
+
+- name: 🗑️ Lösche alte Datenbank (MySQL → MariaDB Migration) - bookstack_task.yml
+  ansible.builtin.file:
+    path: "{{ paths.bookstack_db[ansible_os_family] }}"
+    state: absent
+
+- name: 📏 Erstelle leeres DB-Verzeichnis neu - bookstack_task.yml
+  ansible.builtin.file:
+    path: "{{ paths.bookstack_db[ansible_os_family] }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: 🐳 Starte BookStack Container (force recreate) - bookstack_task.yml
+  ansible.builtin.command: "{{ command.docker_compose_up[ansible_os_family] }} --force-recreate"
+  args:
+    chdir: "{{ paths.bookstack_base[ansible_os_family] }}"
+  register: docker_compose_up
+  changed_when: "'Creating' in docker_compose_up.stdout or 'Starting' in docker_compose_up.stdout"
+
+- name: ⏳ Warte 30 Sekunden bis BookStack gestartet ist - bookstack_task.yml
+  ansible.builtin.pause:
+    seconds: 30
+  when: docker_compose_up.changed
+
+- name: 🌐 Prüfe BookStack Erreichbarkeit - bookstack_task.yml
+  ansible.builtin.uri:
+    url: "http://localhost:{{ server_urls.bookstack.port }}"
+    method: GET
+    status_code: 200
+  register: bookstack_check
+  retries: 5
+  delay: 10
+  until: bookstack_check.status == 200
+  ignore_errors: true
+
+- name: 📊 BookStack Installations-Zusammenfassung - bookstack_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ BookStack Installation abgeschlossen!"
+      - ""
+      - "🔗 Zugriff:"
+      - "   URL: {{ server_urls.bookstack.url }}"
+      - "   Port: {{ server_urls.bookstack.port }}"
+      - ""
+      - "👤 Standard-Login:"
+      - "   E-Mail: admin@admin.com"
+      - "   Passwort: password"
+      - "   ⚠️  WICHTIG: Passwort nach erstem Login ändern!"
+      - ""
+      - "📁 Verzeichnisse:"
+      - "   Base: {{ paths.bookstack_base[ansible_os_family] }}"
+      - "   Credentials: {{ paths.bookstack_base[ansible_os_family] }}/.credentials"
+
+- name: 📝 Erstelle Info-Datei - bookstack_task.yml
+  ansible.builtin.template:
+    src: templates/README.txt.j2
+    dest: "{{ paths.bookstack_base[ansible_os_family] }}/README.txt"
+    owner: root
+    group: root
+    mode: "0644"

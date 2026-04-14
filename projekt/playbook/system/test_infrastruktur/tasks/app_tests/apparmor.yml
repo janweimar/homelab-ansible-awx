@@ -1,0 +1,73 @@
+---
+###########################################################################
+# 🔒 Spezialtest: apparmor
+# =========================================================================
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+- name: "AAR | Paket installiert"
+  ansible.builtin.command: dpkg -s apparmor
+  register: reg_aar_pkg
+  changed_when: false
+  failed_when: false
+
+- name: "AAR | Service aktiv"
+  ansible.builtin.command: systemctl is-active apparmor
+  register: reg_aar_active
+  changed_when: false
+  failed_when: false
+
+- name: "AAR | Profile geladen"
+  ansible.builtin.command: aa-status
+  register: reg_aar_status
+  changed_when: false
+  failed_when: false
+
+- name: "AAR | Profile im Enforce-Modus zählen"
+  ansible.builtin.shell: aa-status 2>/dev/null | grep "profiles are in enforce mode" | awk '{print $1}'
+  register: reg_aar_enforce
+  changed_when: false
+  failed_when: false
+
+- name: "AAR | Profile im Complain-Modus zählen"
+  ansible.builtin.shell: aa-status 2>/dev/null | grep "profiles are in complain mode" | awk '{print $1}'
+  register: reg_aar_complain
+  changed_when: false
+  failed_when: false
+
+- name: "AAR | Ergebnis in app_results speichern"
+  ansible.builtin.set_fact:
+    app_results: >-
+      {{
+        app_results + [{
+          'app': 'apparmor',
+          'typ': 'spezial',
+          'status': (
+            'FEHLER' if reg_aar_active.stdout != 'active'
+            else 'WARNUNG' if (reg_aar_enforce.stdout | default(0) | int) == 0
+            else 'OK'
+          ),
+          'details': [
+            {
+              'name': 'Service aktiv',
+              'status': 'OK' if reg_aar_active.stdout == 'active' else 'FEHLER',
+              'wert': reg_aar_active.stdout,
+              'hinweis': 'AppArmor läuft nicht!' if reg_aar_active.stdout != 'active' else ''
+            },
+            {
+              'name': 'Profile im Enforce-Modus',
+              'status': 'OK' if (reg_aar_enforce.stdout | default(0) | int) > 0 else 'WARNUNG',
+              'wert': reg_aar_enforce.stdout | default(0) | trim + ' Profile',
+              'hinweis': 'Keine Profile im Enforce-Modus!' if (reg_aar_enforce.stdout | default(0) | int) == 0 else ''
+            },
+            {
+              'name': 'Profile im Complain-Modus',
+              'status': 'INFO',
+              'wert': reg_aar_complain.stdout | default(0) | trim + ' Profile',
+              'hinweis': ''
+            }
+          ],
+          'spezialtest': true
+        }]
+      }}
+  when: reg_aar_pkg.rc == 0

@@ -1,0 +1,116 @@
+---
+###########################################################################
+# 🕒 Cronjob Verwaltung
+# Datei: cronjobs_task.yml
+# Zweck: Zusaetzliche Cronjobs verwalten + Inventar aller aktiven Crons
+###########################################################################
+
+# =========================================================================
+# 1. Inventarisierung: Alle bestehenden Crons ermitteln
+# =========================================================================
+- name: Ermittle alle Crontabs (root) - cronjobs_task.yml
+  ansible.builtin.command: crontab -l -u root
+  register: crontab_root
+  changed_when: false
+  failed_when: false
+
+- name: Ermittle alle Crontabs (www-data) - cronjobs_task.yml
+  ansible.builtin.command: crontab -l -u www-data
+  register: crontab_wwwdata
+  changed_when: false
+  failed_when: false
+
+- name: Ermittle System-Crons (/etc/cron.d/) - cronjobs_task.yml
+  ansible.builtin.command: ls -1 /etc/cron.d/
+  register: cron_d_files
+  changed_when: false
+  failed_when: false
+
+- name: Ermittle cron.daily Eintraege - cronjobs_task.yml
+  ansible.builtin.command: ls -1 /etc/cron.daily/
+  register: cron_daily_files
+  changed_when: false
+  failed_when: false
+
+- name: Ermittle cron.weekly Eintraege - cronjobs_task.yml
+  ansible.builtin.command: ls -1 /etc/cron.weekly/
+  register: cron_weekly_files
+  changed_when: false
+  failed_when: false
+
+- name: Ermittle cron.monthly Eintraege - cronjobs_task.yml
+  ansible.builtin.command: ls -1 /etc/cron.monthly/
+  register: cron_monthly_files
+  changed_when: false
+  failed_when: false
+
+- name: Ermittle aktive Systemd-Timer - cronjobs_task.yml
+  ansible.builtin.command: systemctl list-timers --no-pager --no-legend
+  register: systemd_timers
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# 2. Zeige Inventar-Uebersicht
+# =========================================================================
+- name: Zeige Cron-Inventar - cronjobs_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "═══════════════════════════════════════════"
+      - "📋 CRON INVENTAR"
+      - "═══════════════════════════════════════════"
+      - "Root Crontab: {{ (crontab_root.stdout_lines | default([]) | reject('match', '^#') | reject('match', '^$') | list | length) }} Eintraege"
+      - "www-data Crontab: {{ (crontab_wwwdata.stdout_lines | default([]) | reject('match', '^#') | reject('match', '^$') | list | length) }} Eintraege"
+      - "/etc/cron.d/: {{ cron_d_files.stdout_lines | default([]) | length }} Dateien"
+      - "/etc/cron.daily/: {{ cron_daily_files.stdout_lines | default([]) | length }} Eintraege"
+      - "/etc/cron.weekly/: {{ cron_weekly_files.stdout_lines | default([]) | length }} Eintraege"
+      - "/etc/cron.monthly/: {{ cron_monthly_files.stdout_lines | default([]) | length }} Eintraege"
+      - "Systemd-Timer: {{ systemd_timers.stdout_lines | default([]) | length }} aktiv"
+      - "═══════════════════════════════════════════"
+
+# =========================================================================
+# 3. Zusaetzliche Cronjobs aus default_vars deployen
+# =========================================================================
+- name: Deploye zusaetzliche Cronjobs - cronjobs_task.yml
+  ansible.builtin.cron:
+    name: "{{ item.value.comment }}"
+    user: "{{ item.value.user }}"
+    minute: "{{ item.value.minute }}"
+    hour: "{{ item.value.hour }}"
+    day: "{{ item.value.day }}"
+    month: "{{ item.value.month }}"
+    weekday: "{{ item.value.weekday }}"
+    job: "{{ item.value.job }}"
+    state: "{{ 'present' if item.value.enabled | bool else 'absent' }}"
+  loop: "{{ default_vars[ansible_host].cronjobs | dict2items }}"
+  loop_control:
+    label: "{{ item.key }} ({{ 'aktiviert' if item.value.enabled | bool else 'deaktiviert' }})"
+  register: cronjob_results
+
+# =========================================================================
+# 4. Erneut Crontabs lesen (nach Aenderungen)
+# =========================================================================
+- name: Lese aktualisierte Crontabs (root) - cronjobs_task.yml
+  ansible.builtin.command: crontab -l -u root
+  register: crontab_root_updated
+  changed_when: false
+  failed_when: false
+
+- name: Lese aktualisierte Crontabs (www-data) - cronjobs_task.yml
+  ansible.builtin.command: crontab -l -u www-data
+  register: crontab_wwwdata_updated
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# 5. Zusammenfassung
+# =========================================================================
+- name: Zeige Cronjob-Status - cronjobs_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "═══════════════════════════════════════════"
+      - "✅ CRONJOB VERWALTUNG ABGESCHLOSSEN"
+      - "═══════════════════════════════════════════"
+      - "Verwaltete Cronjobs:"
+      - "{% for item in default_vars[ansible_host].cronjobs | dict2items %}  {{ '✅' if item.value.enabled | bool else '⏸️' }} {{ item.key }}: {{ item.value.minute }} {{ item.value.hour }} {{ item.value.day }} {{ item.value.month }} {{ item.value.weekday }} ({{ item.value.user }}){% endfor %}"
+      - "═══════════════════════════════════════════"

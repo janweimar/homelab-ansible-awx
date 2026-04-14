@@ -1,0 +1,105 @@
+---
+###########################################################################
+# PostgreSQL Kubernetes Manifest (wiederverwendbar)
+# Variablen: app_name, app_db_password
+# Erstellt: Secret, PVC, StatefulSet, Headless Service
+###########################################################################
+
+# PostgreSQL Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ app_name }}-db-secret
+  namespace: {{ app_name }}
+type: Opaque
+stringData:
+  POSTGRES_DB: "{{ app_name }}"
+  POSTGRES_USER: "{{ app_name }}"
+  POSTGRES_PASSWORD: "{{ app_db_password }}"
+---
+# PostgreSQL PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ app_name }}-db-pvc
+  namespace: {{ app_name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+# PostgreSQL StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ app_name }}-postgresql
+  namespace: {{ app_name }}
+spec:
+  serviceName: {{ app_name }}-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ app_name }}-postgresql
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}-postgresql
+    spec:
+      containers:
+        - name: postgresql
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: {{ app_name }}-db-secret
+          resources:
+            requests:
+              memory: "{{ app_resources[app_name + '-db'].memory_request }}"
+              cpu: "{{ app_resources[app_name + '-db'].cpu_request }}"
+            limits:
+              memory: "{{ app_resources[app_name + '-db'].memory_limit }}"
+              cpu: "{{ app_resources[app_name + '-db'].cpu_limit }}"
+          volumeMounts:
+            - name: db-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -U {{ app_name }}
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -U {{ app_name }}
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 10
+      volumes:
+        - name: db-data
+          persistentVolumeClaim:
+            claimName: {{ app_name }}-db-pvc
+---
+# PostgreSQL Headless Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ app_name }}-db
+  namespace: {{ app_name }}
+spec:
+  selector:
+    app: {{ app_name }}-postgresql
+  ports:
+    - port: 5432
+      targetPort: 5432
+  clusterIP: None

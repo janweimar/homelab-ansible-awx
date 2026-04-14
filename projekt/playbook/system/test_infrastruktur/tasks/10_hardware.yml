@@ -1,0 +1,164 @@
+---
+###########################################################################
+# 🔧 Modul 10 — Hardware-Ressourcen
+# =========================================================================
+# Zweck  : CPU, RAM, Festplatten, RAID, Netzwerkadapter erfassen
+# Liest  : lscpu, lsmem, lsblk, mdstat, ethtool
+# Schreibt in: hardware_results
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+# =========================================================================
+# CPU
+# =========================================================================
+
+- name: "10 | CPU-Informationen erfassen"
+  ansible.builtin.command: lscpu
+  register: reg_cpu
+  changed_when: false
+  failed_when: false
+
+- name: "10 | CPU-Kerne ermitteln"
+  ansible.builtin.shell: nproc
+  register: reg_cpu_kerne
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Speicher
+# =========================================================================
+
+- name: "10 | Speichermodule erfassen"
+  ansible.builtin.command: lsmem
+  register: reg_speicher
+  changed_when: false
+  failed_when: false
+
+- name: "10 | Speicher-Details (DMI)"
+  ansible.builtin.command: dmidecode -t memory
+  register: reg_dmi_memory
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Festplatten und RAID
+# =========================================================================
+
+- name: "10 | Blockgeräte erfassen"
+  ansible.builtin.command: lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,MODEL
+  register: reg_lsblk
+  changed_when: false
+  failed_when: false
+
+- name: "10 | Partitionstabellen erfassen"
+  ansible.builtin.command: fdisk -l
+  register: reg_fdisk
+  changed_when: false
+  failed_when: false
+
+- name: "10 | Software-RAID Status prüfen"
+  ansible.builtin.command: cat /proc/mdstat
+  register: reg_mdstat
+  changed_when: false
+  failed_when: false
+
+- name: "10 | RAID degraded prüfen"
+  ansible.builtin.shell: grep -c "\[.*_.*\]" /proc/mdstat 2>/dev/null || echo 0
+  register: reg_raid_degraded
+  changed_when: false
+  failed_when: false
+
+- name: "10 | SMART-Status prüfen (falls smartmontools vorhanden)"
+  ansible.builtin.shell: >
+    which smartctl 2>/dev/null &&
+    for disk in $(lsblk -dno NAME | grep -v loop); do
+      echo "=== /dev/$disk ===";
+      smartctl -H /dev/$disk 2>/dev/null | grep -E "SMART|Health|result";
+    done || echo "smartmontools nicht installiert"
+  register: reg_smart
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Netzwerkadapter
+# =========================================================================
+
+- name: "10 | Netzwerkadapter erfassen"
+  ansible.builtin.command: ip link show
+  register: reg_netzwerkadapter
+  changed_when: false
+  failed_when: false
+
+- name: "10 | Netzwerkadapter Details (ethtool)"
+  ansible.builtin.shell: >
+    for iface in $(ip -o link show | awk -F': ' '$2 !~ /lo|docker|br-|veth/ {print $2}' | cut -d@ -f1); do
+      echo "=== $iface ===";
+      ethtool "$iface" 2>/dev/null | grep -E "Speed|Duplex|Link";
+    done
+  register: reg_ethtool
+  changed_when: false
+  failed_when: false
+
+- name: "10 | Virtuelle Maschine prüfen"
+  ansible.builtin.command: systemd-detect-virt
+  register: reg_virt
+  changed_when: false
+  failed_when: false
+
+- name: "10 | PCI-Geräte erfassen"
+  ansible.builtin.command: lspci
+  register: reg_pci
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ergebnisse in Variable speichern
+# =========================================================================
+
+- name: "10 | Ergebnisse in hardware_results speichern"
+  ansible.builtin.set_fact:
+    hardware_results:
+      status: "{{ 'FEHLER' if (reg_raid_degraded.stdout | int) > 0 else 'OK' }}"
+      zusammenfassung:
+        ok: "{{ 0 if (reg_raid_degraded.stdout | int) > 0 else 1 }}"
+        warnungen: 0
+        fehler: "{{ 1 if (reg_raid_degraded.stdout | int) > 0 else 0 }}"
+      details:
+        - name: "CPU"
+          status: "OK"
+          wert: "{{ ansible_processor[2] | default('unbekannt') }} — {{ reg_cpu_kerne.stdout | trim }} Kerne"
+          hinweis: ""
+
+        - name: "RAM gesamt"
+          status: "OK"
+          wert: "{{ ansible_memtotal_mb }} MB ({{ (ansible_memtotal_mb / 1024) | round(1) }} GB)"
+          hinweis: ""
+
+        - name: "Virtualisierung"
+          status: "OK"
+          wert: "{{ reg_virt.stdout | default('none') }}"
+          hinweis: "{{ 'Läuft in virtueller Umgebung: ' + reg_virt.stdout if reg_virt.stdout != 'none' and reg_virt.rc == 0 else '' }}"
+
+        - name: "Blockgeräte"
+          status: "OK"
+          wert: "{{ reg_lsblk.stdout_lines | length }} Einträge"
+          hinweis: ""
+
+        - name: "Software-RAID"
+          status: "{{ 'FEHLER' if (reg_raid_degraded.stdout | int) > 0 else 'OK' }}"
+          wert: "{{ 'DEGRADED — Array beschädigt!' if (reg_raid_degraded.stdout | int) > 0 else 'OK oder kein RAID' }}"
+          hinweis: "{{ 'RAID-Array degraded — sofort prüfen!' if (reg_raid_degraded.stdout | int) > 0 else '' }}"
+
+        - name: "SMART-Status"
+          status: "{{ 'WARNUNG' if 'FAILED' in reg_smart.stdout else 'OK' }}"
+          wert: "{{ 'Festplatten-Fehler gefunden!' if 'FAILED' in reg_smart.stdout else reg_smart.stdout | default('smartmontools nicht installiert') }}"
+          hinweis: "{{ 'Festplatten-SMART-Fehler!' if 'FAILED' in reg_smart.stdout else '' }}"
+
+      cpu: "{{ reg_cpu.stdout_lines | default([]) }}"
+      lsblk: "{{ reg_lsblk.stdout_lines | default([]) }}"
+      mdstat: "{{ reg_mdstat.stdout_lines | default([]) }}"
+      netzwerkadapter: "{{ reg_ethtool.stdout_lines | default([]) }}"
+
+- name: "10 | ✅ Hardware-Analyse abgeschlossen"
+  ansible.builtin.debug:
+    msg: "Hardware erfasst — CPU: {{ ansible_processor[2] | default('unbekannt') }}, RAM: {{ ansible_memtotal_mb }} MB, RAID: {{ 'DEGRADED!' if (reg_raid_degraded.stdout | int) > 0 else 'OK' }} — Status: {{ hardware_results.status }}"

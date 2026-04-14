@@ -1,0 +1,63 @@
+---
+###########################################################################
+# Benutzer anlegen mit Passwort, sudo-Rechten und SSH-Key
+# Kann in anderen Playbooks wiederverwendet werden
+###########################################################################
+
+###########################################################################
+# 1. Benutzer anlegen mit Passwort und sudo-Rechten
+###########################################################################
+- name: 👤 Stelle sicher dass Benutzer {{ add_user_sudo }} existiert
+  ansible.builtin.user:
+    name: "{{ add_user_sudo }}"
+    shell: /bin/bash
+    groups: "{{ 'sudo' if ansible_os_family == 'Debian' else 'wheel' }}"
+    append: yes
+    create_home: yes
+    state: present
+    password: "{{ new_user_password | password_hash('sha512', 65534 | random(seed=inventory_hostname) | string) }}"
+  register: user_creation_result
+
+- name: 📊 Debug Benutzer-Erstellung
+  ansible.builtin.debug:
+    var: user_creation_result
+  when: debug_output | default(false) | bool
+
+###########################################################################
+# 2. Sudo-Rechte konfigurieren
+###########################################################################
+- name: 🔐 Erlaube {{ add_user_sudo }} sudo-Zugriff
+  ansible.builtin.copy:
+    dest: "{{ paths.ssh.sudoers_d[ansible_os_family] }}/{{ add_user_sudo }}"
+    content: "{{ add_user_sudo }} ALL=(ALL) ALL\n"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: "visudo -cf %s"
+  register: sudo_config_result
+
+- name: 📊 Debug Sudo-Konfiguration
+  ansible.builtin.debug:
+    var: sudo_config_result
+  when: debug_output | default(false) | bool
+
+###########################################################################
+# 3. SSH Public Key hinzufügen
+###########################################################################
+- name: 🗑️ Entferne ALLE SSH Keys für {{ add_user_sudo }}
+  ansible.builtin.file:
+    path: "/home/{{ add_user_sudo }}/.ssh/authorized_keys"
+    state: absent
+
+- name: 🔑 Füge SSH Public Key für {{ add_user_sudo }} hinzu
+  ansible.posix.authorized_key:
+    user: "{{ add_user_sudo }}"
+    state: present
+    key: "{{ lookup('file', file_paths.ssh_pub_key[ansible_default_ipv4.address][add_user_sudo]) }}"
+    manage_dir: yes
+  register: ssh_key_result
+
+- name: 📊 Debug SSH-Key Installation
+  ansible.builtin.debug:
+    var: ssh_key_result
+  when: debug_output | default(false) | bool

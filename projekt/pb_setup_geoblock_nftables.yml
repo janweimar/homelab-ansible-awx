@@ -1,0 +1,203 @@
+---
+###########################################################################
+# 🧱 GeoIP Blocking nftables
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials:
+#   geo_status: Status (aktiviert/deaktiviert/deinstalliert)
+#   geo_mode: GeoIP Modus
+#   geo_rollback_timer: Rollback Timer in Sekunden
+#   geo_priority_geo_chain: Priorität der Geo-Chain
+#   geo_priority_trust_geo_chain: Priorität der Trust-Geo-Chain
+#   vpn_enabled: Bool (true/false) – aktiviert VPN-Regeln (WireGuard) aus failsafe_ips.yml
+#   ssh_key: SSH-Zugangsdaten
+#
+# Beschreibung: GeoIP Blocking mit nftables implementieren
+#
+# Hinweise:
+#   - Benötigt nftables als Dependency
+#   - GeoIP-Datenbanken werden automatisch geladen
+#
+# BEST PRACTICES:
+# - Wenn möglich kein Code im Playbook, sondern in pre_task/task auslagern
+# - Nicht benötigte Service-Includes löschen (nicht auskommentieren)
+###########################################################################
+
+- name: pb_setup_geoblock_nftables.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+
+  vars:
+    # Hauptanwendung(en)
+    var_pack_name:
+      - nftables
+
+    # Abhängigkeiten
+    var_dependencies_list:
+      - geoip
+
+    # Voraussetzungen - müssen bereits installiert sein
+    var_prerequisites:
+
+    # Installationsreihenfolge: 0 = erst Hauptanwendung dann Dependencies | 1 = umgekehrt
+    var_inst_order: 1
+
+    # Zusätzliche Services für start/autostart
+    var_sonder_start:
+
+    var_sonder_autostart:
+
+    # Nicht unterstützte OS
+    unsupported_systems:
+
+    # Playbook-Kontext für Template-Auswahl
+    templates_paths_pb:
+
+    # Playbook-Log-Dokumentation (Template-Pfad)
+    pb_doku_template: geoblock_nftables_doku
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden & setzen
+    ###########################################################################
+    - block:
+        - name: Lade playbooks_paths.yml
+          include_vars:
+            file: "playbooks_paths.yml"
+
+        - name: Lade alle Variablen-Dateien aus var_list.yml
+          include_vars:
+            file: "{{ item }}"
+          loop: "{{ var_files }}"
+
+    ###########################################################################
+    # Hook: Pre-Start (nach Variablen-Laden)
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck & Prerequisites
+    ###########################################################################
+    - name: 🔄 Importiere Systemcheck
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Importiere Systemcheck zwingend benötigter Komponenten
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks (für alle Playbooks)
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Paketmanager-Lock & Debug
+        ###########################################################################
+        - name: 🔄 Importiere Paketmanager-Lock prüfen
+          ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+        ###########################################################################
+        # Debug-Ausgabe
+        ###########################################################################
+        - name: 🔄 Importiere Debug ausgabe bei Playbook start
+          ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+    ###########################################################################
+    # Playbook-spezifische Pre-Tasks
+    ###########################################################################
+    - block:
+        - name: 🔄 Importiere pre_task
+          ansible.builtin.include_tasks: "{{ task_paths.geoip_pretask_nftable }}"
+      when: allg_status == "aktiviert"
+
+  tasks:
+    ###########################################################################
+    # HAUPTLOGIK - Installation
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Hook: Pre-Install (vor Installation)
+        ###########################################################################
+        - name: 🔧 Hook Pre-Install
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        ###########################################################################
+        # Standard-Installation
+        ###########################################################################
+        - name: 🔄 Komplette installation von var_pack_name und var_dependencies_list
+          ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+        ###########################################################################
+        # Playbook-spezifische Konfiguration
+        ###########################################################################
+        - name: 🔄 Ausführen der komplette konfiguration
+          ansible.builtin.include_tasks: "{{ task_paths.geoip_task_nftable }}"
+
+        ###########################################################################
+        # Service-Management
+        ###########################################################################
+        - block:
+            - name: 📄 Startet Hauptdienst
+              ansible.builtin.include_tasks: "{{ include_paths.services_start }}"
+
+            - name: 📄 Autostart aktivieren
+              ansible.builtin.include_tasks: "{{ include_paths.services_autostart }}"
+
+            - name: 📄 Status prüfen
+              ansible.builtin.include_tasks: "{{ include_paths.status_inst }}"
+
+            - name: 📄 Autostart prüfen
+              ansible.builtin.include_tasks: "{{ include_paths.services_is_enable }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # Deaktivierung
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Dienste stoppen
+        ###########################################################################
+        - name: 🔄 Dienste stoppen
+          ansible.builtin.include_tasks: "{{ include_paths.services_stop }}"
+
+        ###########################################################################
+        # Playbook-spezifische Deaktivierung
+        ###########################################################################
+
+      when: allg_status == "deaktiviert"
+
+    ###########################################################################
+    # Deinstallation
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Standard-Deinstallation
+        ###########################################################################
+        - name: 🔄 Deinstallationsscript mit debug Ausgabe
+          ansible.builtin.include_tasks: "{{ include_paths.deinstall_allg }}"
+
+        ###########################################################################
+        # Playbook-spezifische Deinstallation
+        ###########################################################################
+
+        ###########################################################################
+        # Cleanup
+        ###########################################################################
+        - name: 🔄 Cleanup durchführen
+          ansible.builtin.include_tasks: "{{ include_paths.cleanup }}"
+
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # Hook: end (am Ende des Playbooks)
+    ###########################################################################
+    - name: 🔧 Hook Post-Install
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

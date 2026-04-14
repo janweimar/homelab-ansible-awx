@@ -1,0 +1,269 @@
+---
+###########################################################################
+# U0001f3e2 odoo_kube_task.yml
+# Odoo ERP Deployment auf K3s — PostgreSQL ist im Manifest enthalten
+###########################################################################
+# Wird vom universellen pb_setup_app_deploy.yml aufgerufen.
+# nginx wird dort gehandelt — hier nur Kubernetes-Deployment.
+#
+# PostgreSQL gehoert zu Odoo und wird automatisch mit deployed.
+# ConfigMap mit odoo.conf wird im Manifest erstellt.
+# Keine Health-Probes — Odoo braucht beim Erststart mehrere Minuten
+# fuer die DB-Initialisierung (Tabellen, Module, Views).
+#
+# Nutzt wiederverwendbare Common Tasks:
+#   - kube_app_cleanup:     Namespace + Ressourcen aufraeumen
+#   - kube_app_wait_ready:  Warten bis alle Pods Ready
+###########################################################################
+
+# ============================================================
+# 0) DEBUG — Eingangsvariablen anzeigen
+# ============================================================
+- name: 📊 DEBUG Eingangsvariablen - odoo_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "🏢 Odoo ERP Kubernetes Deployment"
+      - "=========================================="
+      - "app_name:        {{ app_name }}"
+      - "app_deploy_type: {{ app_deploy_type }}"
+      - "DB:              PostgreSQL (automatisch)"
+      - "app_port:        {{ app_port | default('8069') }}"
+      - "kube_user:       {{ kube_user }}"
+      - "Domain:          {{ urls[ansible_host][app_name].domain | default('NICHT GESETZT') }}"
+      - "=========================================="
+
+# ============================================================
+# 1) Aufräumen — alte Installation entfernen
+# ============================================================
+- name: 🧹 Alte Installation aufräumen - odoo_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_cleanup }}"
+
+# ============================================================
+# 2) Custom Module klonen → /tmp/odoo_custom_addons (Host)
+# ============================================================
+- name: 📁 Temp-Verzeichnis für Custom Addons anlegen - odoo_kube_task.yml
+  ansible.builtin.file:
+    path: "/tmp/odoo_custom_addons"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: 📦 Custom Module klonen (höchster verfügbarer Branch) - odoo_kube_task.yml
+  ansible.builtin.shell: |
+    DEST="/tmp/odoo_custom_addons/{{ item.name }}"
+    if [ -d "$DEST" ]; then
+      echo "SKIP: {{ item.name }} existiert bereits"
+      exit 0
+    fi
+    CLONED=0
+    for branch in 19.0 18.0 17.0 16.0 15.0 14.0 13.0 12.0 main master; do
+      if git ls-remote --exit-code --heads {{ item.url }} $branch > /dev/null 2>&1; then
+        if git clone --branch $branch --depth 1 {{ item.url }} $DEST 2>&1; then
+          rm -rf $DEST/.git
+          echo "OK: {{ item.name }} @ $branch"
+          CLONED=1
+          break
+        fi
+      fi
+    done
+    if [ $CLONED -eq 0 ]; then
+      echo "FEHLER: {{ item.name }} — kein passender Branch gefunden oder Repo nicht erreichbar" >&2
+    fi
+  loop: "{{ odoo_custom_apps }}"
+  become: true
+  register: _clone_result
+  failed_when: false
+  changed_when: "'OK:' in _clone_result.stdout"
+
+- name: ⚠️ Fehlerhafte Repos anzeigen - odoo_kube_task.yml
+  ansible.builtin.debug:
+    msg: "{{ item.stderr_lines }}"
+  loop: "{{ _clone_result.results }}"
+  when: item.stderr | default('') | length > 0
+  loop_control:
+    label: "{{ item.item.name }}"
+
+# ============================================================
+# 3) Odoo + PostgreSQL deployen (alles in einem Manifest)
+# ============================================================
+- name: 📁 Namespace erstellen - odoo_kube_task.yml
+  ansible.builtin.command: kubectl create namespace {{ app_name }}
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _ns_ensure
+  failed_when:
+    - _ns_ensure.rc != 0
+    - "'already exists' not in _ns_ensure.stderr"
+  changed_when: "'created' in _ns_ensure.stdout"
+
+- name: 📁 Manifests-Verzeichnis sicherstellen - odoo_kube_task.yml
+  ansible.builtin.file:
+    path: "/home/{{ kube_user }}/manifests"
+    state: directory
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0755"
+
+- name: 📝 Odoo Manifest erstellen (inkl. PostgreSQL + ConfigMap) - odoo_kube_task.yml
+  ansible.builtin.template:
+    src: playbook/system/tasks/odoo/templates/odoo_kube_manifests.yml.j2
+    dest: "/home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml"
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0644"
+
+- name: 🚀 Odoo + PostgreSQL deployen - odoo_kube_task.yml
+  ansible.builtin.command: kubectl apply -f /home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _deploy_result
+  changed_when: "'created' in _deploy_result.stdout or 'configured' in _deploy_result.stdout"
+
+- name: 📊 DEBUG Deploy Ergebnis - odoo_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ Odoo Manifest applied (inkl. PostgreSQL + ConfigMap)"
+      - "{{ _deploy_result.stdout_lines | default([]) }}"
+
+# ============================================================
+# 3) Warten bis PostgreSQL Ready
+# ============================================================
+- name: ⏳ Warte auf PostgreSQL - odoo_kube_task.yml
+  ansible.builtin.shell: |
+    READY=$(kubectl get pods -n {{ app_name }} -l app={{ app_name }}-postgresql --no-headers 2>/dev/null | awk '{split($2,a,"/"); if(a[1]==a[2] && $3=="Running") print $1}' | wc -l)
+    [ "$READY" -ge 1 ] && exit 0 || exit 1
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _pg_wait
+  until: _pg_wait.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+  failed_when: false
+
+- name: 📊 DEBUG PostgreSQL Status - odoo_kube_task.yml
+  ansible.builtin.debug:
+    msg: "{{ '✅ PostgreSQL Ready' if _pg_wait.rc == 0 else '⚠️ PostgreSQL nicht Ready — bitte prüfen!' }}"
+
+# ============================================================
+# 4) Warten bis Odoo Pod laeuft (OHNE Health-Probe!)
+#    Beim Erststart initialisiert Odoo die DB (5-10 Min).
+#    Wir pruefen nur ob der Pod im Status Running ist.
+# ============================================================
+- name: ⏳ Warte auf Odoo Pod (Running) - odoo_kube_task.yml
+  ansible.builtin.shell: |
+    STATUS=$(kubectl get pods -n {{ app_name }} -l app={{ app_name }} --no-headers 2>/dev/null | grep -v postgresql | awk '{print $3}')
+    echo "Odoo Pod Status: $STATUS"
+    [ "$STATUS" = "Running" ] && exit 0 || exit 1
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _odoo_wait
+  until: _odoo_wait.rc == 0
+  retries: 40
+  delay: 15
+  changed_when: false
+  failed_when: false
+
+- name: 📊 DEBUG Odoo Pod Status - odoo_kube_task.yml
+  ansible.builtin.debug:
+    msg: "{{ '✅ Odoo Pod Running' if _odoo_wait.rc == 0 else '⚠️ Odoo Pod nicht Running — Logs pruefen!' }}"
+
+# ============================================================
+# 4b) Custom Module in Pod kopieren
+# ============================================================
+- name: 📦 Pod-Name ermitteln - odoo_kube_task.yml
+  ansible.builtin.shell: |
+    kubectl get pods -n {{ app_name }} -l app={{ app_name }} --no-headers 2>/dev/null \
+      | grep -v postgresql | awk '{print $1}' | head -1
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _odoo_pod_name
+  changed_when: false
+
+- name: 🚀 Custom Module in Pod kopieren - odoo_kube_task.yml
+  ansible.builtin.shell: |
+    kubectl cp /tmp/odoo_custom_addons/{{ item.name }} \
+      {{ app_name }}/{{ _odoo_pod_name.stdout }}:/mnt/extra-addons/{{ item.name }}
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  loop: "{{ odoo_custom_apps }}"
+  register: _cp_result
+  failed_when: false
+  changed_when: _cp_result.rc == 0
+  when: _odoo_pod_name.stdout | length > 0
+
+- name: 🧹 Temp-Verzeichnis aufräumen - odoo_kube_task.yml
+  ansible.builtin.file:
+    path: "/tmp/odoo_custom_addons"
+    state: absent
+
+# ============================================================
+# 5) DB-Initialisierung (nur beim Erststart)
+# ============================================================
+- name: 🔍 Prüfe ob Odoo DB bereits initialisiert ist - odoo_kube_task.yml
+  ansible.builtin.shell: |
+    kubectl exec -n {{ app_name }} {{ app_name }}-postgresql-0 -- \
+      psql -U {{ app_name }} -d {{ app_name }} -tAc \
+      "SELECT 1 FROM information_schema.tables WHERE table_name='ir_module_module' LIMIT 1"
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _db_init_check
+  changed_when: false
+  failed_when: false
+
+- name: 🗄️ Odoo DB initialisieren (Erststart) - odoo_kube_task.yml
+  ansible.builtin.shell: |
+    kubectl exec -n {{ app_name }} deployment/{{ app_name }} -- \
+      odoo -i base -d {{ app_name }} --stop-after-init 2>&1 | tail -5
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _db_init_result
+  when: _db_init_check.stdout | default('') | trim != '1'
+  timeout: 900
+  changed_when: true
+
+- name: 📊 DEBUG DB-Init Status - odoo_kube_task.yml
+  ansible.builtin.debug:
+    msg: "{{ '✅ DB bereits initialisiert — Init übersprungen' if _db_init_result is skipped else '✅ DB-Initialisierung abgeschlossen' }}"
+
+# ============================================================
+# 6) domain_port setzen (Common Task — K3s/Minikube/K8s)
+# ============================================================
+- name: 🔌 Setze domain_port für nginx - odoo_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_set_domain_port }}"
+
+# ============================================================
+# 7) Zugangsinfo anzeigen
+# ============================================================
+- name: ✅ Odoo Deployment abgeschlossen - odoo_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "✅ Odoo ERP deployed!"
+      - "=========================================="
+      - "🌐 Domain: {{ urls[ansible_host][app_name].domain | default('nicht konfiguriert') }}"
+      - "💾 DB: PostgreSQL ({{ app_name }}-db.{{ app_name }}.svc.cluster.local:5432)"
+      - "📦 Port: {{ app_port | default('8069') }}"
+      - "📋 Config: /etc/odoo/odoo.conf (ConfigMap)"
+      - "📝 Logs: /var/log/odoo/odoo.log (PVC)"
+      - "👤 Master-Passwort: im Credential hinterlegt"
+      - "⚠️ Erststart: DB-Initialisierung kann 5-10 Minuten dauern!"
+      - "=========================================="

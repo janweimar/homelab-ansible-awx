@@ -1,0 +1,149 @@
+app:
+  - apparmor # Mandatory Access Control Framework
+  - apparmor-profiles # Vordefinierte AppArmor-Profile
+  - apparmor-profiles-extra # Zusaetzliche AppArmor-Profile
+  - apparmor-utils # Verwaltungstools fuer AppArmor (aa-genprof, aa-enforce)
+  - apt-listchanges # Zeigt Changelogs bei Paketaktualisierungen
+  - aptly # Debian Repository Manager
+  - at # Einmalige zeitgesteuerte Aufgaben
+  - auditd # Linux Audit Daemon (Systemueberwachung)
+  - audispd-plugins # Plugins fuer Audit-Dispatcher
+  - awx # Ansible AWX Webinterface/API
+  - buildah # OCI Container-Images bauen (ohne Daemon)
+  - ca-certificates # Root-Zertifikate fuer SSL/TLS
+  - certbot # Let's Encrypt SSL-Zertifikatsverwaltung
+  - cgit # Leichtgewichtiges Git Web-Frontend
+  - chkconfig # Service-Verwaltung (SysVinit)
+  - chkconfig-initscripts # Init-Skripte fuer chkconfig
+  - clamav # Antivirus-Engine
+  - clamav-daemon # ClamAV Hintergrunddienst
+  - clamav-freshclam # ClamAV Signatur-Updater
+  - containerd # Container Runtime
+  - containerd.io # Container Runtime (Docker-Paketquelle)
+  - cri-tools # Container Runtime Interface CLI (crictl)
+  - curl # HTTP-Client fuer Kommandozeile
+  - deepseek # DeepSeek LLM (laeuft ueber Ollama)
+  - Directus # Headless CMS mit REST/GraphQL API
+  - dnf-automatic # Automatische Updates (RedHat/SUSE)
+  - docker-ce # Docker Container Engine
+  - docker-ce-cli # Docker Kommandozeilen-Client
+  - docker-compose-plugin # Docker Compose Plugin
+  - dovecot-core # IMAP/POP3 Mailserver (Kern)
+  - dovecot-imapd # Dovecot IMAP-Dienst
+  - fail2ban # Intrusion Prevention (bannt IPs bei Fehlversuchen)
+  - fcgiwrap # FastCGI-Wrapper fuer CGI-Skripte
+  - filebeat # Log-Shipper (Wazuh → Elasticsearch)
+  - geoip-bin # GeoIP Lookup-Tools
+  - geoip-database # GeoIP Laenderdatenbank
+  - git # Versionskontrollsystem
+  - gnupg # GPG Verschluesselung und Signierung
+  - helm # Kubernetes Paketmanager (Charts)
+  - iftop # Netzwerk-Bandbreite pro Verbindung anzeigen
+  - inotify-tools # Dateisystem-Aenderungen ueberwachen (inotifywait)
+  - jq # JSON Kommandozeilen-Parser
+  - k3s # Lightweight Kubernetes Distribution
+  - kubeadm # Kubernetes Cluster Setup (Standard K8s)
+  - kubectl # Kubernetes CLI (Cluster-Verwaltung)
+  - kubelet # Kubernetes Node Agent
+  - kubernetes-cni # Kubernetes Container Network Interface Plugins
+  - kustomize # Kubernetes Konfigurationsmanagement
+  - libnginx-mod-http-modsecurity # Nginx ModSecurity WAF-Modul
+  - llava # LLaVA Vision-Sprachmodell (laeuft ueber Ollama)
+  - logclient # Log-Weiterleitung an zentralen Server
+  - logrotate # Automatische Log-Rotation
+  - logserver # Zentraler Syslog-Server
+  - logwatch # Taegliche Log-Zusammenfassung per Mail
+  - mailcow # Mailserver-Suite (Postfix/Dovecot/SOGo)
+  - mailutils # Mail-Kommandozeilentools
+  - mariadb # MariaDB relationale Datenbank
+  - minikube # Lokale Kubernetes-Umgebung (Entwicklung)
+  - modsecurity-crs # OWASP Core Rule Set fuer ModSecurity (~800 Regeln)
+  - msmtp # Leichtgewichtiger SMTP-Client
+  - msmtp-mta # msmtp als sendmail-Ersatz
+  - mtr # Netzwerk-Diagnose (Traceroute + Ping)
+  - nethogs # Netzwerk-Traffic pro Prozess anzeigen
+  - netfilter-persistent # nftables/iptables Regeln beim Boot laden
+  - nginx # Webserver und Reverse Proxy
+  - nftables # Paketfilter/Firewall (Nachfolger von iptables)
+  - nload # Netzwerk-Bandbreite in Echtzeit anzeigen
+  - odoo19 # Odoo 19 ERP/CRM (Buchhaltung, Lager, Webshop)
+  - ollama # Lokaler LLM Runner (CPU-only KI-Inferenz)
+  - open-webui # Web-Chat-Frontend fuer Ollama/LLMs
+  - openEMS # Elektromagnetische Feldsimulation
+  - openfoam # OpenFOAM CFD Stroemungssimulation
+  - podman # Daemonloser Container-Manager (Alternative zu Docker)
+  - postfix # SMTP Mailserver (E-Mail Versand/Empfang)
+  - postgresql # PostgreSQL relationale Datenbank
+  - python3-apparmor # Python3 AppArmor-Bibliothek
+  - python3-babel # Python3 Internationalisierung
+  - python3-certbot-nginx # Certbot Nginx-Plugin
+  - python3-nftables # Python3 nftables-Bibliothek
+  - python3-pip # Python3 Paketmanager
+  - python3-requests # Python3 HTTP-Bibliothek
+  - qdrant # Vektor-Datenbank fuer AI/Embeddings/RAG
+  - rkhunter # Rootkit-Scanner (Rootkit Hunter)
+  - runc # OCI Container Runtime
+  - skopeo # Container-Images kopieren/inspizieren
+  - smtp # SMTP Mail-Transport
+  - suricata # Netzwerk IDS/IPS (Intrusion Detection/Prevention)
+  - suricata-update # Suricata Regelset-Updater (Emerging Threats)
+  - tcpdump # Netzwerk-Paketanalyse (Sniffing)
+  - unattended-upgrades # Automatische Sicherheitsupdates (Debian/Ubuntu)
+  - vnstat # Netzwerk-Traffic Statistiken
+  - wazuh-agent # Wazuh SIEM Agent (Logsammlung + FIM)
+  - wazuh-manager # Wazuh SIEM Manager (zentrales Monitoring)
+  - wireguard-tools # WireGuard VPN Verwaltungstools (wg, wg-quick)
+
+package_blacklist:
+  # VPN-Server (<ip_vpn_server>, Port 10010)
+  <ip_vpn_server>:
+    - nftables
+    - wireguard-tools
+    - fail2ban
+    - suricata
+
+  # Wazuh-Server (<ip_wazuh_server>, Port 10020)
+  <ip_wazuh_server>:
+    - nginx
+    - nftables
+    - fail2ban
+    - wazuh-manager
+    - suricata
+
+  # Mail-Server (<ip_mail_server>, Port 10030)
+  <ip_mail_server>:
+    - nginx
+    - nftables
+    - fail2ban
+    - postfix
+    - dovecot-core
+    - dovecot-imapd
+    - suricata
+
+  # Repo-Server (<ip_repo_server>, Port 10040)
+  <ip_repo_server>:
+    - nginx
+    - nftables
+    - fail2ban
+    - aptly
+
+  # AI-Server (<ip_ai_server>, Port 10050)
+  <ip_ai_server>:
+    - nftables
+    - fail2ban
+    - suricata
+
+  # Odoo-Server (<ip_odoo_server>, Port 10060)
+  <ip_odoo_server>:
+    - nginx
+    - nftables
+    - fail2ban
+    - postgresql
+    - suricata
+
+  # AWX-Server (<ip_awx_server>, Port 10070)
+  <ip_awx_server>:
+    - nginx
+    - nftables
+    - fail2ban
+    - suricata

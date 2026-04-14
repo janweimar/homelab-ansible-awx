@@ -1,0 +1,887 @@
+---
+# System-Repos die NIEMALS gelöscht werden
+system_repos_protected:
+  - ubuntu
+  - ubuntu-security
+  - ubuntu24
+
+# =============================================================================
+# binary_key: false muss mit gpg --dearmor in binär umgewandelt werden
+# binary_key: true kann direkt als binärdatei verwendet werden
+
+repo:
+  repo_self:
+    Debian:
+      - name: repo_self
+        type: sources
+        key: "https://repo.allgemeinhobby.de/aptly/repo_self_key.gpg"
+        binary_key: false
+        content: |
+          Types: deb
+          URIs: https://repo.allgemeinhobby.de/aptly/repo_self
+          Suites: stable
+          Components: main
+          Architectures: amd64
+          Signed-By: /etc/apt/keyrings/repo_self_key.gpg
+
+  docker:
+    Debian:
+      - name: docker
+        type: sources
+        key: "https://download.docker.com/linux/ubuntu/gpg"
+        binary_key: false
+        content: |
+          Types: deb
+          URIs: https://download.docker.com/linux/ubuntu
+          Suites: {{ ansible_lsb.codename }}
+          Components: stable
+          Architectures: amd64
+          Signed-By: /etc/apt/keyrings/docker.gpg
+
+  kube_1_34:
+    Debian:
+      - name: kube_1_34
+        type: sources
+        key: "https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key"
+        binary_key: false
+        content: |
+          Types: deb
+          URIs: https://pkgs.k8s.io/core:/stable:/v1.34/deb/
+          Suites: /
+          Components:
+          Signed-By: /etc/apt/keyrings/kube_1_34.gpg
+
+  helm: # Ein klarer Name für das Programm + Kanal
+    Debian:
+      - name: helm
+        type: sources
+        key: "https://packages.buildkite.com/helm-linux/helm-debian/gpgkey"
+        binary_key: false
+        content: |
+          Types: deb
+          URIs: https://packages.buildkite.com/helm-linux/helm-debian/any/
+          Suites: any
+          Components: main
+          Signed-By: /etc/apt/keyrings/helm.gpg
+
+# ----------------------------------------------------------------------------
+# Aptly Mirror Definitionen plus Puplish-Parameter
+# erlaubte einträge für arch_filter: amd64,arm64,armhf,i386,ppc64el,riscv64,s390x,all
+# ----------------------------------------------------------------------------
+aptly_mirrors:
+  #  - name: ubuntu_main_universe
+  #    url: "http://archive.ubuntu.com/ubuntu"
+  #    dist: "noble, jammy, ....  " # eintrag mehrerer distros möglich, werden dann als jeweils als ein mirror seperat angelegt.
+  #    components: ["main", "universe"]
+
+  - name: ubuntu_main_universe
+    url: "http://archive.ubuntu.com/ubuntu"
+    dist: "{{ ansible_lsb.codename }}"
+    components: ["main", "universe"]
+    key_url: "http://archive.ubuntu.com/ubuntu/project/ubuntu-archive-keyring.gpg"
+    arch_filter: "amd64"
+    # ⬇️ NUR für Publish
+
+  - name: ubuntu_updates
+    url: "http://archive.ubuntu.com/ubuntu"
+    dist: "{{ ansible_lsb.codename }}-updates"
+    components: ["main", "universe"]
+    key_url: "http://archive.ubuntu.com/ubuntu/project/ubuntu-archive-keyring.gpg"
+    arch_filter: "amd64"
+
+  - name: ubuntu_security
+    url: "http://security.ubuntu.com/ubuntu"
+    dist: "{{ ansible_lsb.codename }}-security"
+    components: ["main", "universe"]
+    key_url: "http://archive.ubuntu.com/ubuntu/project/ubuntu-archive-keyring.gpg"
+    arch_filter: "amd64"
+
+  - name: docker
+    url: "https://download.docker.com/linux/ubuntu"
+    dist: "{{ ansible_lsb.codename }}"
+    components: ["stable"]
+    key_url: "https://download.docker.com/linux/ubuntu/gpg"
+    arch_filter: "amd64"
+    # ⬇️ NUR für Publish
+
+  - name: kube_1_34
+    url: "https://pkgs.k8s.io/core:/stable:/v1.34/deb/"
+    dist: "./" # Punkt vor dem Slash für Flat Repos
+    components: [] # Komplett leere Liste, kein [""]
+    key_url: "https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key" # ← HINZUFÜGEN
+    arch_filter: "amd64"
+    # ⬇️ NUR für Publish
+
+  - name: "helm"
+    url: "https://packages.buildkite.com/helm-linux/helm-debian/any/"
+    dist: "any"
+    components: ["main"]
+    key_url: "https://packages.buildkite.com/helm-linux/helm-debian/gpgkey"
+    arch_filter: "amd64"
+    # ⬇️ NUR für Publish
+
+# ------------------------------------------------------------
+# Aptly Publish Defaults sind nur für repo_self relevant
+# ------------------------------------------------------------
+
+aptly_publish_defaults:
+  distribution_publish: stable
+  component_publish: main
+  Architectures_publish: amd64
+  gpg_apt_key_id: "7DE3CA01DC097508"
+  gpg_git_key_id: "A5C8568E7D859EAF"
+  gpg_passphrase: "fug75ger"
+
+# ----------------------------------------------------------------------------
+# Eigene Paketliste für Installation
+# ----------------------------------------------------------------------------
+repo_self_list_var: "{{ repo_self_list.Debian.apt_source_list }}"
+
+repo_self_list:
+  Debian:
+    apt_source_list:
+      ubuntu_main_universe:
+        roll:
+          - { name: "containerd" }
+          - { name: "runc" }
+          - { name: "nftables" }
+          - { name: "python3-nftables" }
+          - { name: "netfilter-persistent" }
+          - { name: "at" }
+          - { name: "fail2ban" }
+          - { name: "geoip-database" }
+          - { name: "curl" }
+          - { name: "python3-babel" }
+          - { name: "python3-requests" }
+          - { name: "geoip-bin" }
+          - { name: "python-babel" }
+          - { name: "python-requests" }
+          - { name: "inotify-tools" }
+          - { name: "apparmor" }
+          - { name: "apparmor-utils" }
+          - { name: "apparmor-profiles" }
+          - { name: "apparmor-profiles-extra" }
+          - { name: "python3-apparmor" }
+          - { name: "apparmor-parser" }
+          - { name: "auditd" }
+          - { name: "audispd-plugins" }
+          - { name: "audit" }
+          - { name: "audit-libs" }
+          - { name: "audit-libs-python" }
+          - { name: "audisp-remote" }
+          - { name: "audit-audispd-plugins" }
+          - { name: "audit-plugins" }
+          - { name: "git" }
+          - { name: "python3-pip" }
+          - { name: "python-pip" }
+          - { name: "ca-certificates" }
+          - { name: "gnupg" }
+          - { name: "aptly" }
+          - { name: "nginx" }
+          - { name: "cgit" }
+          - { name: "fcgiwrap" }
+        freeze:
+          apparmor:
+            - "4.0.0-beta3-0ubuntu3"
+          apparmor-utils:
+            - "4.0.0-beta3-0ubuntu3"
+          apparmor-profiles:
+            - "4.0.0-beta3-0ubuntu3"
+          apparmor-profiles-extra:
+            - "1.35"
+          auditd:
+            - "1:3.1.2-2.1build1"
+          audispd-plugins:
+            - "1:3.1.2-2.1build1"
+          nftables:
+            - "1.0.9-1build1"
+          python3-nftables:
+            - "1.0.9-1build1"
+          netfilter-persistent:
+            - "1.0.20"
+          containerd:
+            - "1.7.12-0ubuntu4"
+          runc:
+            - "1.1.12-0ubuntu3"
+      ubuntu_updates:
+        roll:
+          - { name: "containerd" }
+          - { name: "runc" }
+          - { name: "nftables" }
+          - { name: "python3-nftables" }
+          - { name: "netfilter-persistent" }
+          - { name: "at" }
+          - { name: "fail2ban" }
+          - { name: "geoip-database" }
+          - { name: "curl" }
+          - { name: "python3-babel" }
+          - { name: "python3-requests" }
+          - { name: "geoip-bin" }
+          - { name: "python-babel" }
+          - { name: "python-requests" }
+          - { name: "inotify-tools" }
+          - { name: "apparmor" }
+          - { name: "apparmor-utils" }
+          - { name: "apparmor-profiles" }
+          - { name: "apparmor-profiles-extra" }
+          - { name: "python3-apparmor" }
+          - { name: "apparmor-parser" }
+          - { name: "auditd" }
+          - { name: "audispd-plugins" }
+          - { name: "audit" }
+          - { name: "audit-libs" }
+          - { name: "audit-libs-python" }
+          - { name: "audisp-remote" }
+          - { name: "audit-audispd-plugins" }
+          - { name: "audit-plugins" }
+          - { name: "git" }
+          - { name: "python3-pip" }
+          - { name: "python-pip" }
+          - { name: "ca-certificates" }
+          - { name: "gnupg" }
+          - { name: "aptly" }
+          - { name: "nginx" }
+          - { name: "cgit" }
+          - { name: "fcgiwrap" }
+        freeze:
+          apparmor:
+            - "4.0.1really4.0.1-0ubuntu0.24.04.5"
+          apparmor-utils:
+            - "4.0.1really4.0.1-0ubuntu0.24.04.5"
+          apparmor-profiles:
+            - "4.0.1really4.0.1-0ubuntu0.24.04.5"
+          auditd:
+            - "1:3.1.2-2.1build1.1"
+          audispd-plugins:
+            - "1:3.1.2-2.1build1.1"
+          containerd:
+            - "1.7.28-0ubuntu1~24.04.2"
+            - "1.7.28-0ubuntu1~24.04.1"
+          runc:
+            - "1.3.3-0ubuntu1~24.04.3"
+      ubuntu_security:
+        roll:
+          - { name: "containerd" }
+          - { name: "runc" }
+          - { name: "nftables" }
+          - { name: "python3-nftables" }
+          - { name: "netfilter-persistent" }
+          - { name: "at" }
+          - { name: "fail2ban" }
+          - { name: "geoip-database" }
+          - { name: "curl" }
+          - { name: "python3-babel" }
+          - { name: "python3-requests" }
+          - { name: "geoip-bin" }
+          - { name: "python-babel" }
+          - { name: "python-requests" }
+          - { name: "inotify-tools" }
+          - { name: "apparmor" }
+          - { name: "apparmor-utils" }
+          - { name: "apparmor-profiles" }
+          - { name: "apparmor-profiles-extra" }
+          - { name: "python3-apparmor" }
+          - { name: "apparmor-parser" }
+          - { name: "auditd" }
+          - { name: "audispd-plugins" }
+          - { name: "audit" }
+          - { name: "audit-libs" }
+          - { name: "audit-libs-python" }
+          - { name: "audisp-remote" }
+          - { name: "audit-audispd-plugins" }
+          - { name: "audit-plugins" }
+          - { name: "git" }
+          - { name: "python3-pip" }
+          - { name: "python-pip" }
+          - { name: "ca-certificates" }
+          - { name: "gnupg" }
+          - { name: "aptly" }
+          - { name: "nginx" }
+          - { name: "cgit" }
+          - { name: "fcgiwrap" }
+        freeze:
+          containerd:
+            - "1.7.28-0ubuntu1~24.04.2"
+            - "1.7.24-0ubuntu1~24.04.2"
+          runc:
+            - "1.3.3-0ubuntu1~24.04.3"
+          gnupg:
+            - "2.4.4-2ubuntu17.4"
+          # KRITISCH: Helm (Kubernetes-Deployment-Tool)
+      helm:
+        roll:
+          - { name: "helm", version: "" }
+        freeze:
+          helm:
+            - "3.19.3-1"
+            - "3.19.2-1"
+            - "3.19.0-1"
+          # SEHR KRITISCH: Kubernetes (müssen exakt zusammenpassen!)
+      kube_1_34:
+        roll:
+          - { name: "kubeadm", version: "" }
+          - { name: "kubelet", version: "" }
+          - { name: "kubectl", version: "" }
+          - { name: "cri-tools", version: "" }
+          - { name: "kubernetes-cni", version: "" }
+        freeze:
+          cri-tools:
+            - "1.34.0-1.1"
+          kubeadm:
+            - "1.34.3-1.1"
+            - "1.34.2-1.1"
+          kubectl:
+            - "1.34.3-1.1"
+            - "1.34.2-1.1"
+          kubelet:
+            - "1.34.3-1.1"
+            - "1.34.2-1.1"
+          kubernetes-cni:
+            - "1.7.1-1.1"
+            - "1.6.0-1.1"
+      docker:
+        roll:
+          - { name: "docker-ce" }
+          - { name: "docker-ce-cli" }
+          - { name: "containerd.io" }
+          - { name: "docker-compose-plugin" }
+          - { name: "docker-buildx-plugin" }
+        freeze:
+          containerd.io:
+            - "2.2.1-1~ubuntu.24.04~noble"
+          docker-buildx-plugin:
+            - "0.30.1-1~ubuntu.24.04~noble"
+          docker-ce:
+            - "5:29.1.3-1~ubuntu.24.04~noble"
+          docker-ce-cli:
+            - "5:29.1.3-1~ubuntu.24.04~noble"
+          docker-compose-plugin:
+            - "5.0.0-1~ubuntu.24.04~noble"
+# =============================================================================
+# Git Repositories zum Klonen
+# =============================================================================
+
+git_clone_list:
+
+  # ---------------------------------------------------------------------------
+  # Odoo — Core + OCA Community + Avanzosc
+  # ---------------------------------------------------------------------------
+  - name: odoo
+    url: https://github.com/odoo/odoo.git
+
+  - name: oca_sale_workflow
+    url: https://github.com/OCA/sale-workflow.git
+  - name: oca_sale_promotion
+    url: https://github.com/OCA/sale-promotion.git
+  - name: oca_purchase_workflow
+    url: https://github.com/OCA/purchase-workflow.git
+  - name: oca_purchase_reporting
+    url: https://github.com/OCA/purchase-reporting.git
+  - name: oca_stock_logistics_warehouse
+    url: https://github.com/OCA/stock-logistics-warehouse.git
+  - name: oca_stock_logistics_workflow
+    url: https://github.com/OCA/stock-logistics-workflow.git
+  - name: oca_stock_logistics_barcode
+    url: https://github.com/OCA/stock-logistics-barcode.git
+  - name: oca_stock_logistics_reporting
+    url: https://github.com/OCA/stock-logistics-reporting.git
+  - name: oca_stock_logistics_transport
+    url: https://github.com/OCA/stock-logistics-transport.git
+  - name: oca_stock_logistics_tracking
+    url: https://github.com/OCA/stock-logistics-tracking.git
+  - name: oca_rma
+    url: https://github.com/OCA/rma.git
+  - name: oca_delivery_carrier
+    url: https://github.com/OCA/delivery-carrier.git
+  - name: oca_product_attribute
+    url: https://github.com/OCA/product-attribute.git
+  - name: oca_product_variant
+    url: https://github.com/OCA/product-variant.git
+  - name: oca_odoo_pim
+    url: https://github.com/OCA/odoo-pim.git
+  - name: oca_partner_contact
+    url: https://github.com/OCA/partner-contact.git
+  - name: oca_crm
+    url: https://github.com/OCA/crm.git
+  - name: oca_project
+    url: https://github.com/OCA/project.git
+  - name: oca_project_agile
+    url: https://github.com/OCA/project-agile.git
+  - name: oca_hr
+    url: https://github.com/OCA/hr.git
+  - name: oca_hr_attendance
+    url: https://github.com/OCA/hr-attendance.git
+  - name: oca_hr_expense
+    url: https://github.com/OCA/hr-expense.git
+  - name: oca_timesheet
+    url: https://github.com/OCA/timesheet.git
+  - name: oca_payroll
+    url: https://github.com/OCA/payroll.git
+  - name: oca_web
+    url: https://github.com/OCA/web.git
+  - name: oca_server_tools
+    url: https://github.com/OCA/server-tools.git
+  - name: oca_server_ux
+    url: https://github.com/OCA/server-ux.git
+  - name: oca_server_auth
+    url: https://github.com/OCA/server-auth.git
+  - name: oca_server_brand
+    url: https://github.com/OCA/server-brand.git
+  - name: oca_server_backend
+    url: https://github.com/OCA/server-backend.git
+  - name: oca_server_env
+    url: https://github.com/OCA/server-env.git
+  - name: oca_rest_framework
+    url: https://github.com/OCA/rest-framework.git
+  - name: oca_queue
+    url: https://github.com/OCA/queue.git
+  - name: oca_account_financial_reporting
+    url: https://github.com/OCA/account-financial-reporting.git
+  - name: oca_account_financial_tools
+    url: https://github.com/OCA/account-financial-tools.git
+  - name: oca_account_invoicing
+    url: https://github.com/OCA/account-invoicing.git
+  - name: oca_account_reconcile
+    url: https://github.com/OCA/account-reconcile.git
+  - name: oca_account_payment
+    url: https://github.com/OCA/account-payment.git
+  - name: oca_account_closing
+    url: https://github.com/OCA/account-closing.git
+  - name: oca_account_analytic
+    url: https://github.com/OCA/account-analytic.git
+  - name: oca_account_budgeting
+    url: https://github.com/OCA/account-budgeting.git
+  - name: oca_account_invoice_reporting
+    url: https://github.com/OCA/account-invoice-reporting.git
+  - name: oca_bank_payment
+    url: https://github.com/OCA/bank-payment.git
+  - name: oca_bank_statement_import
+    url: https://github.com/OCA/bank-statement-import.git
+  - name: oca_margin_analysis
+    url: https://github.com/OCA/margin-analysis.git
+  - name: oca_mis_builder
+    url: https://github.com/OCA/mis-builder.git
+  - name: oca_sale_reporting
+    url: https://github.com/OCA/sale-reporting.git
+  - name: oca_manufacture
+    url: https://github.com/OCA/manufacture.git
+  - name: oca_e_commerce
+    url: https://github.com/OCA/e-commerce.git
+  - name: oca_website
+    url: https://github.com/OCA/website.git
+  - name: oca_reporting_engine
+    url: https://github.com/OCA/reporting-engine.git
+  - name: oca_report_xlsx
+    url: https://github.com/OCA/report-xlsx.git
+  - name: oca_connector
+    url: https://github.com/OCA/connector.git
+  - name: oca_edi
+    url: https://github.com/OCA/edi.git
+  - name: oca_edi_framework
+    url: https://github.com/OCA/edi-framework.git
+  - name: oca_data_protection
+    url: https://github.com/OCA/data-protection.git
+  - name: oca_knowledge
+    url: https://github.com/OCA/knowledge.git
+  - name: oca_dms
+    url: https://github.com/OCA/dms.git
+  - name: oca_mail
+    url: https://github.com/OCA/mail.git
+  - name: oca_social
+    url: https://github.com/OCA/social.git
+  - name: oca_survey
+    url: https://github.com/OCA/survey.git
+  - name: oca_helpdesk
+    url: https://github.com/OCA/helpdesk.git
+  - name: oca_field_service
+    url: https://github.com/OCA/field-service.git
+  - name: oca_contract
+    url: https://github.com/OCA/contract.git
+  - name: oca_agreement
+    url: https://github.com/OCA/agreement.git
+  - name: oca_pos
+    url: https://github.com/OCA/pos.git
+  - name: oca_vertical_hotel
+    url: https://github.com/OCA/vertical-hotel.git
+  - name: oca_vertical_medical
+    url: https://github.com/OCA/vertical-medical.git
+  - name: oca_vertical_association
+    url: https://github.com/OCA/vertical-association.git
+  - name: oca_storage
+    url: https://github.com/OCA/storage.git
+  - name: oca_iot
+    url: https://github.com/OCA/iot.git
+  - name: oca_interface_github
+    url: https://github.com/OCA/interface-github.git
+  - name: oca_geospatial
+    url: https://github.com/OCA/geospatial.git
+  - name: oca_multi_company
+    url: https://github.com/OCA/multi-company.git
+  - name: oca_operating_unit
+    url: https://github.com/OCA/operating-unit.git
+  - name: oca_maintenance
+    url: https://github.com/OCA/maintenance.git
+  - name: oca_fleet
+    url: https://github.com/OCA/fleet.git
+  - name: oca_event
+    url: https://github.com/OCA/event.git
+  - name: oca_commission
+    url: https://github.com/OCA/commission.git
+  - name: oca_business_requirement
+    url: https://github.com/OCA/business-requirement.git
+  - name: oca_management_system
+    url: https://github.com/OCA/management-system.git
+  #  - name: oca_property_management
+  #    url: https://github.com/OCA/management-system.git
+  - name: oca_ai
+    url: https://github.com/OCA/ai.git
+  - name: oca_l10n_germany
+    url: https://github.com/OCA/l10n-germany.git
+  - name: oca_OCB
+    url: https://github.com/OCA/OCB.git
+  - name: oca_OpenUpgrade
+    url: https://github.com/OCA/OpenUpgrade.git
+
+  - name: avanzosc_mrp_addons
+    url: https://github.com/avanzosc/mrp-addons.git
+  - name: avanzosc_odoo_addons
+    url: https://github.com/avanzosc/odoo-addons.git
+  - name: avanzosc_sale_addons
+    url: https://github.com/avanzosc/sale-addons.git
+  - name: avanzosc_stock_logistics_reservation
+    url: https://github.com/avanzosc/stock-logistics-reservation.git
+  - name: avanzosc_mrp_repair_addons
+    url: https://github.com/avanzosc/mrp-repair-addons.git
+  - name: avanzosc_project_addons
+    url: https://github.com/avanzosc/project-addons.git
+  - name: avanzosc_custom_addons
+    url: https://github.com/avanzosc/custom-addons.git
+  - name: avanzosc_hr_addons
+    url: https://github.com/avanzosc/hr-addons.git
+  - name: avanzosc_crm_addons
+    url: https://github.com/avanzosc/crm-addons.git
+  - name: avanzosc_external
+    url: https://github.com/avanzosc/external.git
+  - name: avanzosc_stock_logistics_workflow
+    url: https://github.com/avanzosc/stock-logistics-workflow.git
+  - name: avanzosc_product_attribute
+    url: https://github.com/avanzosc/product-attribute.git
+  - name: avanzosc_stock_logistics_barcode
+    url: https://github.com/avanzosc/stock-logistics-barcode.git
+  - name: avanzosc_l10n_spain
+    url: https://github.com/avanzosc/l10n-spain.git
+  - name: avanzosc_sale_workflow
+    url: https://github.com/avanzosc/sale-workflow.git
+  - name: avanzosc_repair
+    url: https://github.com/avanzosc/repair.git
+  - name: avanzosc_manufacture
+    url: https://github.com/avanzosc/manufacture.git
+  - name: avanzosc_education
+    url: https://github.com/avanzosc/education.git
+  - name: avanzosc_server_tools
+    url: https://github.com/avanzosc/server-tools.git
+  - name: avanzosc_crm
+    url: https://github.com/avanzosc/crm.git
+  - name: avanzosc_odoo
+    url: https://github.com/avanzosc/odoo.git
+  - name: avanzosc_account_payment
+    url: https://github.com/avanzosc/account-payment.git
+  - name: avanzosc_server_ux
+    url: https://github.com/avanzosc/server-ux.git
+  - name: avanzosc_project
+    url: https://github.com/avanzosc/project.git
+  - name: avanzosc_timesheet
+    url: https://github.com/avanzosc/timesheet.git
+  - name: avanzosc_commission
+    url: https://github.com/avanzosc/commission.git
+  - name: avanzosc_account_invoice_reporting
+    url: https://github.com/avanzosc/account-invoice-reporting.git
+  - name: avanzosc_event_wip
+    url: https://github.com/avanzosc/event-wip.git
+  - name: avanzosc_e_commerce
+    url: https://github.com/avanzosc/e-commerce.git
+  - name: avanzosc_BaserrikoPlaza
+    url: https://github.com/avanzosc/BaserrikoPlaza.git
+  - name: avanzosc_bank_payment
+    url: https://github.com/avanzosc/bank-payment.git
+  - name: avanzosc_purchase_workflow
+    url: https://github.com/avanzosc/purchase-workflow.git
+  - name: avanzosc_account_budgeting
+    url: https://github.com/avanzosc/account-budgeting.git
+  - name: avanzosc_stock_logistics_warehouse
+    url: https://github.com/avanzosc/stock-logistics-warehouse.git
+  - name: avanzosc_maintainer_quality_tools
+    url: https://github.com/avanzosc/maintainer-quality-tools.git
+  - name: avanzosc_account_invoicing
+    url: https://github.com/avanzosc/account-invoicing.git
+  - name: avanzosc_account_financial_tools
+    url: https://github.com/avanzosc/account-financial-tools.git
+  - name: avanzosc_contract
+    url: https://github.com/avanzosc/contract.git
+  - name: avanzosc_partner_contact
+    url: https://github.com/avanzosc/partner-contact.git
+  - name: avanzosc_account_analytic
+    url: https://github.com/avanzosc/account-analytic.git
+  - name: avanzosc_community_data_files
+    url: https://github.com/avanzosc/community-data-files.git
+  - name: avanzosc_Test
+    url: https://github.com/avanzosc/Test.git
+  - name: avanzosc_migrations
+    url: https://github.com/avanzosc/migrations.git
+  - name: avanzosc_UPV
+    url: https://github.com/avanzosc/UPV.git
+  - name: avanzosc_cost_simulator
+    url: https://github.com/avanzosc/cost_simulator.git
+  - name: avanzosc_gollum
+    url: https://github.com/avanzosc/gollum.git
+  - name: avanzosc6_1
+    url: https://github.com/avanzosc/avanzosc6.1.git
+
+  # ---------------------------------------------------------------------------
+  # PX4 — Autopilot, Firmware, Tools, Simulation
+  # ---------------------------------------------------------------------------
+  - name: PX4-Autopilot
+    url: https://github.com/PX4/PX4-Autopilot.git
+  - name: PX4-Bootloader
+    url: https://github.com/PX4/PX4-Bootloader.git
+  - name: PX4-Flow
+    url: https://github.com/PX4/PX4-Flow.git
+  - name: homebrew-px4
+    url: https://github.com/PX4/homebrew-px4.git
+  - name: HIL
+    url: https://github.com/PX4/HIL.git
+  - name: libtomcrypt
+    url: https://github.com/PX4/libtomcrypt.git
+  - name: sapog
+    url: https://github.com/PX4/sapog.git
+  - name: mav_comm
+    url: https://github.com/PX4/mav_comm.git
+  - name: libuavcan
+    url: https://github.com/PX4/libuavcan.git
+  - name: PX4-containers
+    url: https://github.com/PX4/PX4-containers.git
+  - name: px4ros
+    url: https://github.com/PX4/px4ros.git
+  - name: eigen
+    url: https://github.com/PX4/eigen.git
+  - name: bearcart
+    url: https://github.com/PX4/bearcart.git
+  - name: Lepton
+    url: https://github.com/PX4/Lepton.git
+  - name: rotors_simulator
+    url: https://github.com/PX4/rotors_simulator.git
+  - name: jMAVSim
+    url: https://github.com/PX4/jMAVSim.git
+  - name: NuttX
+    url: https://github.com/PX4/NuttX.git
+  - name: NuttX-apps
+    url: https://github.com/PX4/NuttX-apps.git
+  - name: PX4NuttX
+    url: https://github.com/PX4/PX4NuttX.git
+  - name: jsbsim
+    url: https://github.com/PX4/jsbsim.git
+  - name: fw-test-harness
+    url: https://github.com/PX4/fw-test-harness.git
+  - name: homebrew-simulation
+    url: https://github.com/PX4/homebrew-simulation.git
+  - name: PX4-ECL
+    url: https://github.com/PX4/PX4-ECL.git
+  - name: DriverFramework
+    url: https://github.com/PX4/DriverFramework.git
+  - name: PX4-Matrix
+    url: https://github.com/PX4/PX4-Matrix.git
+  - name: PX4-SITL_gazebo-classic
+    url: https://github.com/PX4/PX4-SITL_gazebo-classic.git
+  - name: rpi_toolchain
+    url: https://github.com/PX4/rpi_toolchain.git
+  - name: companion
+    url: https://github.com/PX4/companion.git
+  - name: dspal
+    url: https://github.com/PX4/dspal.git
+  - name: uvc_ros_driver
+    url: https://github.com/PX4/uvc_ros_driver.git
+  - name: PX4-GPSDrivers
+    url: https://github.com/PX4/PX4-GPSDrivers.git
+  - name: snap_cam
+    url: https://github.com/PX4/snap_cam.git
+  - name: PX4-Avoidance
+    url: https://github.com/PX4/PX4-Avoidance.git
+  - name: jMAVlib
+    url: https://github.com/PX4/jMAVlib.git
+  - name: FlightPlot
+    url: https://github.com/PX4/FlightPlot.git
+  - name: PX4-Devguide
+    url: https://github.com/PX4/PX4-Devguide.git
+  - name: disparity_to_point_cloud
+    url: https://github.com/PX4/disparity_to_point_cloud.git
+  - name: pyulog
+    url: https://github.com/PX4/pyulog.git
+  - name: flight_review
+    url: https://github.com/PX4/flight_review.git
+  - name: PX4-OpticalFlow
+    url: https://github.com/PX4/PX4-OpticalFlow.git
+  - name: homebrew-qt4
+    url: https://github.com/PX4/homebrew-qt4.git
+  - name: Toolchains
+    url: https://github.com/PX4/Toolchains.git
+  - name: PX4-user_guide
+    url: https://github.com/PX4/PX4-user_guide.git
+  - name: libcxx
+    url: https://github.com/PX4/libcxx.git
+  - name: UAVCAN_Bootloaders
+    url: https://github.com/PX4/UAVCAN_Bootloaders.git
+  - name: uavcan_board_ident
+    url: https://github.com/PX4/uavcan_board_ident.git
+  - name: rfcs
+    url: https://github.com/PX4/rfcs.git
+  - name: ros-examples
+    url: https://github.com/PX4/ros-examples.git
+  - name: PX4-windows-toolchain
+    url: https://github.com/PX4/PX4-windows-toolchain.git
+  - name: dev.px4.io
+    url: https://github.com/PX4/dev.px4.io.git
+  #  - name: docs.px4.io
+  #    url: https://github.com/PX4/docs.px4.io.git
+  - name: Firmware-Doxygen
+    url: https://github.com/PX4/Firmware-Doxygen.git
+  - name: px4_ros_com
+    url: https://github.com/PX4/px4_ros_com.git
+  - name: mavlink-router
+    url: https://github.com/PX4/mavlink-router.git
+  - name: avx_ros_package
+    url: https://github.com/PX4/avx_ros_package.git
+  - name: NuttX-NxWidgets
+    url: https://github.com/PX4/NuttX-NxWidgets.git
+  - name: px4_msgs
+    url: https://github.com/PX4/px4_msgs.git
+  - name: Micro-CDR
+    url: https://github.com/PX4/Micro-CDR.git
+  - name: cmake_hexagon
+    url: https://github.com/PX4/cmake_hexagon.git
+  - name: gencpp
+    url: https://github.com/PX4/gencpp.git
+  - name: genmsg
+    url: https://github.com/PX4/genmsg.git
+  - name: Board_ID
+    url: https://github.com/PX4/Board_ID.git
+  - name: px4_msgs2-release
+    url: https://github.com/PX4/px4_msgs2-release.git
+  - name: px4_msgs-release
+    url: https://github.com/PX4/px4_msgs-release.git
+  # - name: rddrone_uavcan
+  #   url: https://github.com/PX4/rddrone_uavcan.git
+  - name: styleguide
+    url: https://github.com/PX4/styleguide.git
+  - name: PX4-graphics
+    url: https://github.com/PX4/PX4-graphics.git
+  - name: libcanard
+    url: https://github.com/PX4/libcanard.git
+  - name: PX4-FlightGear-Bridge
+    url: https://github.com/PX4/PX4-FlightGear-Bridge.git
+  - name: public_regulated_data_types
+    url: https://github.com/PX4/public_regulated_data_types.git
+  - name: micrortps_agent
+    url: https://github.com/PX4/micrortps_agent.git
+  - name: px4-jsbsim-bridge
+    url: https://github.com/PX4/px4-jsbsim-bridge.git
+  - name: libopencm3
+    url: https://github.com/PX4/libopencm3.git
+  - name: Monocypher
+    url: https://github.com/PX4/Monocypher.git
+  - name: px4-simulation-ignition
+    url: https://github.com/PX4/px4-simulation-ignition.git
+  - name: libtommath
+    url: https://github.com/PX4/libtommath.git
+  - name: zenoh-pico
+    url: https://github.com/PX4/zenoh-pico.git
+  - name: Micro-XRCE-DDS-Client
+    url: https://github.com/PX4/Micro-XRCE-DDS-Client.git
+  - name: PX4-gazebo-models
+    url: https://github.com/PX4/PX4-gazebo-models.git
+  - name: PX4-Metadata-Translations
+    url: https://github.com/PX4/PX4-Metadata-Translations.git
+  - name: WebGCS
+    url: https://github.com/PX4/WebGCS.git
+  - name: electronWebGCS
+    url: https://github.com/PX4/electronWebGCS.git
+  - name: ulog_cpp
+    url: https://github.com/PX4/ulog_cpp.git
+  - name: heatshrink
+    url: https://github.com/PX4/heatshrink.git
+  - name: cyclonedds
+    url: https://github.com/PX4/cyclonedds.git
+  - name: rosidl
+    url: https://github.com/PX4/rosidl.git
+  #  - name: FirmwareEvolve
+  #    url: https://github.com/PX4/FirmwareEvolve.git
+  - name: voxl-sdk_libfc-sensor-api
+    url: https://github.com/PX4/voxl-sdk_libfc-sensor-api.git
+  - name: iq-module-communication-cpp
+    url: https://github.com/PX4/iq-module-communication-cpp.git
+  - name: PlotJuggler
+    url: https://github.com/PX4/PlotJuggler.git
+  - name: DSDL
+    url: https://github.com/PX4/DSDL.git
+  - name: pydronecan
+    url: https://github.com/PX4/pydronecan.git
+  - name: LORD-MicroStrain_mip_sdk
+    url: https://github.com/PX4/LORD-MicroStrain_mip_sdk.git
+  - name: bloaty-action
+    url: https://github.com/PX4/bloaty-action.git
+  - name: docker-run-action
+    url: https://github.com/PX4/docker-run-action.git
+  - name: tflite-micro
+    url: https://github.com/PX4/tflite-micro.git
+  - name: sbgECom
+    url: https://github.com/PX4/sbgECom.git
+  - name: klt_feature_tracker
+    url: https://github.com/PX4/klt_feature_tracker.git
+  - name: Micro-XRCE-DDS-Agent
+    url: https://github.com/PX4/Micro-XRCE-DDS-Agent.git
+
+  # ---------------------------------------------------------------------------
+  # Sonstiges
+  # ---------------------------------------------------------------------------
+  - name: libiio
+    url: https://github.com/analogdevicesinc/libiio.git
+  - name: libad9361-iio
+    url: https://github.com/analogdevicesinc/libad9361-iio.git
+  - name: gr-iio
+    url: https://github.com/analogdevicesinc/gr-iio.git
+  - name: pyadi-iio
+    url: https://github.com/analogdevicesinc/pyadi-iio.git
+  - name: awx_operator
+    url: https://github.com/ansible/awx-operator.git
+  - name: ingress_nginx
+    url: https://github.com/kubernetes/ingress-nginx.git
+  - name: bookstack
+    url: https://github.com/BookStackApp/BookStack.git
+
+# ============================================================================
+# Helm Chart Cache — Lokale Kopien von Helm Charts für Reproduzierbarkeit
+# ============================================================================
+# Gleiche Logik wie Aptly (APT) und cgit (Git):
+#   - Charts werden von Upstream gezogen und lokal auf dem Repo-Server gecacht
+#   - nginx liefert /helm/ aus → lokales Helm-Repo
+#   - In 2 Jahren genau die gleichen Chart-Versionen verfügbar
+#
+# Playbook: pb_conf_helm_charts_repo_server.yml
+# Auslieferung: https://repo.allgemeinhobby.de/helm/
+# ============================================================================
+helm_charts:
+  - repo_name: awx-operator
+    repo_url: "https://ansible-community.github.io/awx-operator-helm/"
+    charts:
+      - { name: "awx-operator", version: "2.19.1" }
+      - { name: "awx-operator", version: "2.19.0" }
+
+  - repo_name: bitnami
+    repo_url: "https://charts.bitnami.com/bitnami"
+    charts:
+      - { name: "odoo", version: "28.2.10" }
+      # Neue Odoo-Versionen hier ergänzen
+
+  # - repo_name: ingress-nginx
+  #   repo_url: "https://kubernetes.github.io/ingress-nginx"
+  #   charts:
+  #     - { name: "ingress-nginx", version: "X.X.X" }

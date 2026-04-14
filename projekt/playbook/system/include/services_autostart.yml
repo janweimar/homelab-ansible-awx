@@ -1,0 +1,18 @@
+###########################################################################
+# ⚙️ Autostart steuern
+# Nutzt die OS‑abhängigen Kommandos aus services[..].enable/disable
+# Funktioniert mit String ("fail2ban") oder Liste (["fail2ban","nftables"])
+###########################################################################
+- name: ⚙️ Autostart aktivieren
+  ansible.builtin.command: "{{ services[item].enable[ansible_os_family] }}"
+  loop: >-
+    {{ (var_pack_name | list)
+       if var_pack_name is iterable and (var_pack_name is not string)
+       else [var_pack_name] }}
+  when: autostart | default(true)
+  changed_when: false
+  ignore_errors: true
+
+- name: 💤 Info
+  ansible.builtin.debug:
+    msg: "Autostart für {{ var_pack_name }} wurde {{ 'aktiviert' if autostart | default(true) else 'deaktiviert' }}."

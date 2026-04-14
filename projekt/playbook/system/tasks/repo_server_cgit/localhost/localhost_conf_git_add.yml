@@ -1,0 +1,50 @@
+# localhost_conf_git_add.yml
+- name: localhost_conf_git_add.yml
+  hosts: localhost
+  connection: local
+  become: yes
+  gather_facts: true
+  vars:
+    git_base_path: "/srv/git"
+    failed_repos: []
+    result_dir: "/tmp/ansible_git_clone/clone_failed_{{ awx_job_id }}"
+    result_file_path: "/tmp/ansible_git_clone/clone_failed_{{ awx_job_id }}/failed_repos_{{ batch_number }}.json"
+  tasks:
+    - name: RESULT DIR – Verzeichnis sicherstellen - localhost_conf_git_add.yml
+      ansible.builtin.file:
+        path: "{{ result_dir }}"
+        state: directory
+        mode: "0755"
+      become: yes
+
+    - name: GIT – Repos klonen - localhost_conf_git_add.yml
+      ansible.builtin.command:
+        cmd: "git clone --mirror --no-recurse-submodules {{ item.url }} {{ git_base_path }}/{{ item.name }}.git"
+      args:
+        creates: "{{ git_base_path }}/{{ item.name }}.git"
+      loop: "{{ current_add_batch }}"
+      register: clone_results
+      ignore_errors: yes
+      environment:
+        GIT_TERMINAL_PROMPT: 0
+        GIT_SSH_COMMAND: "ssh -o StrictHostKeyChecking=no"
+
+    - name: GIT – Metadaten setzen - localhost_conf_git_add.yml
+      ansible.builtin.shell: |
+        touch {{ git_base_path }}/{{ item.item.name }}.git/git-daemon-export-ok
+        echo "{{ item.item.description | default(item.item.name) }}" > {{ git_base_path }}/{{ item.item.name }}.git/description
+      loop: "{{ clone_results.results }}"
+      when: not item.failed and item.rc == 0
+      ignore_errors: yes
+
+    - name: GIT – Fehlgeschlagene Repos sammeln - localhost_conf_git_add.yml
+      ansible.builtin.set_fact:
+        failed_repos: "{{ failed_repos + [item.item.name] }}"
+      loop: "{{ clone_results.results }}"
+      when: item.rc != 0 and "already exists" not in (item.stderr | default(''))
+
+    - name: REPORT – Ergebnis schreiben - localhost_conf_git_add.yml
+      ansible.builtin.copy:
+        content: "{{ {'failed_repos': failed_repos} | to_json }}"
+        dest: "{{ result_file_path }}"
+        mode: "0644"

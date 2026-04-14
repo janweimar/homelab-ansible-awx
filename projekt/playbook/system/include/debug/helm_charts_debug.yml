@@ -1,0 +1,15 @@
+---
+###########################################################################
+# Debug-Ausgabe fuer Helm Chart Cache Playbook
+###########################################################################
+
+- name: "📋 Debug: Helm Chart Cache Variablen - helm_charts_debug.yml"
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "Helm Chart Cache Konfiguration"
+      - "=========================================="
+      - "allg_status:       {{ allg_status }}"
+      - "Chart-Verzeichnis: {{ paths.helm_charts_base[ansible_os_family] }}"
+      - "Anzahl Repos:      {{ helm_charts | default([], true) | length }}"
+      - "=========================================="

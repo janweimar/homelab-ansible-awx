@@ -1,0 +1,151 @@
+---
+###########################################################################
+# ⚙️  Modul 03 — Services & Prozesse
+# =========================================================================
+# Zweck  : Alle Systemd-Units, Prozesse und Cronjobs erfassen
+# Liest  : systemctl, ps, crontab, /etc/cron*
+# Schreibt in: services_results
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+# =========================================================================
+# Systemd-Services erfassen
+# =========================================================================
+
+- name: "03 | Alle aktiven Services erfassen"
+  ansible.builtin.command: systemctl list-units --type=service --state=active --no-pager --no-legend
+  register: reg_services_aktiv
+  changed_when: false
+  failed_when: false
+
+- name: "03 | Fehlgeschlagene Services erfassen"
+  ansible.builtin.command: systemctl list-units --type=service --state=failed --no-pager --no-legend
+  register: reg_services_failed
+  changed_when: false
+  failed_when: false
+
+- name: "03 | Alle Services (alle Zustände) erfassen"
+  ansible.builtin.command: systemctl list-units --type=service --all --no-pager --no-legend
+  register: reg_services_alle
+  changed_when: false
+  failed_when: false
+
+- name: "03 | Enabled aber nicht laufende Services"
+  ansible.builtin.shell: >
+    systemctl list-unit-files --type=service --state=enabled --no-pager --no-legend |
+    awk '{print $1}' |
+    while read svc; do
+      state=$(systemctl is-active "$svc" 2>/dev/null);
+      [ "$state" != "active" ] && echo "$svc: $state";
+    done
+  register: reg_services_enabled_nicht_aktiv
+  changed_when: false
+  failed_when: false
+
+- name: "03 | Systemd-Timer erfassen"
+  ansible.builtin.command: systemctl list-timers --all --no-pager --no-legend
+  register: reg_timer
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Prozesse erfassen
+# =========================================================================
+
+- name: "03 | Laufende Prozesse erfassen (Top 20 nach CPU)"
+  ansible.builtin.command: ps aux --sort=-%cpu
+  register: reg_prozesse
+  changed_when: false
+  failed_when: false
+
+- name: "03 | Prozesse als root erfassen"
+  ansible.builtin.shell: ps aux | awk '$1=="root" {print $1,$2,$3,$4,$11}' | head -30
+  register: reg_prozesse_root
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Cronjobs erfassen
+# =========================================================================
+
+- name: "03 | System-Crontab lesen"
+  ansible.builtin.command: cat /etc/crontab
+  register: reg_crontab_system
+  changed_when: false
+  failed_when: false
+
+- name: "03 | Cron-Verzeichnisse erfassen"
+  ansible.builtin.find:
+    paths:
+      - /etc/cron.d
+      - /etc/cron.daily
+      - /etc/cron.weekly
+      - /etc/cron.monthly
+      - /etc/cron.hourly
+    file_type: file
+  register: reg_cron_dirs
+
+- name: "03 | Alle User mit Crontab ermitteln"
+  ansible.builtin.shell: "for user in $(cut -f1 -d: /etc/passwd); do crontab -l -u $user 2>/dev/null | grep -v '^#' | grep -v '^$' | sed \"s/^/$user: /\"; done"
+  register: reg_crontab_user
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ergebnisse in Variable speichern
+# =========================================================================
+
+- name: "03 | Ergebnisse in services_results speichern"
+  ansible.builtin.set_fact:
+    services_results:
+      status: >-
+        {{
+          'FEHLER' if reg_services_failed.stdout_lines | length > 0
+          else 'WARNUNG' if reg_services_enabled_nicht_aktiv.stdout_lines | length > 0
+          else 'OK'
+        }}
+      zusammenfassung:
+        ok: "{{ reg_services_aktiv.stdout_lines | length }}"
+        warnungen: "{{ reg_services_enabled_nicht_aktiv.stdout_lines | length }}"
+        fehler: "{{ reg_services_failed.stdout_lines | length }}"
+      details:
+        - name: "Aktive Services"
+          status: "OK"
+          wert: "{{ reg_services_aktiv.stdout_lines | length }} Services aktiv"
+          hinweis: ""
+
+        - name: "Fehlgeschlagene Services"
+          status: "{{ 'FEHLER' if reg_services_failed.stdout_lines | length > 0 else 'OK' }}"
+          wert: "{{ reg_services_failed.stdout_lines | length }} fehlgeschlagen"
+          hinweis: "{{ 'Fehlgeschlagene Services: ' + reg_services_failed.stdout if reg_services_failed.stdout_lines | length > 0 else '' }}"
+
+        - name: "Enabled aber nicht laufend"
+          status: "{{ 'WARNUNG' if reg_services_enabled_nicht_aktiv.stdout_lines | length > 0 else 'OK' }}"
+          wert: "{{ reg_services_enabled_nicht_aktiv.stdout_lines | length }} Services betroffen"
+          hinweis: "{{ reg_services_enabled_nicht_aktiv.stdout if reg_services_enabled_nicht_aktiv.stdout_lines | length > 0 else '' }}"
+
+        - name: "Systemd-Timer"
+          status: "OK"
+          wert: "{{ reg_timer.stdout_lines | length }} Timer konfiguriert"
+          hinweis: ""
+
+        - name: "Cronjob-Dateien in /etc/cron.*"
+          status: "OK"
+          wert: "{{ reg_cron_dirs.files | length }} Dateien gefunden"
+          hinweis: ""
+
+        - name: "User-Cronjobs"
+          status: "{{ 'WARNUNG' if reg_crontab_user.stdout_lines | length > 0 else 'OK' }}"
+          wert: "{{ reg_crontab_user.stdout_lines | length }} User-Cronjobs gefunden"
+          hinweis: "{{ 'User-Cronjobs vorhanden — bitte prüfen' if reg_crontab_user.stdout_lines | length > 0 else '' }}"
+
+      services_aktiv: "{{ reg_services_aktiv.stdout_lines | default([]) }}"
+      services_failed: "{{ reg_services_failed.stdout_lines | default([]) }}"
+      services_alle: "{{ reg_services_alle.stdout_lines | default([]) }}"
+      timer: "{{ reg_timer.stdout_lines | default([]) }}"
+      cronjobs_user: "{{ reg_crontab_user.stdout_lines | default([]) }}"
+      prozesse: "{{ reg_prozesse.stdout_lines | default([]) }}"
+
+- name: "03 | ✅ Services-Analyse abgeschlossen"
+  ansible.builtin.debug:
+    msg: "Services erfasst — {{ reg_services_aktiv.stdout_lines | length }} aktiv, {{ reg_services_failed.stdout_lines | length }} fehlgeschlagen — Status: {{ services_results.status }}"

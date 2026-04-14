@@ -1,0 +1,22 @@
+services:
+
+  ###########################################################################
+  # Stalwart Mail Server
+  # Alle Protokolle in einem Container:
+  #   - SMTP 25 (eingehend), 587 (Submission), 465 (SMTPS)
+  #   - IMAP 143 (STARTTLS), 993 (implizit TLS)
+  #   - Admin-GUI 8080 (VPN-only via nginx)
+  ###########################################################################
+  stalwart:
+    image: stalwartlabs/stalwart:latest
+    container_name: stalwart
+    restart: unless-stopped
+    ports:
+      - "25:25"
+      - "587:587"
+      - "465:465"
+      - "143:143"
+      - "993:993"
+      - "127.0.0.1:{{ app_port | default('8080') }}:8080"
+    volumes:
+      - /opt/stalwart/data:/opt/stalwart

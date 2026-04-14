@@ -1,0 +1,138 @@
+---
+###########################################################################
+# SSH-Konfiguration härten
+# APT-Schutz und gehärtete sshd_config deployen
+###########################################################################
+
+###########################################################################
+# 1. APT-Schutz für SSH-Config (VOR Deployment!)
+###########################################################################
+- block:
+    - name: 📋 Prüfe ob APT-Schutz für SSH-Config existiert
+      ansible.builtin.stat:
+        path: "{{ paths.ssh.apt_protect[ansible_os_family] }}"
+      register: apt_protect
+
+    - name: 🛡️ Schütze SSH-Config vor APT-Updates (falls nicht vorhanden)
+      ansible.builtin.copy:
+        dest: "{{ paths.ssh.apt_protect[ansible_os_family] }}"
+        content: "{{ command.ssh.apt_protect_content[ansible_os_family] }}"
+        owner: root
+        group: root
+        mode: "0644"
+      when: not apt_protect.stat.exists
+
+    - name: ✅ Bestätige dass APT-Schutz aktiv ist
+      ansible.builtin.debug:
+        msg: "✅ APT-Konfigurationsschutz ist vorhanden."
+      when: apt_protect.stat.exists
+  when: ansible_os_family == 'Debian'
+
+###########################################################################
+# 2. Cloud-Init SSH Override entschaerfen
+###########################################################################
+- name: 🔍 Prüfe ob cloud-init Verzeichnis existiert
+  ansible.builtin.stat:
+    path: "{{ paths.ssh.cloud_init_d[ansible_os_family] }}"
+  register: cloud_init_dir
+
+- block:
+    - name: 🗑️ Lösche alle cloud-init SSH Overrides
+      ansible.builtin.file:
+        path: "{{ paths.ssh.cloud_init_d[ansible_os_family] }}/{{ item }}"
+        state: absent
+      loop:
+        - 50-cloud-init.conf
+        - 60-cloudimg-settings.conf
+        - 99-ssh.cfg
+
+    - name: 🔒 Deploy cloud-init SSH Override (PasswordAuth={{ 'yes' if enable_password_auth else 'no' }})
+      ansible.builtin.template:
+        src: "{{ file_paths.cloud_init_ssh[ansible_default_ipv4.address] }}"
+        dest: "{{ paths.ssh.cloud_init_d[ansible_os_family] }}/99-disable-ssh.cfg"
+        owner: root
+        group: root
+        mode: "0644"
+  when: cloud_init_dir.stat.exists
+
+###########################################################################
+# 3. sshd_config.d bereinigen (verhindert Override der sshd_config)
+###########################################################################
+- name: 🔍 Suche Dateien in sshd_config.d
+  ansible.builtin.find:
+    paths: "{{ paths.ssh.sshd_config_d[ansible_os_family] }}"
+    patterns: "*.conf"
+  register: sshd_config_d_files
+
+- name: 🗑️ Lösche alle Dateien in sshd_config.d
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ sshd_config_d_files.files }}"
+  when: sshd_config_d_files.matched > 0
+
+###########################################################################
+# 4. Deploy gehärtete SSH-Config
+###########################################################################
+- name: 🗑️ Lösche alte sshd_config
+  ansible.builtin.file:
+    path: "{{ paths.ssh.config[ansible_os_family] }}"
+    state: absent
+
+- name: 🔒 Deploy gehärtete sshd_config (Port {{ ssh_port | default('2222') }})
+  ansible.builtin.template:
+    src: "{{ file_paths.ssh_conf[ansible_default_ipv4.address] }}"
+    dest: "{{ paths.ssh.config[ansible_os_family] }}"
+    owner: root
+    group: root
+    mode: "0600"
+    validate: "{{ command.ssh.validate_config[ansible_os_family] }}"
+  register: sshd_deploy_result
+
+- name: Prüfe ob paths.ssh.banner definiert ist
+  ansible.builtin.fail:
+    msg: "paths.ssh.banner[{{ ansible_os_family }}] ist nicht definiert!"
+  when: paths.ssh.banner[ansible_os_family] is not defined
+
+- name: Prüfe ob banner Datei definiert und .txt ist
+  ansible.builtin.fail:
+    msg: "file_paths.banner[{{ ansible_default_ipv4.address }}] ist nicht definiert oder keine .txt Datei!"
+  when: >
+    file_paths.banner[ansible_default_ipv4.address] is not defined or
+    not file_paths.banner[ansible_default_ipv4.address].endswith('.txt')
+
+- name: 📁 Erstelle Banner-Verzeichnis
+  ansible.builtin.file:
+    path: "{{ paths.ssh.banner[ansible_os_family] }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: banner_bool | bool
+
+- name: 🔒 Füge Banner-Datei hinzu (nur banner, kein motd)
+  ansible.builtin.template:
+    src: "{{ file_paths.banner[ansible_default_ipv4.address] }}"
+    dest: "{{ paths.ssh.banner[ansible_os_family] }}/{{ file_paths.banner[ansible_default_ipv4.address] | basename }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - banner_bool | bool
+    - not (print_motd | default(false) | bool)
+
+- name: 📋 Kopiere Banner nach /etc/motd (banner + motd aktiv)
+  ansible.builtin.template:
+    src: "{{ file_paths.banner[ansible_default_ipv4.address] }}"
+    dest: /etc/motd
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - banner_bool | bool
+    - print_motd | default(false) | bool
+
+- name: 📊 Debug SSH-Config Deployment
+  ansible.builtin.debug:
+    var: sshd_deploy_result
+  when: debug_output | default(false) | bool

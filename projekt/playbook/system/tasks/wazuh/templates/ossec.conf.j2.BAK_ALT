@@ -1,0 +1,317 @@
+<!--
+  ╔═══════════════════════════════════════════════════════════════╗
+  ║  Wazuh Agent - ossec.conf                                    ║
+  ║  Template: ossec.conf.j2                                     ║
+  ║  Variable: wazuh_role (vpn|wazuh|mail|repo|ai|odoo|awx)     ║
+  ║  Managed by Ansible - DO NOT EDIT MANUALLY                   ║
+  ╚═══════════════════════════════════════════════════════════════╝
+-->
+<ossec_config>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- AGENT VERBINDUNG ZUM MANAGER                               -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <client>
+    <server>
+      <address>{{ wazuh_manager_ip | default('10.200.0.20') }}</address>
+      <port>1514</port>
+      <protocol>tcp</protocol>
+    </server>
+    <enrollment>
+      <enabled>yes</enabled>
+      <manager_address>{{ wazuh_manager_ip | default('10.200.0.20') }}</manager_address>
+      <port>1515</port>
+      <agent_name>{{ inventory_hostname }}</agent_name>
+{% if wazuh_agent_groups is defined %}
+      <groups>{{ wazuh_agent_groups }}</groups>
+{% endif %}
+    </enrollment>
+    <notify_time>10</notify_time>
+    <time-reconnect>60</time-reconnect>
+  </client>
+
+  <client_buffer>
+    <disabled>no</disabled>
+    <queue_size>5000</queue_size>
+    <events_per_second>500</events_per_second>
+  </client_buffer>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- FILE INTEGRITY MONITORING (FIM) - SYSCHECK                 -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <syscheck>
+    <disabled>no</disabled>
+    <frequency>{{ wazuh_fim_frequency | default('43200') }}</frequency>
+    <scan_on_start>yes</scan_on_start>
+    <alert_new_files>yes</alert_new_files>
+    <auto_ignore frequency="10" timeframe="3600">no</auto_ignore>
+
+    <!-- ─────────────────────────────────────────────────────── -->
+    <!-- BASIS-PFADE (ALLE SERVER)                               -->
+    <!-- ─────────────────────────────────────────────────────── -->
+
+    <!-- Benutzer & Authentifizierung -->
+    <directories realtime="yes" check_all="yes">/etc/passwd</directories>
+    <directories realtime="yes" check_all="yes">/etc/shadow</directories>
+    <directories realtime="yes" check_all="yes">/etc/group</directories>
+    <directories realtime="yes" check_all="yes">/etc/gshadow</directories>
+    <directories realtime="yes" check_all="yes">/etc/sudoers</directories>
+    <directories realtime="yes" check_all="yes">/etc/sudoers.d</directories>
+    <directories realtime="yes" check_all="yes">/etc/pam.d</directories>
+
+    <!-- SSH -->
+    <directories realtime="yes" check_all="yes">/etc/ssh</directories>
+    <directories realtime="yes" check_all="yes" restrict=".pub$|authorized_keys$">/root/.ssh</directories>
+
+    <!-- Netzwerk -->
+    <directories realtime="yes" check_all="yes">/etc/hosts</directories>
+    <directories realtime="yes" check_all="yes">/etc/hostname</directories>
+    <directories realtime="yes" check_all="yes">/etc/netplan</directories>
+
+    <!-- Firewall (nftables) -->
+    <directories realtime="yes" check_all="yes">/etc/nftables.conf</directories>
+    <directories realtime="yes" check_all="yes">/etc/nftables.d</directories>
+
+    <!-- Cron Jobs -->
+    <directories realtime="yes" check_all="yes">/etc/crontab</directories>
+    <directories realtime="yes" check_all="yes">/etc/cron.d</directories>
+    <directories realtime="yes" check_all="yes">/etc/cron.daily</directories>
+    <directories realtime="yes" check_all="yes">/etc/cron.weekly</directories>
+    <directories realtime="yes" check_all="yes">/var/spool/cron/crontabs</directories>
+
+    <!-- Systemd -->
+    <directories realtime="yes" check_all="yes">/etc/systemd/system</directories>
+    <directories realtime="yes" check_all="yes">/usr/lib/systemd/system</directories>
+
+    <!-- Sicherheits-Tools (Basis) -->
+    <directories realtime="yes" check_all="yes">/etc/fail2ban</directories>
+    <directories realtime="yes" check_all="yes">/etc/apparmor.d</directories>
+    <directories realtime="yes" check_all="yes">/etc/audit</directories>
+    <directories realtime="yes" check_all="yes">/etc/rkhunter.conf</directories>
+
+    <!-- Auto-Updates -->
+    <directories realtime="yes" check_all="yes">/etc/apt/apt.conf.d</directories>
+    <directories realtime="yes" check_all="yes">/etc/apt/sources.list</directories>
+    <directories realtime="yes" check_all="yes">/etc/apt/sources.list.d</directories>
+
+    <!-- Logrotate -->
+    <directories realtime="yes" check_all="yes">/etc/logrotate.conf</directories>
+    <directories realtime="yes" check_all="yes">/etc/logrotate.d</directories>
+
+    <!-- msmtp -->
+    <directories realtime="yes" check_all="yes">/etc/msmtprc</directories>
+
+    <!-- Kernel / Boot -->
+    <directories realtime="yes" check_all="yes">/boot/grub/grub.cfg</directories>
+    <directories realtime="yes" check_all="yes">/etc/sysctl.conf</directories>
+    <directories realtime="yes" check_all="yes">/etc/sysctl.d</directories>
+
+    <!-- Wazuh Agent eigene Config -->
+    <directories realtime="yes" check_all="yes">/var/ossec/etc/ossec.conf</directories>
+
+    <!-- ─────────────────────────────────────────────────────── -->
+    <!-- VPN (WireGuard)                                         -->
+    <!-- Alle Server haben VPN Client, VPN-Server extra          -->
+    <!-- ─────────────────────────────────────────────────────── -->
+    <directories realtime="yes" check_all="yes">/etc/wireguard</directories>
+
+{% if wazuh_role == 'vpn' %}
+    <!-- ─────────────────────────────────────────────────────── -->
+    <!-- VPN SERVER - Spezifisch                                 -->
+    <!-- ─────────────────────────────────────────────────────── -->
+    <!-- Keine nginx auf VPN Server -->
+{% endif %}
+
+{% if wazuh_role in ['wazuh', 'mail', 'repo', 'ai', 'odoo', 'awx'] %}
+    <!-- ─────────────────────────────────────────────────────── -->
+    <!-- NGINX (alle Server ausser VPN)                          -->
+    <!-- ─────────────────────────────────────────────────────── -->
+    <directories realtime="yes" check_all="yes">/etc/nginx/nginx.conf</directories>
+    <directories realtime="yes" check_all="yes">/etc/nginx/sites-available</directories>
+    <directories realtime="yes" check_all="yes">/etc/nginx/sites-enabled</directories>
+    <directories realtime="yes" check_all="yes">/etc/nginx/conf.d</directories>
+{% endif %}
+
+{% if wazuh_role == 'wazuh' %}
+    <!-- ─────────────────────────────────────────────────────── -->
+    <!-- WAZUH MANAGER - Spezifisch                              -->
+    <!-- ─────────────────────────────────────────────────────── -->
+    <directories realtime="yes" check_all="yes">/var/ossec/etc/rules</directories>
+    <directories realtime="yes" check_all="yes">/var/ossec/etc/decoders</directories>
+    <directories realtime="yes" check_all="yes">/var/ossec/etc/lists</directories>
+    <directories realtime="yes" check_all="yes">/var/ossec/etc/shared</directories>
+    <directories realtime="yes" check_all="yes">/etc/filebeat</directories>
+{% endif %}
+
+{% if wazuh_role == 'mail' %}
+    <!-- ─────────────────────────────────────────────────────── -->
+    <!-- MAIL SERVER - Spezifisch (Mailcow)                      -->
+    <!-- ─────────────────────────────────────────────────────── -->
+    <directories realtime="yes" check_all="yes">/opt/mailcow-dockerized</directories>
+    <directories realtime="yes" check_all="yes">/opt/mailcow-dockerized/data/conf</directories>
+    <directories realtime="yes" check_all="yes">/etc/postfix</directories>
+    <directories realtime="yes" check_all="yes">/etc/dovecot</directories>
+    <directories realtime="yes" check_all="yes">/etc/opendkim</directories>
+    <directories realtime="yes" check_all="yes">/etc/opendmarc</directories>
+{% endif %}
+
+{% if wazuh_role == 'repo' %}
+    <!-- ─────────────────────────────────────────────────────── -->
+    <!-- REPO/JUMP SERVER - Spezifisch                           -->
+    <!-- ─────────────────────────────────────────────────────── -->
+    <directories realtime="yes" check_all="yes">/etc/aptly.conf</directories>
+    <directories realtime="yes" check_all="yes">/etc/cgitrc</directories>
+    <directories realtime="yes" check_all="yes">/etc/docker</directories>
+{% endif %}
+
+{% if wazuh_role == 'ai' %}
+    <!-- ─────────────────────────────────────────────────────── -->
+    <!-- AI SERVER - Spezifisch                                  -->
+    <!-- ─────────────────────────────────────────────────────── -->
+    <directories realtime="yes" check_all="yes">/etc/ollama</directories>
+    <directories realtime="yes" check_all="yes">/etc/open-webui</directories>
+{% endif %}
+
+{% if wazuh_role == 'odoo' %}
+    <!-- ─────────────────────────────────────────────────────── -->
+    <!-- ODOO SERVER - Spezifisch                                -->
+    <!-- ─────────────────────────────────────────────────────── -->
+    <directories realtime="yes" check_all="yes">/etc/odoo</directories>
+    <directories realtime="yes" check_all="yes">/etc/postgresql</directories>
+{% endif %}
+
+{% if wazuh_role == 'awx' %}
+    <!-- ─────────────────────────────────────────────────────── -->
+    <!-- AWX SERVER - Spezifisch                                 -->
+    <!-- ─────────────────────────────────────────────────────── -->
+    <directories realtime="yes" check_all="yes">/etc/kubernetes</directories>
+    <directories realtime="yes" check_all="yes">/etc/containerd</directories>
+    <directories realtime="yes" check_all="yes">/etc/cni</directories>
+    <directories realtime="yes" check_all="yes">/root/.kube/config</directories>
+    <directories realtime="yes" check_all="yes">/etc/docker</directories>
+{% endif %}
+
+    <!-- ─────────────────────────────────────────────────────── -->
+    <!-- AUSSCHLUESSE                                            -->
+    <!-- ─────────────────────────────────────────────────────── -->
+    <ignore>/etc/mtab</ignore>
+    <ignore>/etc/resolv.conf</ignore>
+    <ignore>/etc/adjtime</ignore>
+    <ignore>/etc/prelink.cache</ignore>
+    <ignore>/etc/motd</ignore>
+    <ignore>/etc/environment</ignore>
+    <ignore type="sregex">.log$</ignore>
+    <ignore type="sregex">.swp$</ignore>
+    <ignore type="sregex">.tmp$</ignore>
+    <ignore type="sregex">~$</ignore>
+
+    <!-- Verzeichnisse die sich oft aendern -->
+    <ignore>/etc/lvm</ignore>
+    <ignore>/run</ignore>
+    <ignore>/proc</ignore>
+    <ignore>/sys</ignore>
+
+  </syscheck>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- ROOTCHECK                                                   -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <rootcheck>
+    <disabled>no</disabled>
+    <frequency>{{ wazuh_rootcheck_frequency | default('43200') }}</frequency>
+    <check_files>yes</check_files>
+    <check_tromaxs>yes</check_tromaxs>
+    <check_dev>yes</check_dev>
+    <check_sys>yes</check_sys>
+    <check_pids>yes</check_pids>
+    <check_ports>yes</check_ports>
+    <check_if>yes</check_if>
+    <rootkit_files>etc/shared/rootkit_files.txt</rootkit_files>
+    <rootkit_tromaxs>etc/shared/rootkit_tromaxs.txt</rootkit_tromaxs>
+  </rootcheck>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- LOG COLLECTION                                              -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+
+  <!-- Basis Logs (alle Server) -->
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/syslog</location>
+  </localfile>
+
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/auth.log</location>
+  </localfile>
+
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/kern.log</location>
+  </localfile>
+
+  <localfile>
+    <log_format>audit</log_format>
+    <location>/var/log/audit/audit.log</location>
+  </localfile>
+
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/fail2ban.log</location>
+  </localfile>
+
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/dpkg.log</location>
+  </localfile>
+
+{% if wazuh_role in ['wazuh', 'mail', 'repo', 'ai', 'odoo', 'awx'] %}
+  <!-- Nginx Logs -->
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/nginx/access.log</location>
+  </localfile>
+
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/nginx/error.log</location>
+  </localfile>
+{% endif %}
+
+{% if wazuh_role == 'mail' %}
+  <!-- Mail Logs -->
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/mail.log</location>
+  </localfile>
+
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/mail.err</location>
+  </localfile>
+{% endif %}
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- ACTIVE RESPONSE                                             -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <active-response>
+    <disabled>no</disabled>
+  </active-response>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- VULNERABILITY DETECTOR (Agent-seitig)                       -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <syscollector>
+    <disabled>no</disabled>
+    <interval>1h</interval>
+    <scan_on_start>yes</scan_on_start>
+    <packages>yes</packages>
+    <os>yes</os>
+    <hardware>yes</hardware>
+    <network>yes</network>
+    <ports all="no">yes</ports>
+    <processes>yes</processes>
+    <hotfixes>yes</hotfixes>
+  </syscollector>
+
+</ossec_config>

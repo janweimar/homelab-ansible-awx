@@ -1,0 +1,11 @@
+# Fail2Ban configuration file
+#
+# Obsolete: superseded by nftables[type=allports]
+
+[INCLUDES]
+
+before = nftables_custom.conf
+
+[Definition]
+
+type = allports

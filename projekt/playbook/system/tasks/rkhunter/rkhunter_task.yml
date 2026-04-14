@@ -1,0 +1,128 @@
+---
+###########################################################################
+# 🛡️ rkhunter - Hauptkonfiguration
+# Datei: rkhunter_task.yml
+# Zweck: Rootkit Hunter konfigurieren (Multi-OS)
+###########################################################################
+
+###########################################################################
+# ⚙️ 1. Konfiguration anpassen
+###########################################################################
+- name: Automatische Spiegelaktualisierung aktivieren - rkhunter_task.yml
+  ansible.builtin.lineinfile:
+    path: /etc/rkhunter.conf
+    regexp: "^#?UPDATE_MIRRORS="
+    line: "UPDATE_MIRRORS=1"
+    backup: yes
+
+- name: Mirror-Modus auf aktiv setzen - rkhunter_task.yml
+  ansible.builtin.lineinfile:
+    path: /etc/rkhunter.conf
+    regexp: "^#?MIRRORS_MODE="
+    line: "MIRRORS_MODE=0"
+    backup: yes
+
+- name: Web-Command fuer Updates setzen - rkhunter_task.yml
+  ansible.builtin.lineinfile:
+    path: /etc/rkhunter.conf
+    regexp: "^#?WEB_CMD="
+    line: "WEB_CMD=\"\""
+    backup: yes
+
+- name: Mail-Benachrichtigung bei Warnung aktivieren - rkhunter_task.yml
+  ansible.builtin.lineinfile:
+    path: /etc/rkhunter.conf
+    regexp: "^#?MAIL-ON-WARNING="
+    line: "MAIL-ON-WARNING={{ admin_email }}"
+    backup: yes
+  when: admin_email is defined and admin_email | length > 0
+
+- name: Ausfuehrbare Whitelist-Pruefung erlauben - rkhunter_task.yml
+  ansible.builtin.lineinfile:
+    path: /etc/rkhunter.conf
+    regexp: "^#?ALLOW_SSH_ROOT_USER="
+    line: "ALLOW_SSH_ROOT_USER=no"
+    backup: yes
+
+- name: PKGMGR aktivieren (Debian) - rkhunter_task.yml
+  ansible.builtin.lineinfile:
+    path: /etc/rkhunter.conf
+    regexp: "^#?PKGMGR="
+    line: "PKGMGR=DPKG"
+    backup: yes
+  when: ansible_os_family == "Debian"
+
+###########################################################################
+# 🔄 2. Initiales Update & Baseline
+###########################################################################
+- name: Signaturdaten aktualisieren - rkhunter_task.yml
+  ansible.builtin.command: rkhunter --update
+  register: rkhunter_update
+  changed_when: "'Updated' in rkhunter_update.stdout"
+  failed_when: false
+
+- name: Erstelle Integritaets-Baseline (propupd) - rkhunter_task.yml
+  ansible.builtin.command: rkhunter --propupd
+  changed_when: true
+
+###########################################################################
+# 🔄 3. APT-Hook: Baseline nach jedem apt-Lauf aktualisieren
+# Gilt fuer: apt install/upgrade/remove UND unattended-upgrades
+###########################################################################
+- name: APT Post-Invoke Hook fuer rkhunter Baseline - rkhunter_task.yml
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/99rkhunter-propupd
+    content: |
+      // rkhunter Baseline nach jedem apt-Lauf aktualisieren
+      // Gilt auch fuer unattended-upgrades
+      DPkg::Post-Invoke { "if [ -x /usr/bin/rkhunter ]; then /usr/bin/rkhunter --propupd > /dev/null 2>&1; fi"; };
+    owner: root
+    group: root
+    mode: "0644"
+  when: ansible_os_family == "Debian"
+
+###########################################################################
+# 📄 4. Logfile sicherstellen
+###########################################################################
+- name: Logdatei anlegen falls nicht vorhanden - rkhunter_task.yml
+  ansible.builtin.file:
+    path: /var/log/rkhunter.log
+    state: touch
+    owner: root
+    group: root
+    mode: "0640"
+  changed_when: false
+
+###########################################################################
+# 🕒 5. Cronjob fuer taeglichen Check
+###########################################################################
+- name: Taeglichen Rootkit Hunter Check einrichten - rkhunter_task.yml
+  ansible.builtin.cron:
+    name: "rkhunter - taeglicher Rootkit Check"
+    user: root
+    minute: "0"
+    hour: "3"
+    job: "/usr/bin/rkhunter --update --quiet; OUTPUT=$(/usr/bin/rkhunter --check --sk --nocolors --report-warnings-only --logfile /var/log/rkhunter.log 2>&1); [ -n \"$OUTPUT\" ] && (echo \"Subject: [rkhunter] {{ inventory_hostname }}\"; echo \"\"; echo \"$OUTPUT\") | /usr/bin/msmtp {{ admin_email | default('root') }}"
+    state: present
+
+###########################################################################
+# 🧪 6. Erster Testlauf (Dry-Run)
+###########################################################################
+- name: Erster Testlauf (nur Warnungen) - rkhunter_task.yml
+  ansible.builtin.command: rkhunter --check --sk --nocolors --report-warnings-only
+  register: rkhunter_test
+  changed_when: false
+  failed_when: false
+
+###########################################################################
+# ✅ 7. Status anzeigen
+###########################################################################
+- name: Zeige rkhunter Status - rkhunter_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ Rootkit Hunter konfiguriert"
+      - "Signatur-Update: {{ rkhunter_update.stdout_lines | default(['keine Ausgabe']) | last }}"
+      - "Taeglicher Check: 03:00 Uhr"
+      - "Logfile: /var/log/rkhunter.log"
+      - "Mail-Empfaenger: {{ admin_email | default('root') }}"
+      - "Testlauf-Warnungen: {{ rkhunter_test.stdout_lines | default(['keine']) | length }} Zeilen"

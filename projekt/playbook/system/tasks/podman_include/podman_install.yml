@@ -1,0 +1,63 @@
+---
+###########################################################################
+# Podman Konfiguration - podman_install.yml
+# NUR Konfiguration! Installation erfolgt ueber das Hauptplaybook (install_allg).
+# Prueft ob Podman installiert ist, konfiguriert fuer eigenstaendige Nutzung.
+# Kann von verschiedenen Playbooks eingebunden werden.
+###########################################################################
+
+# ============================================================
+# PRUEFUNG - Podman installiert?
+# ============================================================
+- name: Pruefe ob podman installiert ist - podman_install.yml
+  ansible.builtin.package_facts:
+    manager: apt
+
+- name: Abbruch wenn podman nicht installiert - podman_install.yml
+  ansible.builtin.assert:
+    that:
+      - "'podman' in ansible_facts.packages"
+    fail_msg: "Podman ist nicht installiert! Installation muss ueber das Hauptplaybook (var_pack_name) erfolgen."
+    success_msg: "Podman ist installiert - starte Konfiguration."
+
+# ============================================================
+# KONFIGURATION - Registries
+# ============================================================
+- name: Podman Konfigurationsverzeichnis anlegen - podman_install.yml
+  ansible.builtin.file:
+    path: /etc/containers
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Podman registries.conf konfigurieren - podman_install.yml
+  ansible.builtin.template:
+    src: templates/registries_conf.j2
+    dest: /etc/containers/registries.conf
+    owner: root
+    group: root
+    mode: "0644"
+  register: podman_registries_changed
+
+# ============================================================
+# SERVICE - Podman Socket starten & aktivieren
+# ============================================================
+- name: Podman Socket aktivieren - podman_install.yml
+  ansible.builtin.systemd:
+    name: podman.socket
+    state: started
+    enabled: true
+
+# ============================================================
+# VALIDIERUNG
+# ============================================================
+- name: Podman Version pruefen - podman_install.yml
+  ansible.builtin.command: podman --version
+  register: podman_version
+  changed_when: false
+
+- name: Podman Konfiguration erfolgreich - podman_install.yml
+  ansible.builtin.debug:
+    msg:
+      - "Podman: {{ podman_version.stdout }}"

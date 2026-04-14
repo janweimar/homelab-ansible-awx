@@ -1,0 +1,34 @@
+# AppArmor Profile für runc
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/bin/runc {
+  #include <abstractions/base>
+  
+  # Capabilities
+  capability sys_admin,
+  capability sys_chroot,
+  capability sys_ptrace,
+  capability setuid,
+  capability setgid,
+  capability dac_override,
+  
+  # runc Binary
+  /usr/bin/runc mr,
+  
+  # Container Runtime
+  /var/lib/containerd/** rw,
+  /var/lib/docker/** rw,
+  /run/containerd/** rw,
+  /run/docker/** rw,
+  
+  # Proc/Sys
+  @{PROC}/** rw,
+  /sys/** rw,
+  
+  # Temp
+  /tmp/** rw,
+}

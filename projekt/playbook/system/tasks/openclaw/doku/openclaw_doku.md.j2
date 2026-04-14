@@ -1,0 +1,11 @@
+## OpenClaw Deployment Dokumentation
+
+**Datum:** {{ ansible_date_time.iso8601 }}
+**Server:** {{ ansible_host }} ({{ ansible_hostname }})
+**App:** {{ app_name }}
+**Deploy-Typ:** {{ app_deploy_type | default('nativ') }}
+**DB:** keine (app_db_type={{ app_db_type | default('none') }})
+**Port:** {{ app_port | default('18789') }} (Gateway)
+**Ollama:** http://10.200.0.23:11434 (AI-Server via VPN)
+**OpenClaw Version:** {{ _openclaw_version.stdout | default('unbekannt') }}
+**Status:** {{ allg_status }}

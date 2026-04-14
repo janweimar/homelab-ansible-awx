@@ -1,0 +1,19 @@
+---
+###########################################################################
+# aptly_publish_deactivate.yml
+# Entfernt Aptly Publikation und räumt Snapshots auf
+###########################################################################
+
+- name: Entferne Aptly Publikation - aptly_publish_deactivate.yml
+  ansible.builtin.shell: |
+    aptly publish drop {{ aptly_publish_defaults.distribution_publish }} repo_self
+  register: publish_drop
+  changed_when: "'successfully removed' in publish_drop.stdout"
+  failed_when: false
+
+- name: Räume Aptly Snapshots auf - aptly_publish_deactivate.yml
+  ansible.builtin.shell: |
+    for snapshot in $(aptly snapshot list -raw | grep "^repo_self"); do
+      aptly snapshot drop "$snapshot" 2>/dev/null || true
+    done
+  changed_when: false

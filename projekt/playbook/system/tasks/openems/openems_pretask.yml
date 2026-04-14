@@ -1,0 +1,25 @@
+---
+###########################################################################
+# OpenEMS Pre-Task
+# Datei: openems_pretask.yml
+# Zweck: Vorbereitungen vor der OpenEMS-Installation
+###########################################################################
+
+- name: Installationsmodus setzen - openems_pretask.yml
+  ansible.builtin.set_fact:
+    openems_install_mode: "{{ install_mode | default('nativ') }}"
+
+- name: Debug OpenEMS Konfiguration
+  ansible.builtin.debug:
+    msg:
+      - "OpenEMS Installation"
+      - "Modus: {{ openems_install_mode }}"
+      - "Status: {{ allg_status }}"
+
+- block:
+    - name: Build-Dependencies pruefen - openems_pretask.yml
+      ansible.builtin.debug:
+        msg: "Build-Dependencies werden ueber os_packages.yml installiert"
+  when:
+    - openems_install_mode == "nativ"
+    - ansible_os_family == "Debian"

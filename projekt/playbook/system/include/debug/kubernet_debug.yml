@@ -1,0 +1,15 @@
+---
+###########################################################################
+# Debug-Ausgabe fuer Kubernetes Cluster Playbook
+###########################################################################
+
+- name: "📋 Debug: Kubernetes Variablen - kubernet_debug.yml"
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "Kubernetes Konfiguration"
+      - "=========================================="
+      - "allg_status:   {{ allg_status }}"
+      - "var_pack_name: {{ var_pack_name | default([]) | join(', ') }}"
+      - "prerequisites: {{ var_prerequisites | default([], true) | join(', ') }}"
+      - "=========================================="

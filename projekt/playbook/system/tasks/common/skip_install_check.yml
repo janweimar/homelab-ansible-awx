@@ -1,0 +1,185 @@
+---
+###########################################################################
+# 🔍 skip_install_check.yml
+# Prüft ob eine App bereits installiert und aktiv ist
+###########################################################################
+# Wird von pb_setup_app_deploy.yml aufgerufen wenn app_skip_install=true.
+#
+# Prüfkriterien aus: daten/vars/app_skip_checks.yml
+#   - check_suffixes: Pod-Namens-Muster die Running sein müssen
+#   - min_running: Mindestanzahl Running Pods/Container
+#
+# Ergebnis-Variablen:
+#   _app_already_running: true/false
+#   _app_skip_active: true/false (skip_install UND app läuft)
+#
+# Unterstützte Deploy-Typen:
+#   - Kubernetes (K3s/Minikube/K8s): kubectl get pods -n <namespace>
+#   - Docker/Podman: docker ps --filter
+#   - Nativ: systemctl is-active
+###########################################################################
+
+# ============================================================
+# 1) Prüfkriterien laden
+# ============================================================
+- name: 🔍 Lade Prüfkriterien für {{ _app_base_name | default(app_name) }} - skip_install_check.yml
+  ansible.builtin.set_fact:
+    _skip_config: "{{ app_skip_checks[_app_base_name | default(app_name)] | default({'check_suffixes': [], 'min_running': 1}) }}"
+
+# DB-Suffix automatisch aus app_db_type ableiten
+# mariadb → "-mariadb", postgresql → "-postgres", mysql → "-mysql"
+- name: 🔍 Setze DB-Suffix aus Credential (app_db_type={{ app_db_type | default('none') }}) - skip_install_check.yml
+  ansible.builtin.set_fact:
+    _skip_db_suffix: >-
+      {{ '-mariadb' if app_db_type | default('none') == 'mariadb'
+      else '-postgres' if app_db_type | default('none') == 'postgresql'
+      else '-mysql' if app_db_type | default('none') == 'mysql'
+      else '' }}
+
+# DB-Suffix + min_running in Config einbauen
+- name: 🔍 Erweitere Prüfkriterien um DB - skip_install_check.yml
+  ansible.builtin.set_fact:
+    _skip_config: >-
+      {{ _skip_config | combine({
+        'check_suffixes': _skip_config.check_suffixes + [_skip_db_suffix],
+        'min_running': (_skip_config.min_running | int) + 1
+      }) }}
+  when: _skip_db_suffix | length > 0
+
+- name: 📊 DEBUG Prüfkriterien - skip_install_check.yml
+  ansible.builtin.debug:
+    msg:
+      - "🔍 Skip-Install Prüfung für {{ app_name }}"
+      - "   Basis-App: {{ _app_base_name | default(app_name) }}"
+      - "   Namespace: {{ app_name }}"
+      - "   DB-Typ: {{ app_db_type | default('none') }}{{ ' → Suffix: ' + _skip_db_suffix if _skip_db_suffix | length > 0 else ' → keine DB-Prüfung' }}"
+      - "   Suffixe: {{ _skip_config.check_suffixes | default([]) }}"
+      - "   Min Running: {{ _skip_config.min_running | default(1) }}"
+
+# ============================================================
+# 2) Kubernetes-Prüfung
+# ============================================================
+- block:
+    # Alle VOLLSTÄNDIG Ready Pods im Namespace zählen (X/X Running, nicht 1/2!)
+    - name: 🔍 Kubernetes - Zähle Ready Pods - skip_install_check.yml
+      ansible.builtin.shell: >
+        kubectl get pods -n {{ app_name }}
+        --no-headers 2>/dev/null
+        | awk '{split($2,a,"/"); if(a[1]==a[2] && $3=="Running") print $1}'
+        | wc -l
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      register: _skip_kube_count
+      failed_when: false
+      changed_when: false
+
+    # Pod-Liste holen (nur vollständig Ready)
+    - name: 🔍 Kubernetes - Hole Ready Pod-Liste - skip_install_check.yml
+      ansible.builtin.shell: >
+        kubectl get pods -n {{ app_name }}
+        --no-headers 2>/dev/null
+        | awk '{split($2,a,"/"); if(a[1]==a[2] && $3=="Running") print $1}'
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      register: _skip_kube_pods
+      failed_when: false
+      changed_when: false
+
+    # Jedes Suffix prüfen
+    - name: 🔍 Kubernetes - Prüfe Suffix {{ item }} - skip_install_check.yml
+      ansible.builtin.shell: >
+        echo "{{ _skip_kube_pods.stdout }}" | grep -c '^{{ app_name }}{{ item }}'
+      register: _skip_suffix_results
+      loop: "{{ _skip_config.check_suffixes | default([]) }}"
+      failed_when: false
+      changed_when: false
+
+    # Ergebnis zusammenbauen
+    - name: 🔧 Kubernetes - Setze Ergebnis - skip_install_check.yml
+      ansible.builtin.set_fact:
+        _skip_running_count: "{{ _skip_kube_count.stdout | default('0') | int }}"
+        _skip_min_ok: "{{ (_skip_kube_count.stdout | default('0') | int) >= (_skip_config.min_running | default(1) | int) }}"
+        _skip_suffixes_ok: >-
+          {{ (_skip_suffix_results.results | default([])
+              | rejectattr('stdout', 'equalto', '0')
+              | list | length)
+             == (_skip_config.check_suffixes | default([]) | length) }}
+
+    - name: 📊 DEBUG Kubernetes Ergebnis - skip_install_check.yml
+      ansible.builtin.debug:
+        msg:
+          - "🔍 Ready Pods (X/X Running): {{ _skip_running_count }} (min: {{ _skip_config.min_running | default(1) }})"
+          - "   Min-Count OK: {{ _skip_min_ok }}"
+          - "   Suffixe OK: {{ _skip_suffixes_ok }}"
+          - "   Ready Pods: {{ _skip_kube_pods.stdout_lines | default([]) }}"
+          - "{% for r in _skip_suffix_results.results | default([]) %}   Suffix '{{ r.item }}': {{ '✅' if r.stdout | default('0') | int > 0 else '❌ FEHLT' }}{% endfor %}"
+
+  when: _is_kubernetes | bool
+
+# ============================================================
+# 3) Docker/Podman-Prüfung
+# ============================================================
+- block:
+    - name: 🔍 Docker - Zähle Running Container - skip_install_check.yml
+      ansible.builtin.shell: >
+        docker ps --filter "name={{ app_name }}" --format '{{"{{"}}.Names{{"}}"}}'
+        2>/dev/null | grep -c '.'
+      register: _skip_docker_count
+      failed_when: false
+      changed_when: false
+
+    - name: 🔧 Docker - Setze Ergebnis - skip_install_check.yml
+      ansible.builtin.set_fact:
+        _skip_running_count: "{{ _skip_docker_count.stdout | default('0') | int }}"
+        _skip_min_ok: "{{ (_skip_docker_count.stdout | default('0') | int) >= (_skip_config.min_running | default(1) | int) }}"
+        _skip_suffixes_ok: true
+
+  when:
+    - not (_is_kubernetes | bool)
+    - _deploy_type_base in ['docker', 'podman']
+
+# ============================================================
+# 4) Nativ-Prüfung
+# ============================================================
+- block:
+    - name: 🔍 Nativ - Prüfe Service Status - skip_install_check.yml
+      ansible.builtin.command: systemctl is-active {{ app_name }}
+      register: _skip_nativ_result
+      failed_when: false
+      changed_when: false
+
+    - name: 🔧 Nativ - Setze Ergebnis - skip_install_check.yml
+      ansible.builtin.set_fact:
+        _skip_running_count: "{{ 1 if _skip_nativ_result.stdout | default('') == 'active' else 0 }}"
+        _skip_min_ok: "{{ _skip_nativ_result.stdout | default('') == 'active' }}"
+        _skip_suffixes_ok: true
+
+  when:
+    - not (_is_kubernetes | bool)
+    - _deploy_type_base == 'nativ'
+
+# ============================================================
+# 5) Gesamtergebnis setzen
+# ============================================================
+- name: 🔧 Setze _app_skip_active - skip_install_check.yml
+  ansible.builtin.set_fact:
+    _app_already_running: "{{ (_skip_min_ok | bool) and (_skip_suffixes_ok | bool) }}"
+    _app_skip_active: "{{ (app_skip_install | bool) and (_skip_min_ok | bool) and (_skip_suffixes_ok | bool) }}"
+
+- name: 📊 DEBUG Skip-Install Ergebnis - skip_install_check.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "🔍 Skip-Install Prüfung — {{ app_name }}"
+      - "=========================================="
+      - "app_skip_install: {{ app_skip_install | bool }}"
+      - "Running Pods/Container: {{ _skip_running_count }}"
+      - "Min-Count OK: {{ _skip_min_ok }} ({{ _skip_running_count }}/{{ _skip_config.min_running | default(1) }})"
+      - "Suffixe OK: {{ _skip_suffixes_ok }}"
+      - "App läuft bereits: {{ _app_already_running | bool }}"
+      - "{{ '⏩ Installation wird ÜBERSPRUNGEN — nur Konfiguration' if _app_skip_active | bool else '🚀 Volle Installation wird ausgeführt' + (' (Erstinstallation trotz skip_install=true)' if app_skip_install | bool and not _app_already_running | bool else '') }}"
+      - "=========================================="

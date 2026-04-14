@@ -1,0 +1,36 @@
+# AppArmor Profile für Mailcow
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/opt/mailcow-dockerized/** {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  
+  # Capabilities
+  capability dac_override,
+  capability setuid,
+  capability setgid,
+  
+  # Netzwerk
+  network inet stream,
+  network inet6 stream,
+  
+  # Docker/Container
+  /usr/bin/docker rix,
+  /usr/bin/docker-compose rix,
+  
+  # Mailcow Data
+  /opt/mailcow-dockerized/** rw,
+  
+  # Config
+  /opt/mailcow-dockerized/data/** rw,
+  
+  # Logs
+  /opt/mailcow-dockerized/data/logs/** w,
+  
+  # Temp
+  /tmp/** rw,
+}

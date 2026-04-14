@@ -1,0 +1,187 @@
+###########################################################################
+# 🧰 Playbook-spezifischer task alles was speziel zu diesem Playbook gehört
+###########################################################################
+###########################################################################
+# 🟢 Geo-Failsafe  aktivieren (iptables-Modul + Auto-Allow AWX-Country)
+###########################################################################
+- name: 🟢 Geo-Failsafe aktivieren
+  block:
+    ###########################################################################
+    # 📁 Verzeichnisse & GeoIP-Sets aus bestehender CSV erstellen (nftables)
+    ###########################################################################
+    - block:
+        - name: 🧹 Vorhandene GeoIP-Verzeichnisse samt Inhalt löschen
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "{{ fire_geoip_db_path }}"
+            - "{{ fire_geoip_source_dir }}"
+
+        - name: 🗑️ Vorhandenes nft_geoip.py Script löschen (falls vorhanden)
+          ansible.builtin.file:
+            path: "{{ paths.tmp_nft_geoip_script[ansible_os_family] }}"
+            state: absent
+
+        - name: 📄 nft_geoip.py Script auf Zielsystem kopieren
+          ansible.builtin.copy:
+            src: "{{ file_paths.nft_geoip_script }}"
+            dest: "{{ paths.tmp_nft_geoip_script[ansible_os_family] }}"
+            mode: "0755"
+
+        - name: 📁 Verzeichnisse für GeoIP-Daten anlegen
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: directory
+            owner: root
+            group: root
+            mode: "0755"
+          loop:
+            - "{{ fire_geoip_db_path }}"
+            - "{{ fire_geoip_source_dir }}"
+
+        - name: 📂 GeoIP-CSV-Datei bereitstellen
+          ansible.builtin.copy:
+            src: "{{ file_paths.dbip_country_lite_csv }}"
+            dest: "{{ fire_geoip_source_dir }}/dbip-country-lite.csv"
+            owner: root
+            group: root
+            mode: "0644"
+            force: true
+
+        - name: 📂 Location-CSV-Datei bereitstellen
+          ansible.builtin.copy:
+            src: "{{ file_paths.location_csv }}"
+            dest: "{{ fire_geoip_source_dir }}/location.csv"
+            owner: root
+            group: root
+            mode: "0644"
+            force: true
+
+    ###########################################################################
+    # 📁 nftable.config auf server kopieren. Ordner erstellen /etc/nftables.d
+    ###########################################################################
+    - block:
+        - name: 📁 Alte /etc/nftables.conf löschen
+          ansible.builtin.file:
+            path: "{{ paths.nftables_conf[ansible_os_family] }}"
+            state: absent
+
+        - name: 📄 Neue nftables.conf kopieren
+          ansible.builtin.copy:
+            src: "{{ file_paths.nftable_config_j2}}"
+            dest: "{{ paths.nftables_conf[ansible_os_family] }}"
+            owner: root
+            group: root
+            mode: "0644"
+
+        - name: 📁 Ordner /etc/nftables.d sicherstellen
+          ansible.builtin.file:
+            path: "{{ paths.nftables_d_dir[ansible_os_family] }}"
+            state: directory
+            owner: root
+            group: root
+            mode: "0755"
+
+    ###########################################################################
+    # 🧽 eventuell bestehender Fallback-Job löschen
+    ###########################################################################
+    - name: 🔄 Importieren und ausführen tasks/nftables/nftables_delete_autom_reset.yml
+      ansible.builtin.include_tasks: "{{ task_paths.nftables_delete_autom_reset }}"
+
+    ###########################################################################
+    # 🔁 Fallback-Mechanismus – Automatischer Reset & Bereinigung am Ende
+    ###########################################################################
+    - name: 🔄 Importieren und ausführen tasks/nftables/nftables_autom_reset.yml
+      ansible.builtin.include_tasks: "{{ task_paths.nftables_autom_reset }}"
+
+    #######################################################################
+    # 🧮 Länder vorbereiten
+    #######################################################################
+    - block:
+        #######################################################################
+        # 🧮 Blockierte Länder - AWX Land entfernen
+        #######################################################################
+        - name: Ermittlung der zu blockierenden Länder (außer AWX-Land)
+          when: fire_geo_mode == 'block'
+          ansible.builtin.set_fact:
+            var_geo_countries: >-
+              {{ fire_geo_countries.split(',')
+                  | reject('equalto', fire_geo_awx_country)
+                  | map('trim') | map('upper') | list }}
+
+        - name: 🧩 Debug – Übersicht der blockierten Länder (AWX & Geo-Failsafe Chaining)
+          when: fire_geo_mode == 'block'
+          ansible.builtin.debug:
+            msg:
+              - "🚫 Blockierte Länder laut AWX-Credentials: {{ fire_geo_countries }}"
+              - "📍 Automatisch ermitteltes Land (AWX-Server): {{ fire_geo_awx_country }}"
+              - "✅ Effektiv blockierte Länder (bereinigt): {{ var_geo_countries }}"
+
+        #######################################################################
+        # 🧮 Erlaubte Länder + AWX Land kombinieren
+        #######################################################################
+        - name: Erlaube Länder + AWX-Land kombinieren (unique, uppercase, trim)
+          when: fire_geo_mode == 'allow'
+          ansible.builtin.set_fact:
+            var_geo_countries: >-
+              {{ (fire_geo_countries.split(',') + [fire_geo_awx_country])
+                  | map('trim') | map('upper') | unique | list }}
+
+        - name: 🧩 Debug – Übersicht erlaubter Länder (AWX & Geo-Failsafe Chaining)
+          when: fire_geo_mode == 'allow'
+          ansible.builtin.debug:
+            msg:
+              - "🌍 Erlaubte Länder laut AWX-Credentials: {{ fire_geo_countries }}"
+              - "📍 Automatisch ermitteltes Land (AWX-Server): {{ fire_geo_awx_country }}"
+              - "✅ Erlaubte Länder (alles andere wird geblockt): {{ var_geo_countries }}"
+
+    #######################################################################
+    # 🧮 GeoIP ausführen
+    #######################################################################
+    - name: 🔄 Importieren und ausführen tasks/nftables/geoip/nftables_geo_modus.yml
+      ansible.builtin.include_tasks: "{{ task_paths.nftables_geo_modus }}"
+
+    ###########################################################################
+    # 🧽 Fallback-Job löschen – Playbook erfolgreich durchgelaufen
+    ###########################################################################
+    - name: 🔄 Importieren und ausführen tasks/nftables/nftables_delete_autom_reset.yml
+      ansible.builtin.include_tasks: "{{ task_paths.nftables_delete_autom_reset }}"
+
+    ###########################################################################
+    # 🧪 Datenbank testen (optional, nur falls geoiplookup vorhanden)
+    ###########################################################################
+    - block:
+        - name: 🔍 Prüfen, ob geoiplookup verfügbar ist
+          ansible.builtin.command: which geoiplookup
+          register: geoiplookup_exists
+          changed_when: false
+          failed_when: false
+          become: false
+
+        - name: 🌐 GeoIP CLI Test mit IP 8.8.8.8
+          ansible.builtin.command: geoiplookup 8.8.8.8
+          when: geoiplookup_exists.rc == 0
+          register: geoip_test
+          changed_when: false
+          ignore_errors: true
+
+        - name: 🧾 Ausgabe GeoIP-Test
+          ansible.builtin.debug:
+            msg:
+              - "🌐 Test-IP: 8.8.8.8"
+              - "📍 GeoIP-Ergebnis: {{ geoip_test.stdout | default('geoiplookup nicht verfügbar oder keine Ausgabe') }}"
+
+        ###########################################################################
+        # 📜 Table-Ausgabe für Dokumentation erfassen
+        ###########################################################################
+        - name: 📜 Lese GeoIP Table für Dokumentation
+          ansible.builtin.shell: |
+            nft list table inet geo_tab | sed '/^[[:space:]]*set /,/^[[:space:]]*}/d'
+          register: geoip_table_raw
+          changed_when: false
+          failed_when: false
+
+        - name: 📝 Setze Variable für Doku
+          ansible.builtin.set_fact:
+            geoip_table_output: "{{ geoip_table_raw.stdout }}"

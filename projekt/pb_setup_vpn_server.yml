@@ -1,0 +1,203 @@
+---
+###########################################################################
+# 🔒 WireGuard VPN Server Installation
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials:
+#   allg_status: aktiviert | deaktiviert | deinstalliert
+#   vpn_interface: wg0 (WireGuard Interface Name)
+#   vpn_port: 51820 (WireGuard Listen Port)
+#   vpn_subnet: 10.200.0.0/24 (VPN Subnet)
+#   vpn_server_ip: 10.200.0.1 (Server IP im VPN)
+#   vpn_clients: Liste der VPN Clients (Name, ansible_host, vpn_ip)
+#   ssh_key: SSH-Zugangsdaten
+#
+# Beschreibung:
+# Installiert und konfiguriert WireGuard VPN Server als zentrale
+# Kommunikations-Infrastruktur für alle Server.
+#   - WireGuard Server Installation
+#   - Keys werden direkt auf dem Server generiert (idempotent)
+#   - nftables Firewall-Regeln (Port 51820/UDP)
+#   - IP Forwarding & NAT aktivieren
+#   - Client Configs automatisch generieren
+#
+# Hinweise:
+# - Benötigt nftables als Prerequisite
+# - Keys werden in /etc/wireguard/ auf dem Server erzeugt (kein Key-Material im Repo)
+# - Client Configs werden in /etc/wireguard/clients/ generiert
+# - VPN-Variablen liegen in vars_paths.vpn
+# - VPN Subnet: 10.200.0.0/24 (Server: .1, Clients: .20-.25)
+# - Port 51820/UDP wird auf WAN geöffnet
+#
+# BEST PRACTICES:
+# - Wenn möglich kein Code im Playbook, sondern in pre_task/task auslagern
+# - Nicht benötigte Service-Includes löschen (nicht auskommentieren)
+###########################################################################
+
+- name: pb_setup_vpn_server.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+    - playbooks_paths.yml
+
+  vars:
+    # Hauptanwendung(en)
+    var_pack_name:
+      - wireguard
+
+    # Abhängigkeiten
+    var_dependencies_list:
+
+    # Voraussetzungen - MUSS bereits installiert sein
+    var_prerequisites:
+      - nft
+
+    # Installationsreihenfolge (0 = erst Hauptanwendung, 1 = erst Dependencies)
+    var_inst_order: 0
+
+    # Zusätzliche Services
+    var_sonder_start:
+    var_sonder_autostart:
+
+    # Nicht unterstützte OS
+    unsupported_systems:
+
+    # Playbook-Log-Dokumentation (Template-Pfad)
+    pb_doku_template: vpn_server_doku
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden & setzen
+    ###########################################################################
+    - name: Lade alle Variablen-Dateien aus var_list.yml - pb_setup_vpn_server.yml
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop: "{{ var_files }}"
+
+    ###########################################################################
+    # Hook: Pre-Start (nach Variablen-Laden)
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start - pb_setup_vpn_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck & Prerequisites
+    ###########################################################################
+    - name: 🔄 Importiere Systemcheck - pb_setup_vpn_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Importiere Systemcheck zwingend benötigter Komponenten - pb_setup_vpn_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks
+    ###########################################################################
+    - block:
+        - name: 🔄 Importiere Paketmanager-Lock prüfen - pb_setup_vpn_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+        - name: 🔄 Importiere Debug ausgabe bei Playbook start - pb_setup_vpn_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+    ###########################################################################
+    # Playbook-spezifische Pre-Tasks
+    ###########################################################################
+    - block:
+        - name: 🔄 Importiere pre_task - pb_setup_vpn_server.yml
+          ansible.builtin.include_tasks: "{{ task_paths.wireguard_server_pretask }}"
+      when: allg_status == "aktiviert"
+
+  tasks:
+    ###########################################################################
+    # HAUPTLOGIK - Installation
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Hook: Pre-Install (vor Installation)
+        ###########################################################################
+        - name: 🔧 Hook Pre-Install - pb_setup_vpn_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        ###########################################################################
+        # Standard-Installation
+        ###########################################################################
+        - name: Komplette installation von var_pack_name und var_dependencies_list - pb_setup_vpn_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+        ###########################################################################
+        # Playbook-spezifische Konfiguration
+        ###########################################################################
+        - name: Ausführen der kompletten Konfiguration - pb_setup_vpn_server.yml
+          ansible.builtin.include_tasks: "{{ task_paths.wireguard_server_task }}"
+
+        ###########################################################################
+        # Service-Management
+        ###########################################################################
+        - block:
+            - name: 🔄 Startet Hauptdienst - pb_setup_vpn_server.yml
+              ansible.builtin.include_tasks: "{{ include_paths.services_start }}"
+
+            - name: 🔄 Autostart aktivieren - pb_setup_vpn_server.yml
+              ansible.builtin.include_tasks: "{{ include_paths.services_autostart }}"
+
+            - name: 🔄 Status prüfen - pb_setup_vpn_server.yml
+              ansible.builtin.include_tasks: "{{ include_paths.status_inst }}"
+
+            - name: 🔄 Autostart prüfen - pb_setup_vpn_server.yml
+              ansible.builtin.include_tasks: "{{ include_paths.services_is_enable }}"
+
+        ###########################################################################
+        # Post-Tasks (nach Installation)
+        ###########################################################################
+        - name: 🔄 Importiere post_task - pb_setup_vpn_server.yml
+          ansible.builtin.include_tasks: "{{ task_paths.wireguard_server_post_task }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # Deaktivierung
+    ###########################################################################
+    - block:
+        - name: 🔄 Dienste stoppen - pb_setup_vpn_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.services_stop }}"
+
+      when: allg_status == "deaktiviert"
+
+    ###########################################################################
+    # Deinstallation
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Standard-Deinstallation
+        ###########################################################################
+        - name: 🔄 Deinstallationsscript mit debug Ausgabe - pb_setup_vpn_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.deinstall_allg }}"
+
+        - name: 🔄 Cleanup Konfiguration - pb_setup_vpn_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.cleanup }}"
+
+        ###########################################################################
+        # Playbook-spezifische Deinstallation
+        ###########################################################################
+        - name: 🔄 WireGuard spezifische Deinstallation - pb_setup_vpn_server.yml
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /etc/wireguard
+            - /etc/nftables.d/30-wireguard.nft
+
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # Hook: end (am Ende des Playbooks)
+    ###########################################################################
+    - name: 🔧 Hook End - pb_setup_vpn_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

@@ -1,0 +1,27 @@
+#####################################################################
+# 🧪 Check Prerequisites – mit klarer Ausgabe
+#####################################################################
+- name: 🧪 Prüfe Voraussetzungen (Prerequisites)
+  ansible.builtin.command: "which {{ item }}"
+  register: prereq_check
+  changed_when: false
+  ignore_errors: true
+  loop: >-
+    {{
+      (
+        var_prerequisites
+        if var_prerequisites is iterable and var_prerequisites is not string
+        else [var_prerequisites]
+      )
+      | reject('equalto', '') 
+      | reject('equalto', None)
+      | list
+    }}
+
+- name: ❌ Abbruch wenn Voraussetzung fehlt
+  ansible.builtin.fail:
+    msg: >
+      Voraussetzung fehlt: {{ item.item }}
+      → Dieses Playbook kann nicht fortgesetzt werden.
+  when: item.rc != 0
+  loop: "{{ prereq_check.results }}"

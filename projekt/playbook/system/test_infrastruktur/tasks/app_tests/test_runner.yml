@@ -1,0 +1,87 @@
+---
+###########################################################################
+# 🧪 App Test Runner
+# =========================================================================
+# Zweck  : Alle installierten Apps prüfen
+#          1. Alle Services generisch prüfen
+#          2. Apps aus app.yml zusätzlich speziell prüfen
+# Schreibt in: app_results (Liste)
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+# =========================================================================
+# Schritt 1: Alle installierten Pakete mit Service ermitteln
+# =========================================================================
+
+- name: "APP | Alle installierten Pakete ermitteln"
+  ansible.builtin.shell: dpkg-query -W -f='${Package}\n' --no-pager 2>/dev/null
+  register: reg_alle_pakete
+  changed_when: false
+  failed_when: false
+
+- name: "APP | Alle Services ermitteln (mit ausführbarem Programm)"
+  ansible.builtin.shell: >
+    systemctl list-units --type=service --all --no-pager --no-legend |
+    awk '{print $1}' |
+    sed 's/\.service$//'
+  register: reg_alle_services
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Schritt 2: App-Liste aus app.yml laden
+# =========================================================================
+
+- name: "APP | App-Liste aus app.yml laden"
+  ansible.builtin.set_fact:
+    spezial_apps: "{{ app_liste.apps | default([]) }}"
+
+- name: "APP | app_results initialisieren"
+  ansible.builtin.set_fact:
+    app_results: []
+
+# =========================================================================
+# Schritt 3: Generischen Test für alle Services
+# =========================================================================
+
+- name: "APP | Generischen Test für alle aktiven Services"
+  ansible.builtin.include_tasks: "{{ var_task_pfad }}/app_tests/generisch.yml"
+  loop: "{{ reg_alle_services.stdout_lines | select('match', '^[a-zA-Z]') | list }}"
+  loop_control:
+    loop_var: current_app
+    label: "{{ current_app }}"
+
+# =========================================================================
+# Schritt 4: Spezielle Tests für Apps aus app.yml
+# =========================================================================
+
+- name: "APP | Spezialtests für Apps aus app.yml"
+  ansible.builtin.include_tasks: "{{ var_task_pfad }}/app_tests/{{ item.name }}.yml"
+  loop: "{{ spezial_apps }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - item.name is defined
+    - lookup('first_found', [var_task_pfad + '/app_tests/' + item.name + '.yml'], errors='ignore') | length > 0
+
+# =========================================================================
+# Schritt 5: Apps ohne Spezialtest in app.yml markieren
+# =========================================================================
+
+- name: "APP | Apps ohne Spezialtest identifizieren"
+  ansible.builtin.set_fact:
+    apps_ohne_test: >-
+      {{
+        spezial_apps
+        | selectattr('name', 'defined')
+        | map(attribute='name')
+        | reject('in', (reg_alle_services.stdout_lines | default([])))
+        | list
+      }}
+
+- name: "APP | ✅ App-Tests abgeschlossen"
+  ansible.builtin.debug:
+    msg:
+      - "Generisch getestet: {{ reg_alle_services.stdout_lines | length }} Services"
+      - "Spezialtests: {{ spezial_apps | length }} Apps aus app.yml"
+      - "Apps ohne Spezialtest: {{ apps_ohne_test | length }}"

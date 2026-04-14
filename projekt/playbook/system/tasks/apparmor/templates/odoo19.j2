@@ -1,0 +1,46 @@
+# AppArmor Profile für Odoo 19
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/bin/odoo {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  #include <abstractions/python>
+  
+  # Capabilities
+  capability dac_override,
+  capability setuid,
+  capability setgid,
+  
+  # Netzwerk
+  network inet stream,
+  network inet6 stream,
+  
+  # Odoo Binary
+  /usr/bin/odoo mr,
+  /usr/bin/python3* rix,
+  
+  # Konfiguration
+  /etc/odoo/** r,
+  
+  # Data
+  /var/lib/odoo/** rw,
+  
+  # Logs
+  /var/log/odoo/** w,
+  
+  # Addons
+  /usr/lib/python3*/dist-packages/odoo/** r,
+  
+  # Filestore
+  /opt/odoo/** rw,
+  
+  # Temp
+  /tmp/** rw,
+  
+  # PostgreSQL
+  /var/run/postgresql/.s.PGSQL.* rw,
+}

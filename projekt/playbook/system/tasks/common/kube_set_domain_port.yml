@@ -1,0 +1,88 @@
+---
+###########################################################################
+# 🔌 kube_set_domain_port.yml
+# Ermittelt NodePort + Proxy-IP und setzt domain_port für nginx
+###########################################################################
+# Wird von jedem kube_task am Ende aufgerufen:
+#   ansible.builtin.include_tasks: "{{ task_paths.kube_set_domain_port }}"
+#
+# Unterstützt alle Kubernetes Deploy-Typen:
+#   K3s:      proxy_ip = 127.0.0.1 (läuft auf dem Host)
+#   Minikube: proxy_ip = minikube ip (eigenes Netzwerk)
+#   K8s:      proxy_ip = 127.0.0.1 (Standard)
+#
+# Setzt:
+#   domain_port     → domain/proxy_ip/nodeport
+#   domain_port_ssl → domain/proxy_ip/nodeport
+#
+# Voraussetzung:
+#   Service muss existieren: {{ app_name }}-service im Namespace {{ app_name }}
+###########################################################################
+
+- block:
+    # ── NodePort ermitteln ────────────────────────────────
+    - name: 🔍 Ermittle NodePort - kube_set_domain_port.yml
+      ansible.builtin.command: >
+        kubectl get svc {{ app_name }}-service
+        -n {{ app_name }}
+        -o jsonpath='{.spec.ports[0].nodePort}'
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      register: _nodeport_result
+      changed_when: false
+
+    # ── Proxy-IP ermitteln (Deploy-Typ abhängig) ──────────
+    # K3s: 127.0.0.1 (Pods laufen auf dem Host)
+    - name: 🔧 Setze Proxy-IP für K3s - kube_set_domain_port.yml
+      ansible.builtin.set_fact:
+        _proxy_ip: "127.0.0.1"
+      when: _deploy_type_base | default('k3s') in ['k3s', 'k8s']
+
+    # Minikube: eigene IP ermitteln
+    - name: 🔍 Ermittle Minikube IP - kube_set_domain_port.yml
+      ansible.builtin.command: minikube ip
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+      register: _minikube_ip
+      failed_when: false
+      changed_when: false
+      when: _deploy_type_base | default('k3s') == 'minikube'
+
+    - name: 🔧 Setze Proxy-IP für Minikube - kube_set_domain_port.yml
+      ansible.builtin.set_fact:
+        _proxy_ip: "{{ _minikube_ip.stdout | default('192.168.49.2') }}"
+      when: _deploy_type_base | default('k3s') == 'minikube'
+
+    # ── Domain ermitteln ──────────────────────────────────
+    - name: 🌐 Ermittle Domain - kube_set_domain_port.yml
+      ansible.builtin.set_fact:
+        _kube_domain: "{{ urls[ansible_host][_app_base_name | default(app_name)].domain | default('') }}"
+
+    # VPN-only: Domain durch VPN-IP ersetzen
+    - name: 🔒 VPN-only - Setze VPN-IP als Domain - kube_set_domain_port.yml
+      ansible.builtin.set_fact:
+        _kube_domain: "{{ ansible_wg0.ipv4.address }}"
+      when: app_vpn_only | default(false) | bool
+
+    # ── domain_port setzen ────────────────────────────────
+    - name: 🔧 Setze domain_port für nginx - kube_set_domain_port.yml
+      ansible.builtin.set_fact:
+        _proxy_port: "{{ _nodeport_result.stdout }}"
+        domain_port: "{{ _kube_domain }}/{{ _proxy_ip }}/{{ _nodeport_result.stdout }}"
+        domain_port_ssl: "{{ _kube_domain }}/{{ _proxy_ip }}/{{ _nodeport_result.stdout }}"
+      when: _kube_domain | length > 0
+
+    - name: 📊 DEBUG nginx Proxy - kube_set_domain_port.yml
+      ansible.builtin.debug:
+        msg:
+          - "🌐 Domain: {{ _kube_domain | default('nicht gesetzt') }}"
+          - "🔌 Proxy: {{ _proxy_ip }}:{{ _nodeport_result.stdout }}"
+          - "📦 Deploy-Typ: {{ _deploy_type_base | default('k3s') }}"
+          - "🔒 VPN-only: {{ app_vpn_only | default(false) | bool }}"
+
+  when:
+    - app_nginx_integration | default(false) | bool
+    - (urls[ansible_host][_app_base_name | default(app_name)].domain | default('') | length > 0) or (app_vpn_only | default(false) | bool)

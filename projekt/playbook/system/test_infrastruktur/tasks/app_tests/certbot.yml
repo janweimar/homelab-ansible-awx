@@ -1,0 +1,97 @@
+---
+###########################################################################
+# 🔐 Spezialtest: certbot (SSL-Zertifikate)
+# =========================================================================
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+- name: "CERT | Paket installiert"
+  ansible.builtin.command: dpkg -s certbot
+  register: reg_cert_pkg
+  changed_when: false
+  failed_when: false
+
+- name: "CERT | Zertifikate auflisten"
+  ansible.builtin.command: certbot certificates
+  register: reg_cert_liste
+  changed_when: false
+  failed_when: false
+
+- name: "CERT | Ablaufende Zertifikate prüfen (<30 Tage)"
+  ansible.builtin.shell: |
+    find /etc/letsencrypt/live -name "cert.pem" 2>/dev/null | while read cert; do
+      domain=$(echo "$cert" | awk -F'/' '{print $(NF-1)}')
+      ablauf=$(openssl x509 -enddate -noout -in "$cert" 2>/dev/null | cut -d= -f2)
+      tage=$(( ( $(date -d "$ablauf" +%s) - $(date +%s) ) / 86400 ))
+      echo "$domain: $tage Tage verbleibend"
+    done
+  register: reg_cert_ablauf
+  changed_when: false
+  failed_when: false
+
+- name: "CERT | Kritische Zertifikate (<10 Tage)"
+  ansible.builtin.shell: |
+    find /etc/letsencrypt/live -name "cert.pem" 2>/dev/null | while read cert; do
+      ablauf=$(openssl x509 -enddate -noout -in "$cert" 2>/dev/null | cut -d= -f2)
+      tage=$(( ( $(date -d "$ablauf" +%s) - $(date +%s) ) / 86400 ))
+      [ "$tage" -lt 10 ] && echo "$cert: KRITISCH - nur $tage Tage!"
+    done | wc -l
+  register: reg_cert_kritisch
+  changed_when: false
+  failed_when: false
+
+- name: "CERT | Renewal Cronjob prüfen"
+  ansible.builtin.shell: |
+    (crontab -l 2>/dev/null; cat /etc/cron* /etc/cron.d/* 2>/dev/null) | grep -c certbot || echo 0
+  register: reg_cert_cron
+  changed_when: false
+  failed_when: false
+
+- name: "CERT | Systemd Timer prüfen"
+  ansible.builtin.command: systemctl is-active certbot.timer
+  register: reg_cert_timer
+  changed_when: false
+  failed_when: false
+
+- name: "CERT | Ergebnis in app_results speichern"
+  ansible.builtin.set_fact:
+    app_results: >-
+      {{
+        app_results + [{
+          'app': 'certbot',
+          'typ': 'spezial',
+          'status': (
+            'FEHLER' if (reg_cert_kritisch.stdout | int) > 0
+            else 'WARNUNG' if (reg_cert_cron.stdout | int) == 0 and reg_cert_timer.stdout != 'active'
+            else 'OK'
+          ),
+          'details': [
+            {
+              'name': 'Paket installiert',
+              'status': 'OK' if reg_cert_pkg.rc == 0 else 'FEHLER',
+              'wert': 'installiert' if reg_cert_pkg.rc == 0 else 'NICHT installiert',
+              'hinweis': ''
+            },
+            {
+              'name': 'Zertifikate',
+              'status': 'OK',
+              'wert': reg_cert_ablauf.stdout | default('keine Zertifikate'),
+              'hinweis': ''
+            },
+            {
+              'name': 'Kritische Zertifikate (<10 Tage)',
+              'status': 'FEHLER' if (reg_cert_kritisch.stdout | int) > 0 else 'OK',
+              'wert': reg_cert_kritisch.stdout | trim + ' kritische Zertifikate',
+              'hinweis': 'Zertifikat läuft bald ab — sofort erneuern!' if (reg_cert_kritisch.stdout | int) > 0 else ''
+            },
+            {
+              'name': 'Auto-Renewal',
+              'status': 'OK' if reg_cert_timer.stdout == 'active' or (reg_cert_cron.stdout | int) > 0 else 'WARNUNG',
+              'wert': 'systemd Timer aktiv' if reg_cert_timer.stdout == 'active' else 'Cronjob vorhanden' if (reg_cert_cron.stdout | int) > 0 else 'KEIN Auto-Renewal!',
+              'hinweis': 'Kein Auto-Renewal konfiguriert!' if reg_cert_timer.stdout != 'active' and (reg_cert_cron.stdout | int) == 0 else ''
+            }
+          ],
+          'spezialtest': true
+        }]
+      }}
+  when: reg_cert_pkg.rc == 0

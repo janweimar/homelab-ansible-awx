@@ -1,0 +1,25 @@
+---
+###########################################################################
+# stalwart_deinstall.yml
+# Stalwart Mail Server — vollständige Deinstallation
+###########################################################################
+
+- name: 🗑️ Stalwart Namespace löschen - stalwart_deinstall.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_cleanup }}"
+
+- name: 🗑️ Entferne nginx Domain vHost - stalwart_deinstall.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ urls[ansible_host][_app_base_name | default(app_name)].domain | default('') }}.conf"
+    state: absent
+  failed_when: false
+  when: urls[ansible_host][_app_base_name | default(app_name)].domain | default('') | length > 0
+
+- name: 🗑️ Entferne nginx VPN vHost - stalwart_deinstall.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ app_name }}_vpn.conf"
+    state: absent
+  failed_when: false
+
+- name: 🔄 Restart nginx - stalwart_deinstall.yml
+  ansible.builtin.command: "{{ command.nginx_restart[ansible_os_family] }}"
+  failed_when: false

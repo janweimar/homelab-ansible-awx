@@ -1,0 +1,99 @@
+---
+###########################################################################
+# service_dep.yml
+# Allgemeine Dependency-Definitionen für gemeinsam genutzte Dienste
+###########################################################################
+# Format:
+#   service_dependencies:
+#     <dienst_name>:
+#       service_name: <systemd-service-name>
+#       packages:     <apt-pakete zum entfernen>
+#       apps:
+#         <app_name>:
+#           state_section: <section in server_state.fact>
+#           config_files:  <dateien die bei deinstall entfernt werden>
+#
+# Nutzung:
+#   _dep_service_name: nginx        # welcher Dienst wird geprueft
+#   _dep_app_name: wazuh_manager    # welche App deinstalliert gerade
+#   include_tasks: task_paths.service_dep_check
+###########################################################################
+
+service_dependencies:
+
+  ##########################################################################
+  # nginx — Reverse Proxy / Webserver
+  ##########################################################################
+  nginx:
+    service_name: nginx
+    packages:
+      - nginx
+      - nginx-common
+      - libnginx-mod-http-modsecurity
+    apps:
+      wazuh_manager:
+        state_section: wazuh_manager
+        config_files:
+          - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.wazuh.domain }}.conf"
+          - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.wazuh.domain }}_ssl.conf"
+
+      bookstack:
+        state_section: bookstack
+        config_files:
+          - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.bookstack.domain }}.conf"
+          - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.bookstack.domain }}_ssl.conf"
+
+      repo_server:
+        state_section: repo_server
+        config_files:
+          - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.repo.domain }}.conf"
+          - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.repo.domain }}_ssl.conf"
+
+      odoo:
+        state_section: odoo
+        config_files:
+          - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.odoo.domain }}.conf"
+          - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.odoo.domain }}_ssl.conf"
+
+      open_webui:
+        state_section: open_webui
+        config_files:
+          - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.open_webui.domain }}.conf"
+          - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.open_webui.domain }}_ssl.conf"
+
+      awx:
+        state_section: awx
+        config_files:
+          - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.awx.domain }}.conf"
+          - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.awx.domain }}_ssl.conf"
+
+  ##########################################################################
+  # postgresql — Datenbank
+  # (Beispiel fuer zukuenftige Erweiterung — noch nicht genutzt)
+  ##########################################################################
+  # postgresql:
+  #   service_name: postgresql
+  #   packages:
+  #     - postgresql
+  #     - postgresql-common
+  #   apps:
+  #     odoo:
+  #       state_section: odoo
+  #       config_files:
+  #         - /etc/postgresql/16/main/pg_hba.conf
+  #     bookstack:
+  #       state_section: bookstack
+  #       config_files: []
+
+  ##########################################################################
+  # redis — Cache
+  # (Beispiel fuer zukuenftige Erweiterung — noch nicht genutzt)
+  ##########################################################################
+  # redis:
+  #   service_name: redis-server
+  #   packages:
+  #     - redis-server
+  #   apps:
+  #     bookstack:
+  #       state_section: bookstack
+  #       config_files: []

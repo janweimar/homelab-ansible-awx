@@ -1,0 +1,152 @@
+---
+###########################################################################
+# 🔬 OpenFOAM CFD-Simulation Installation und Konfiguration
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials (AWX):
+#   allg_status:      aktiviert | deaktiviert | deinstalliert
+#   install_mode:     docker | nativ (Docker-Container oder native Installation)
+#   ssh_key:          SSH-Zugangsdaten
+#
+# Beschreibung:
+# Installiert OpenFOAM (Open Source Field Operation and Manipulation)
+# für CFD-Simulationen (Computational Fluid Dynamics).
+# Unterstützt native Installation und Docker-Variante.
+#
+# Hinweise:
+# - Native: Installation über OpenFOAM APT-Repository
+# - Docker: Offizielles OpenFOAM Docker Image
+# - Benötigt ausreichend RAM (min. 8 GB empfohlen)
+# - OpenMPI wird als Dependency installiert
+#
+# BEST PRACTICES:
+# - Wenn möglich kein Code im Playbook, sondern in pre_task/task auslagern
+# - Nicht benötigte Service-Includes löschen (nicht auskommentieren)
+###########################################################################
+
+- name: pb_setup_openfoam.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+    - playbooks_paths.yml
+
+  vars:
+    # Hauptanwendung(en) - wird bei start/stop/enable/deinstall berücksichtigt
+    var_pack_name:
+      - openfoam
+
+    # Abhängigkeiten - werden installiert, aber NICHT bei start/stop berücksichtigt
+    var_dependencies_list:
+      - openfoam_deps
+
+    # Voraussetzungen - müssen bereits installiert sein (werden NICHT installiert)
+    var_prerequisites:
+
+    # Installationsreihenfolge: 0 = erst Hauptanwendung dann Dependencies | 1 = umgekehrt
+    var_inst_order: 1
+
+    # Zusätzliche Services für start/autostart
+    var_sonder_start:
+    var_sonder_autostart:
+
+    # Nicht unterstützte OS (Debian, RedHat, Suse, Archlinux, FreeBSD)
+    unsupported_systems:
+      - Suse
+      - Archlinux
+      - FreeBSD
+
+    # Playbook-Kontext für Template-Auswahl
+    templates_paths_pb: openfoam
+
+    # Playbook-Log-Dokumentation (Template-Pfad)
+    pb_doku_template: openfoam_doku
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden
+    ###########################################################################
+    - name: Lade alle Variablen-Dateien - pb_setup_openfoam.yml
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop: "{{ var_files }}"
+
+    ###########################################################################
+    # Hook: Pre-Start (nach Variablen-Laden)
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck & Prerequisites
+    ###########################################################################
+    - name: 🔄 Importiere Systemcheck
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Importiere Systemcheck zwingend benötigter Komponenten
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks (für alle Playbooks)
+    ###########################################################################
+    - block:
+        - name: 🔄 Importiere Paketmanager-Lock prüfen
+          ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+        - name: 🔄 Importiere Debug ausgabe bei Playbook start
+          ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+    ###########################################################################
+    # Playbook-spezifische Pre-Tasks
+    ###########################################################################
+    - block:
+        - name: 🔄 Importiere pre_task
+          ansible.builtin.include_tasks: "{{ task_paths.openfoam_pretask }}"
+      when: allg_status == "aktiviert"
+
+  tasks:
+    ###########################################################################
+    # HAUPTLOGIK - Installation
+    ###########################################################################
+    - block:
+        - name: 🔧 Hook Pre-Install
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        - name: 🔄 Komplette Installation
+          ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+        - name: 🔄 Playbook-spezifische Konfiguration
+          ansible.builtin.include_tasks: "{{ task_paths.openfoam_task }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # Deaktivierung
+    ###########################################################################
+    - block:
+        - name: 🔄 Dienste stoppen
+          ansible.builtin.include_tasks: "{{ include_paths.services_stop }}"
+      when: allg_status == "deaktiviert"
+
+    ###########################################################################
+    # Deinstallation
+    ###########################################################################
+    - block:
+        - name: 🔄 Deinstallation
+          ansible.builtin.include_tasks: "{{ include_paths.deinstall_allg }}"
+
+        - name: 🔄 Cleanup
+          ansible.builtin.include_tasks: "{{ include_paths.cleanup }}"
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # Hook: end
+    ###########################################################################
+    - name: 🔧 Hook Post-Install
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

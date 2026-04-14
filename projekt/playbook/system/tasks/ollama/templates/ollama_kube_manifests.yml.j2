@@ -1,0 +1,92 @@
+---
+###########################################################################
+# Ollama Kubernetes Manifest (nur App-spezifisch)
+# DB wird separat über db_deploy.yml erstellt
+# Variablen: app_name, app_port
+###########################################################################
+{% set _port = (app_port | default('', true) | string | trim) or '11434' %}
+
+# Ollama Models PVC (groß — Modelle brauchen Platz!)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ app_name }}-models-pvc
+  namespace: {{ app_name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+---
+# Ollama Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ app_name }}
+  namespace: {{ app_name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ app_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}
+    spec:
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+{% if app_no_update | default(false) | bool %}
+          imagePullPolicy: IfNotPresent
+{% endif %}
+          ports:
+            - containerPort: {{ _port | int }}
+          env:
+            - name: OLLAMA_HOST
+              value: "0.0.0.0:{{ _port }}"
+          resources:
+            requests:
+              memory: "{{ app_resources[app_name].memory_request }}"
+              cpu: "{{ app_resources[app_name].cpu_request }}"
+            limits:
+              memory: "{{ app_resources[app_name].memory_limit }}"
+              cpu: "{{ app_resources[app_name].cpu_limit }}"
+          volumeMounts:
+            - name: models
+              mountPath: /root/.ollama
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ _port | int }}
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ _port | int }}
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 10
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: {{ app_name }}-models-pvc
+---
+# Ollama Service (NodePort)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ app_name }}-service
+  namespace: {{ app_name }}
+spec:
+  type: NodePort
+  selector:
+    app: {{ app_name }}
+  ports:
+    - port: {{ _port | int }}
+      targetPort: {{ _port | int }}

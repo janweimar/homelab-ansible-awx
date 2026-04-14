@@ -1,0 +1,388 @@
+---
+###########################################################################
+# 📦 kube_stack_versionen.yml
+# Zentrale Versions-Matrix für Kubernetes + Containerd + Helm
+#
+# SINGLE SOURCE OF TRUTH für alle Kubernetes-relevanten Versionen.
+# Wird über Credential-Auswahl (kube_stack_auswahl) selektiert.
+#
+# Aufbau:
+#   Jeder Eintrag ist ein komplett getesteter, kompatibler Stack.
+#   Neue Versionen: Neuen Block anlegen, alten NICHT löschen.
+#   Credential bietet Dropdown mit den Schlüsselnamen.
+#
+# Kompatibilitätsregeln:
+#   - cri-tools Major.Minor MUSS zu kube Major.Minor passen
+#   - containerd >= 1.7 für Kubernetes >= 1.28
+#   - Helm >= 3.15 für Kubernetes >= 1.29
+#   - pod_network_cidr MUSS zum CNI passen:
+#       Calico  = 192.168.0.0/16
+#       Flannel = 10.244.0.0/16
+#   - repo_name MUSS in os_repo.yml existieren (kube_1_XX)
+#
+# Verwendung im Playbook:
+#   kube_stack: "{{ kube_stack_versionen[kube_stack_auswahl] }}"
+#   Dann z.B.: {{ kube_stack.kube.kubeadm }}
+###########################################################################
+
+kube_stack_versionen:
+  # ========================================================================
+  # PRODUKTIV — getestet, AWX-Server läuft damit
+  # ========================================================================
+  produktiv_v1_34:
+    beschreibung: "Kubernetes 1.34 — getesteter Stack, produktiv im Einsatz"
+    datum: "2026-03-27"
+
+    kube:
+      version: "1.34"
+      repo_name: "kube_1_34"
+      kubeadm: "1.34.3-1.1"
+      kubelet: "1.34.3-1.1"
+      kubectl: "1.34.3-1.1"
+      cri_tools: "1.34.0-1.1"
+      kubernetes_cni: "1.7.1-1.1"
+
+    containerd:
+      containerd: "1.7.28-0ubuntu1~24.04.2"
+      runc: "1.3.3-0ubuntu1~24.04.3"
+
+    helm:
+      helm: "3.19.3-1"
+
+    netzwerk:
+      cni_plugin: "calico"
+      pod_network_cidr: "192.168.0.0/16"
+      service_cidr: "10.96.0.0/12"
+      calico_manifest_url: "https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml"
+      flannel_manifest_url: "https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml"
+
+  # ========================================================================
+  # AKTUELL — neueste kompatible Patch-Versionen (noch nicht produktiv)
+  # Vor Einsatz: auf Test-Server validieren!
+  # ========================================================================
+  # aktuell_v1_35:
+  #   beschreibung: "Kubernetes 1.35 — neueste Versionen, noch nicht getestet"
+  #   datum: "2026-XX-XX"
+  #
+  #   kube:
+  #     version: "1.35"
+  #     repo_name: "kube_1_35"
+  #     kubeadm: "1.35.X-1.1"
+  #     kubelet: "1.35.X-1.1"
+  #     kubectl: "1.35.X-1.1"
+  #     cri_tools: "1.35.X-1.1"
+  #     kubernetes_cni: "X.X.X-X.X"
+  #
+  #   containerd:
+  #     containerd: "X.X.X"
+  #     runc: "X.X.X"
+  #
+  #   helm:
+  #     helm: "3.XX.X-1"
+  #
+  #   netzwerk:
+  #     cni_plugin: "calico"
+  #     pod_network_cidr: "192.168.0.0/16"
+  #     service_cidr: "10.96.0.0/12"
+  #     calico_manifest_url: "https://raw.githubusercontent.com/projectcalico/calico/vX.XX.X/manifests/calico.yaml"
+  #     flannel_manifest_url: "https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml"
+
+###########################################################################
+# 📦 minikube_versionen
+# Minikube Versions-Matrix.
+# Wird über Credential-Auswahl (minikube_stack_auswahl) selektiert.
+#
+# Verwendung im Playbook:
+#   minikube_stack: "{{ minikube_versionen[minikube_stack_auswahl] }}"
+#
+# Download-URL:
+#   https://storage.googleapis.com/minikube/releases/v<VERSION>/minikube-linux-amd64
+#   ("latest" wird NICHT verwendet — alles versioniert!)
+###########################################################################
+
+minikube_versionen:
+  # ========================================================================
+  # PRODUKTIV — getesteter Stack
+  # ========================================================================
+  minikube_v1_38:
+    beschreibung: "Minikube 1.38.0 — Kubernetes 1.35, Docker-Driver"
+    datum: "2026-03-30"
+    minikube_version: "1.38.0"
+    kubernetes_version: "1.35.1"
+    driver: "docker"
+    cpus: 4
+    memory: "6g"
+    disk_size: "50g"
+    addons:
+      - storage-provisioner
+      - default-storageclass
+    download_url: "https://storage.googleapis.com/minikube/releases/v1.38.0/minikube-linux-amd64"
+
+  # minikube_v1_39:
+  #   beschreibung: "Minikube 1.39.0 — noch nicht getestet"
+  #   datum: "2026-XX-XX"
+  #   minikube_version: "1.39.0"
+  #   kubernetes_version: "1.35.X"
+  #   driver: "docker"
+  #   cpus: 4
+  #   memory: "8g"
+  #   disk_size: "50g"
+  #   addons:
+  #     - storage-provisioner
+  #     - default-storageclass
+  #   download_url: "https://storage.googleapis.com/minikube/releases/v1.39.0/minikube-linux-amd64"
+
+###########################################################################
+# 📦 k3s_versionen
+# K3s Versions-Matrix.
+# Wird über Credential-Auswahl (k3s_stack_auswahl) selektiert.
+#
+# Verwendung im Playbook:
+#   k3s_stack: "{{ k3s_versionen[k3s_stack_auswahl] }}"
+#
+# Installation:
+#   curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v<VERSION> sh -s -
+#   ("latest" wird NICHT verwendet — alles versioniert!)
+###########################################################################
+
+k3s_versionen:
+  # ========================================================================
+  # PRODUKTIV — K3s mit Kubernetes 1.34 (passend zum kubeadm Stack)
+  # ========================================================================
+  k3s_v1_34:
+    beschreibung: "K3s v1.34.6+k3s1 — Kubernetes 1.34, CNCF-zertifiziert"
+    datum: "2026-03-30"
+    k3s_version: "v1.34.6+k3s1"
+    kubernetes_version: "1.34.6"
+    containerd: "2.2.2-k3s1"
+    flannel: "0.28.2"
+    coredns: "1.14.2"
+    traefik: "3.6.10"
+    metrics_server: "0.8.1"
+    disable:
+      - traefik
+    extra_args: "--write-kubeconfig-mode 644"
+
+  # ========================================================================
+  # AKTUELL — K3s mit Kubernetes 1.35 (neueste Version)
+  # ========================================================================
+  k3s_v1_35:
+    beschreibung: "K3s v1.35.3+k3s1 — Kubernetes 1.35, neueste Version"
+    datum: "2026-03-30"
+    k3s_version: "v1.35.3+k3s1"
+    kubernetes_version: "1.35.3"
+    containerd: "2.2.2-k3s1"
+    flannel: "0.28.2"
+    coredns: "1.14.2"
+    traefik: "3.6.10"
+    metrics_server: "0.8.1"
+    disable:
+      - traefik
+    extra_args: "--write-kubeconfig-mode 644"
+
+###########################################################################
+# 📦 helm_app_versionen
+# Zentrale Versions-Matrix für Helm-Applikationen.
+# Wird über Credential-Auswahl (awx_app_auswahl / odoo_app_auswahl) selektiert.
+#
+# Verwendung im Playbook:
+#   awx_app: "{{ helm_app_versionen.awx[awx_app_auswahl] }}"
+#   Dann z.B.: {{ awx_app.operator_version }}
+###########################################################################
+
+helm_app_versionen:
+  # ========================================================================
+  # AWX Profile
+  # ========================================================================
+  awx:
+    awx_stable:
+      beschreibung: "AWX 24.6.1 + Operator 2.19.1 — getesteter Stack"
+      datum: "2026-03-29"
+      chart_name: "awx-operator"
+      chart_version: "2.19.1"
+      awx_version: "24.6.1"
+      operator_version: "2.19.1"
+      ee_image: "repo.allgemeinhobby.de/awx-custom-ee:24"
+      namespace: "awx"
+      replicas: 1
+      db_type: "postgres"
+      postgres_version: "15"
+      postgres_port: "5432"
+      postgres_replicas: 1
+      postgres_storage: "10Gi"
+      projects_storage: "5Gi"
+      ha_enabled: false
+
+    # awx_next:
+    #   beschreibung: "AWX XX.X.X — noch nicht getestet"
+    #   datum: "2026-XX-XX"
+    #   chart_name: "awx-operator"
+    #   chart_version: "X.X.X"
+    #   awx_version: "XX.X.X"
+    #   operator_version: "X.X.X"
+    #   ee_image: "repo.allgemeinhobby.de/awx-custom-ee:XX"
+    #   namespace: "awx"
+    #   replicas: 1
+    #   db_type: "postgres"
+    #   postgres_version: "15"
+    #   postgres_port: "5432"
+    #   postgres_replicas: 1
+    #   postgres_storage: "10Gi"
+    #   projects_storage: "5Gi"
+    #   ha_enabled: false
+
+  # ========================================================================
+  # Odoo Profile
+  # ========================================================================
+  # Umgebungen:
+  #   odoo_playground  — Spielwiese zum Ausprobieren (Single-Pod, keine Backups)
+  #   odoo_test        — Test-Server für Validierung vor Produktiv-Deployment
+  #   odoo_produktiv   — Produktion mit HA (PostgreSQL Replicas, Multi-Pod)
+  #
+  # HA-Konzept (odoo_produktiv):
+  #   - PostgreSQL: 1 Primary + 2 Replicas (auto-failover)
+  #   - Odoo: 2 Pods (Load-Balanced, Session Affinity)
+  #   - PersistentVolumes: 20 Gi DB + 10 Gi Filestore
+  #   - Backup: über separates Backup-Playbook (TODO)
+  # ========================================================================
+  odoo:
+    odoo_playground:
+      beschreibung: "Odoo 19 — Spielwiese zum Ausprobieren, keine Produktivdaten"
+      datum: "2026-03-29"
+      chart_name: "odoo"
+      chart_version: "28.2.10"
+      odoo_version: "19.0"
+      namespace: "odoo-play"
+      replicas: 1
+      db_type: "postgres"
+      postgres_version: "15"
+      postgres_port: "5432"
+      postgres_replicas: 1
+      postgres_storage: "5Gi"
+      odoo_storage: "5Gi"
+      ha_enabled: false
+
+    odoo_test:
+      beschreibung: "Odoo 19 — Test-Server für Validierung vor Produktiv-Deployment"
+      datum: "2026-03-29"
+      chart_name: "odoo"
+      chart_version: "28.2.10"
+      odoo_version: "19.0"
+      namespace: "odoo-test"
+      replicas: 1
+      db_type: "postgres"
+      postgres_version: "15"
+      postgres_port: "5432"
+      postgres_replicas: 1
+      postgres_storage: "10Gi"
+      odoo_storage: "10Gi"
+      ha_enabled: false
+
+    odoo_produktiv:
+      beschreibung: "Odoo 19 — Produktion mit HA (PostgreSQL Failover + Multi-Pod)"
+      datum: "2026-03-29"
+      chart_name: "odoo"
+      chart_version: "28.2.10"
+      odoo_version: "19.0"
+      namespace: "odoo-prod"
+      replicas: 2
+      db_type: "postgres"
+      postgres_version: "15"
+      postgres_port: "5432"
+      postgres_replicas: 3
+      postgres_storage: "20Gi"
+      odoo_storage: "20Gi"
+      ha_enabled: true
+
+
+
+###########################################################################
+# 📦 k8s_versionen (kubeadm)
+# Aliase für pb_setup_app_deploy.yml — verweist auf kube_stack_versionen
+# Credential-Choice: k8s_v1_34
+###########################################################################
+
+k8s_versionen:
+  k8s_v1_34:
+    beschreibung: "Kubernetes 1.34 (kubeadm) — Alias für produktiv_v1_34"
+    datum: "2026-03-27"
+    kube_stack_key: "produktiv_v1_34"
+
+    kube:
+      version: "1.34"
+      repo_name: "kube_1_34"
+      kubeadm: "1.34.3-1.1"
+      kubelet: "1.34.3-1.1"
+      kubectl: "1.34.3-1.1"
+      cri_tools: "1.34.0-1.1"
+      kubernetes_cni: "1.7.1-1.1"
+
+    containerd:
+      containerd: "1.7.28-0ubuntu1~24.04.2"
+      runc: "1.3.3-0ubuntu1~24.04.3"
+
+    helm:
+      helm: "3.19.3-1"
+
+    netzwerk:
+      cni_plugin: "calico"
+      pod_network_cidr: "192.168.0.0/16"
+      service_cidr: "10.96.0.0/12"
+      calico_manifest_url: "https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml"
+
+###########################################################################
+# 📦 docker_versionen
+# Versions-Matrix für Docker CE + Compose
+# Credential-Choice: docker_v27
+###########################################################################
+
+docker_versionen:
+  docker_v27:
+    beschreibung: "Docker CE 27.x + Compose v2 — Ubuntu 24.04"
+    datum: "2026-03-30"
+    docker_version: "27.5"
+    compose_version: "2.32"
+    storage_driver: "overlay2"
+
+  # docker_v28:
+  #   beschreibung: "Docker CE 28.x — noch nicht getestet"
+  #   datum: "2026-XX-XX"
+  #   docker_version: "28.x"
+  #   compose_version: "2.x"
+  #   storage_driver: "overlay2"
+
+###########################################################################
+# 📦 podman_versionen
+# Versions-Matrix für Podman + podman-compose
+# Credential-Choice: podman_v5
+###########################################################################
+
+podman_versionen:
+  podman_v5:
+    beschreibung: "Podman 5.x + podman-compose — Ubuntu 24.04"
+    datum: "2026-03-30"
+    podman_version: "5.3"
+    compose_version: "1.2"
+
+  # podman_v6:
+  #   beschreibung: "Podman 6.x — noch nicht getestet"
+  #   datum: "2026-XX-XX"
+  #   podman_version: "6.x"
+  #   compose_version: "x.x"
+
+###########################################################################
+# CHECKLISTE für neuen Kube-Stack-Eintrag:
+#   1. Neuen Block anlegen (alten NICHT löschen!)
+#   2. os_repo.yml: neues Repo kube_1_XX anlegen mit passender URL
+#   3. os_repo.yml: aptly_mirrors um neuen kube-Eintrag erweitern
+#   4. os_packages.yml: kube-Gruppe mit neuen Versionen aktualisieren
+#   5. Credential-Type: neue choice in kube_stack_auswahl hinzufügen
+#   6. Auf Test-Server validieren BEVOR produktiv geschaltet wird
+#   7. datum aktualisieren nach erfolgreichem Test
+#
+# CHECKLISTE für neues Helm-App-Profil:
+#   1. Neuen Block unter helm_app_versionen.<app> anlegen
+#   2. Credential-Type: neue choice in <app>_app_auswahl hinzufügen
+#   3. Auf Test-Server validieren
+#   4. datum aktualisieren nach erfolgreichem Test
+###########################################################################

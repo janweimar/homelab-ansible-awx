@@ -1,0 +1,95 @@
+---
+###########################################################################
+# Qdrant Kubernetes Manifest
+# Vektor-Datenbank für RAG / semantische Suche
+# Port 6333 (HTTP API) + Port 6334 (gRPC)
+###########################################################################
+
+# Qdrant Data PVC (Vektor-Embeddings)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ app_name }}-data-pvc
+  namespace: {{ app_name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ _qdrant_storage_size | default('20Gi') }}
+---
+# Qdrant Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ app_name }}
+  namespace: {{ app_name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ app_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}
+    spec:
+      containers:
+        - name: qdrant
+          image: qdrant/qdrant:latest
+{% if app_no_update | default(false) | bool %}
+          imagePullPolicy: IfNotPresent
+{% endif %}
+          ports:
+            - containerPort: 6333
+              name: http
+            - containerPort: 6334
+              name: grpc
+          resources:
+            requests:
+              memory: "{{ app_resources[app_name].memory_request }}"
+              cpu: "{{ app_resources[app_name].cpu_request }}"
+            limits:
+              memory: "{{ app_resources[app_name].memory_limit }}"
+              cpu: "{{ app_resources[app_name].cpu_limit }}"
+          volumeMounts:
+            - name: data
+              mountPath: /qdrant/storage
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 6333
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 6333
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ app_name }}-data-pvc
+---
+# Qdrant Service (NodePort — HTTP API)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ app_name }}-service
+  namespace: {{ app_name }}
+spec:
+  type: NodePort
+  selector:
+    app: {{ app_name }}
+  ports:
+    - name: http
+      port: 6333
+      targetPort: 6333
+    - name: grpc
+      port: 6334
+      targetPort: 6334

@@ -1,0 +1,29 @@
+---
+###########################################################################
+# ⏸️ ollama_stop.yml
+# Ollama Pods stoppen (Kubernetes + Docker)
+###########################################################################
+
+# Kubernetes-Modus (K3s/Minikube)
+- name: ⏸️ Ollama Kubernetes Pods skalieren auf 0 - ollama_stop.yml
+  ansible.builtin.command: kubectl scale deployment --all --replicas=0 -n {{ app_name }}
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  changed_when: true
+  failed_when: false
+  when: app_deploy_type | default('docker') in ['minikube', 'k3s', 'k8s']
+
+# Docker-Modus
+- name: ⏸️ Ollama Docker Container stoppen - ollama_stop.yml
+  ansible.builtin.command:
+    cmd: docker compose stop
+    chdir: /opt/{{ app_name }}
+  changed_when: true
+  failed_when: false
+  when: app_deploy_type | default('docker') == 'docker'
+
+- name: 📊 DEBUG Stop abgeschlossen - ollama_stop.yml
+  ansible.builtin.debug:
+    msg: "⏸️ {{ app_name }} gestoppt ({{ app_deploy_type | default('docker') }})"

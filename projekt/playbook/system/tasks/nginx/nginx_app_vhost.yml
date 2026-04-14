@@ -1,0 +1,273 @@
+---
+###########################################################################
+# 🌐 nginx_app_vhost.yml
+# Universeller nginx vHost Task für pb_setup_app_deploy.yml
+###########################################################################
+# Erstellt den vHost anhand der Credential-Variablen:
+#   app_ssl          → nginx_ssl (HTTPS + Certbot)
+#   app_modsecurity  → nginx_modsecurity (WAF)
+#   app_vpn_only     → listen nur auf VPN-IP
+#
+# Template: app-vhost.conf.j2 (ein Template für alle Modi)
+#
+# Benötigte Variablen (aus Credential oder kube_task):
+#   app_name, app_port, app_ssl, app_modsecurity, app_vpn_only
+#   app_nginx_integration (bool)
+#   domain_port (optional — wird gesetzt wenn nicht vorhanden)
+#
+# Wird aufgerufen von pb_setup_app_deploy.yml:
+#   ansible.builtin.include_tasks: "{{ task_paths.nginx_app_vhost }}"
+###########################################################################
+
+# ============================================================
+# 1) SSL + ModSecurity aus Credential setzen (überschreibt os_urls.yml)
+# ============================================================
+- name: 🔧 SSL aus Credential setzen - nginx_app_vhost.yml
+  ansible.builtin.set_fact:
+    nginx_ssl: "{{ app_ssl | bool }}"
+  when: app_ssl is defined
+
+- name: 🔧 ModSecurity aus Credential setzen - nginx_app_vhost.yml
+  ansible.builtin.set_fact:
+    nginx_modsecurity: "{{ app_modsecurity | bool }}"
+  when: app_modsecurity is defined
+
+# VPN-only: SSL + ModSecurity automatisch deaktivieren
+# SSL für IP-Adressen nicht möglich, ModSecurity unnötig bei VPN-only
+- name: 🔒 VPN-only - SSL + ModSecurity deaktivieren - nginx_app_vhost.yml
+  ansible.builtin.set_fact:
+    nginx_ssl: false
+    nginx_modsecurity: false
+  when: app_vpn_only | default(false) | bool
+
+- name: 📊 DEBUG VPN-only Überschreibung - nginx_app_vhost.yml
+  ansible.builtin.debug:
+    msg: "🔒 VPN-only aktiv — SSL und ModSecurity automatisch deaktiviert"
+  when: app_vpn_only | default(false) | bool
+
+# ============================================================
+# 2) Domain + domain_port ermitteln
+# ============================================================
+- name: 🌐 Ermittle Domain aus os_urls.yml - nginx_app_vhost.yml
+  ansible.builtin.set_fact:
+    _app_domain: "{{ urls[ansible_host][_app_base_name | default(app_name)].domain | default('') }}"
+    _app_domain_from_urls: "{{ urls[ansible_host][_app_base_name | default(app_name)].domain | default('') }}"
+
+# VPN-only: Domain IMMER durch VPN-IP ersetzen (SSL für IP nicht möglich)
+- name: 🔒 VPN-only - Setze VPN-IP als Domain - nginx_app_vhost.yml
+  ansible.builtin.set_fact:
+    _app_domain: "{{ ansible_wg0.ipv4.address }}"
+  when: app_vpn_only | default(false) | bool
+
+- name: ❌ Abbruch wenn keine Domain konfiguriert - nginx_app_vhost.yml
+  ansible.builtin.fail:
+    msg: >
+      nginx Integration aktiv aber keine Domain in os_urls.yml für
+      {{ app_name }} auf {{ ansible_host }} konfiguriert!
+  when:
+    - _app_domain | length == 0
+    - not (app_vpn_only | default(false) | bool)
+
+# Kubernetes + Skip: NodePort ermitteln (kube_task wurde übersprungen)
+- name: 🔍 Ermittle NodePort (Kubernetes Skip) - nginx_app_vhost.yml
+  ansible.builtin.shell: >
+    kubectl get svc {{ app_name }}-service
+    -n {{ app_name }}
+    -o jsonpath='{.spec.ports[0].nodePort}'
+    2>/dev/null || echo ''
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _vhost_nodeport
+  failed_when: false
+  changed_when: false
+  when:
+    - domain_port is not defined
+    - _is_kubernetes | default(false) | bool
+
+- name: 🔧 Setze domain_port mit NodePort (Kubernetes) - nginx_app_vhost.yml
+  ansible.builtin.set_fact:
+    domain_port: "{{ _app_domain }}/127.0.0.1/{{ _vhost_nodeport.stdout }}"
+    domain_port_ssl: "{{ _app_domain }}/127.0.0.1/{{ _vhost_nodeport.stdout }}"
+  when:
+    - domain_port is not defined
+    - _is_kubernetes | default(false) | bool
+    - _vhost_nodeport.stdout | default('') | length > 0
+
+# Docker/Podman/Nativ: domain_port = domain/port
+- name: 🔧 Setze domain_port (Docker/Nativ) - nginx_app_vhost.yml
+  ansible.builtin.set_fact:
+    domain_port: "{{ _app_domain }}/{{ app_port | default('8055') }}"
+    domain_port_ssl: "{{ _app_domain }}/{{ app_port | default('8055') }}"
+  when: domain_port is not defined
+
+# VPN-only: domain_port mit VPN-IP überschreiben (Kubernetes setzt Domain aus os_urls)
+- name: 🔒 VPN-only - Überschreibe domain_port mit VPN-IP - nginx_app_vhost.yml
+  ansible.builtin.set_fact:
+    domain_port: "{{ _app_domain }}/{{ domain_port.split('/')[1] }}/{{ domain_port.split('/')[2] }}"
+    domain_port_ssl: "{{ _app_domain }}/{{ domain_port.split('/')[1] }}/{{ domain_port.split('/')[2] }}"
+  when:
+    - app_vpn_only | default(false) | bool
+    - domain_port is defined
+    - domain_port.split('/') | length == 3
+    - domain_port.split('/')[0] != _app_domain
+
+# Config-Dateiname: Domain-basiert oder App-Name bei VPN-only
+- name: 🔧 Setze vHost Dateiname - nginx_app_vhost.yml
+  ansible.builtin.set_fact:
+    _vhost_filename: "{{ app_name + '_vpn' if app_vpn_only | default(false) | bool else _app_domain }}"
+
+- name: 📊 DEBUG nginx Konfiguration - nginx_app_vhost.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "🌐 nginx vHost Konfiguration"
+      - "=========================================="
+      - "App:          {{ app_name }}"
+      - "Domain:       {{ _app_domain }}"
+      - "domain_port:  {{ domain_port }}"
+      - "Config:       {{ _vhost_filename }}"
+      - "SSL:          {{ nginx_ssl | default(false) | bool }}"
+      - "ModSecurity:  {{ nginx_modsecurity | default(false) | bool }}"
+      - "VPN-only:     {{ app_vpn_only | default(false) | bool }}"
+      - "=========================================="
+
+# ============================================================
+# 3) Alte vHost Configs löschen (NUR diese App!)
+#    Beide möglichen Config-Namen entfernen:
+#    - Domain-Config: directus.allgemeinhobby.de.conf
+#    - VPN-Config: awx_vpn.conf
+#    - Legacy VPN-IP: 10.200.0.25.conf (alte Benennung)
+# ============================================================
+- name: 🧹 Entferne alte Domain vHost Config ({{ _app_domain_from_urls }}.conf) - nginx_app_vhost.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ _app_domain_from_urls }}.conf"
+    state: absent
+  when: _app_domain_from_urls | default('') | length > 0
+
+- name: 🧹 Entferne alte VPN vHost Config ({{ app_name }}_vpn.conf) - nginx_app_vhost.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ app_name }}_vpn.conf"
+    state: absent
+
+- name: 🧹 Entferne alte VPN-IP Config (Legacy) - nginx_app_vhost.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ ansible_wg0.ipv4.address }}.conf"
+    state: absent
+  when: ansible_wg0 is defined
+
+- name: 🧹 Entferne nginx Default Config - nginx_app_vhost.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/default"
+    state: absent
+
+# ============================================================
+# 4) nginx konfigurieren (ModSecurity + Certbot)
+# ============================================================
+- name: 🌐 nginx konfigurieren (SSL + Certbot) - nginx_app_vhost.yml
+  ansible.builtin.include_tasks: "{{ task_paths.nginx_configure }}"
+
+# ============================================================
+# 5) SSL Check — Fehler wenn gewünscht aber Cert fehlt
+# ============================================================
+- name: ❌ Abbruch wenn SSL gewünscht aber Zertifikat fehlt - nginx_app_vhost.yml
+  ansible.builtin.fail:
+    msg: >
+      SSL ist aktiviert (app_ssl=true) aber das Zertifikat für {{ _app_domain }}
+      konnte nicht erstellt werden! Prüfe: DNS A-Record, Port 80 in Firewall
+      geöffnet, Domain erreichbar. Dann nochmal laufen lassen.
+  when:
+    - nginx_ssl | default(false) | bool
+    - not (_ssl_cert_available | default(false) | bool)
+
+# ============================================================
+# 6) vHost erstellen (universelles Template)
+# ============================================================
+- name: 📝 Erstelle vHost ({{ _vhost_filename }}.conf) - nginx_app_vhost.yml
+  ansible.builtin.template:
+    src: "{{ nginx_paths[ansible_host].nginx.app_vhost }}"
+    dest: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ _vhost_filename }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - "{{ domain_port }}"
+
+# ============================================================
+# 7) nginx testen + restart
+# ============================================================
+- name: 🧪 Teste nginx Konfiguration - nginx_app_vhost.yml
+  ansible.builtin.command: "{{ command.nginx_test[ansible_os_family] }}"
+  register: _nginx_test
+  changed_when: false
+
+- name: 🔄 Restart nginx - nginx_app_vhost.yml
+  ansible.builtin.command: "{{ command.nginx_restart[ansible_os_family] }}"
+  when: _nginx_test.rc == 0
+
+# ============================================================
+# 8) ModSecurity Regeln anzeigen (wenn aktiviert)
+# ============================================================
+- block:
+    - name: 🛡️ ModSecurity - Zähle Regeldateien - nginx_app_vhost.yml
+      ansible.builtin.shell: >
+        ls {{ paths.owasp_crs[ansible_os_family] }}/rules/*.conf 2>/dev/null | wc -l
+      register: _modsec_file_count
+      changed_when: false
+      failed_when: false
+
+    - name: 🛡️ ModSecurity - Zähle einzelne Regeln (SecRule) - nginx_app_vhost.yml
+      ansible.builtin.shell: >
+        grep -r -c '^SecRule\|^SecAction' {{ paths.owasp_crs[ansible_os_family] }}/rules/*.conf 2>/dev/null
+        | awk -F: '{sum+=$2} END {print sum}'
+      register: _modsec_rule_count
+      changed_when: false
+      failed_when: false
+
+    - name: 🛡️ ModSecurity - Liste Regeldateien - nginx_app_vhost.yml
+      ansible.builtin.shell: >
+        ls -1 {{ paths.owasp_crs[ansible_os_family] }}/rules/*.conf 2>/dev/null
+        | xargs -I{} basename {} | sort
+      register: _modsec_rules
+      changed_when: false
+      failed_when: false
+
+    - name: 🛡️ ModSecurity - Prüfe Engine Status - nginx_app_vhost.yml
+      ansible.builtin.shell: >
+        grep '^SecRuleEngine' {{ paths.modsecurity_conf[ansible_os_family] }} 2>/dev/null || echo 'nicht gefunden'
+      register: _modsec_engine
+      changed_when: false
+      failed_when: false
+
+    - name: 🛡️ ModSecurity - Prüfe ob aktiv in nginx - nginx_app_vhost.yml
+      ansible.builtin.shell: >
+        nginx -T 2>/dev/null | grep -c 'modsecurity on'
+      register: _modsec_active
+      changed_when: false
+      failed_when: false
+
+    - name: 📊 DEBUG ModSecurity Status - nginx_app_vhost.yml
+      ansible.builtin.debug:
+        msg:
+          - "==========================================" 
+          - "🛡️ ModSecurity WAF Status"
+          - "=========================================="
+          - "Aktiv in nginx: {{ '✅ Ja' if (_modsec_active.stdout | default('0') | int) > 0 else '❌ Nein' }}"
+          - "Engine: {{ _modsec_engine.stdout | default('nicht gefunden') }}"
+          - "Regeldateien: {{ _modsec_file_count.stdout | default('0') }}"
+          - "Einzelne Regeln (SecRule/SecAction): {{ _modsec_rule_count.stdout | default('0') }}"
+          - "{{ _modsec_rules.stdout_lines | default(['Keine Regeln gefunden']) }}"
+          - "=========================================="
+
+  when: nginx_modsecurity | default(false) | bool
+
+# ============================================================
+# 9) Ergebnis anzeigen
+# ============================================================
+- name: ✅ nginx vHost konfiguriert - nginx_app_vhost.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ {{ app_name }} nginx Reverse Proxy konfiguriert!"
+      - "{% if app_vpn_only | default(false) | bool %}🔒 VPN-only: http://{{ ansible_wg0.ipv4.address | default('VPN-IP') }}:{{ (app_port | default('', true) | string | trim) or '8080' }}/{% elif nginx_ssl | default(false) | bool %}🔒 HTTPS: https://{{ _app_domain }}/{% else %}🌐 HTTP: http://{{ _app_domain }}/{% endif %}"
+      - "SSL: {{ nginx_ssl | default(false) | bool }} | ModSecurity: {{ nginx_modsecurity | default(false) | bool }} | VPN-only: {{ app_vpn_only | default(false) | bool }}"

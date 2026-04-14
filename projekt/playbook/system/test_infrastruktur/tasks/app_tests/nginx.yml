@@ -1,0 +1,235 @@
+---
+###########################################################################
+# 🌐 Spezialtest: nginx
+# =========================================================================
+# Zweck  : Vollständige nginx Funktionalitätsprüfung
+#          Ebene 1: Installation
+#          Ebene 2: Service-Status
+#          Ebene 3: Konfiguration (Syntax, vHosts)
+#          Ebene 4: Tatsächliche Funktion (Ports, Worker, Erreichbarkeit)
+#          Ebene 5: Logs
+#          Ebene 6: Ressourcen
+# Schreibt in: app_results (wird angehängt)
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+# =========================================================================
+# Ebene 1 — Installation
+# =========================================================================
+
+- name: "NGX | Paket installiert prüfen"
+  ansible.builtin.command: dpkg -s nginx
+  register: reg_nginx_pkg
+  changed_when: false
+  failed_when: false
+
+- name: "NGX | nginx Version ermitteln"
+  ansible.builtin.command: nginx -v
+  register: reg_nginx_version
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ebene 2 — Service-Status
+# =========================================================================
+
+- name: "NGX | Service aktiv"
+  ansible.builtin.command: systemctl is-active nginx
+  register: reg_nginx_active
+  changed_when: false
+  failed_when: false
+
+- name: "NGX | Service enabled"
+  ansible.builtin.command: systemctl is-enabled nginx
+  register: reg_nginx_enabled
+  changed_when: false
+  failed_when: false
+
+- name: "NGX | PID-Datei prüfen"
+  ansible.builtin.stat:
+    path: /var/run/nginx.pid
+  register: reg_nginx_pid
+
+- name: "NGX | PID-Datei leer prüfen"
+  ansible.builtin.shell: cat /var/run/nginx.pid 2>/dev/null | wc -c
+  register: reg_nginx_pid_inhalt
+  changed_when: false
+  failed_when: false
+
+- name: "NGX | Worker-Prozesse zählen"
+  ansible.builtin.shell: pgrep -c "nginx: worker" 2>/dev/null || echo 0
+  register: reg_nginx_worker
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ebene 3 — Konfiguration
+# =========================================================================
+
+- name: "NGX | Syntax prüfen"
+  ansible.builtin.command: nginx -t
+  register: reg_nginx_syntax
+  changed_when: false
+  failed_when: false
+
+- name: "NGX | Aktive vHosts erfassen"
+  ansible.builtin.find:
+    paths: /etc/nginx/sites-enabled
+    file_type: any
+  register: reg_nginx_vhosts
+
+- name: "NGX | nginx.conf lesen"
+  ansible.builtin.command: cat /etc/nginx/nginx.conf
+  register: reg_nginx_conf
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ebene 4 — Tatsächliche Funktion
+# =========================================================================
+
+- name: "NGX | Port 80 lauscht"
+  ansible.builtin.shell: ss -tlnp | grep ':80 '
+  register: reg_nginx_port80
+  changed_when: false
+  failed_when: false
+
+- name: "NGX | Port 443 lauscht"
+  ansible.builtin.shell: ss -tlnp | grep ':443 '
+  register: reg_nginx_port443
+  changed_when: false
+  failed_when: false
+
+- name: "NGX | HTTP localhost erreichbar"
+  ansible.builtin.shell: curl -s -o /dev/null -w "%{http_code}" http://localhost 2>/dev/null
+  register: reg_nginx_http
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ebene 5 — Logs
+# =========================================================================
+
+- name: "NGX | Fehler im Error-Log"
+  ansible.builtin.shell: tail -50 /var/log/nginx/error.log 2>/dev/null | grep -c "error\|crit\|alert\|emerg" || echo 0
+  register: reg_nginx_log_fehler
+  changed_when: false
+  failed_when: false
+
+- name: "NGX | Access-Log letzter Eintrag"
+  ansible.builtin.shell: tail -5 /var/log/nginx/access.log 2>/dev/null || echo "Kein Access-Log"
+  register: reg_nginx_access
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ebene 6 — Ressourcen
+# =========================================================================
+
+- name: "NGX | Ressourcenverbrauch nginx"
+  ansible.builtin.shell: ps aux | grep 'nginx: master' | grep -v grep | awk '{print "CPU:"$3"% MEM:"$4"%"}'
+  register: reg_nginx_ressourcen
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ergebnis anhängen
+# =========================================================================
+
+- name: "NGX | Ergebnis in app_results speichern"
+  ansible.builtin.set_fact:
+    app_results: >-
+      {{
+        app_results + [{
+          'app': 'nginx',
+          'typ': 'spezial',
+          'status': (
+            'FEHLER' if reg_nginx_active.stdout != 'active'
+            else 'FEHLER' if reg_nginx_syntax.rc != 0
+            else 'WARNUNG' if reg_nginx_vhosts.files | length == 0
+            else 'WARNUNG' if reg_nginx_port80.rc != 0
+            else 'OK'
+          ),
+          'details': [
+            {
+              'name': 'Paket installiert',
+              'status': 'OK' if reg_nginx_pkg.rc == 0 else 'FEHLER',
+              'wert': reg_nginx_version.stderr | default('unbekannt'),
+              'hinweis': ''
+            },
+            {
+              'name': 'Service aktiv',
+              'status': 'OK' if reg_nginx_active.stdout == 'active' else 'FEHLER',
+              'wert': reg_nginx_active.stdout,
+              'hinweis': 'nginx läuft nicht!' if reg_nginx_active.stdout != 'active' else ''
+            },
+            {
+              'name': 'Service enabled',
+              'status': 'OK' if reg_nginx_enabled.stdout == 'enabled' else 'WARNUNG',
+              'wert': reg_nginx_enabled.stdout,
+              'hinweis': ''
+            },
+            {
+              'name': 'Syntax-Test (nginx -t)',
+              'status': 'OK' if reg_nginx_syntax.rc == 0 else 'FEHLER',
+              'wert': 'OK' if reg_nginx_syntax.rc == 0 else 'FEHLER',
+              'hinweis': reg_nginx_syntax.stderr if reg_nginx_syntax.rc != 0 else ''
+            },
+            {
+              'name': 'PID-Datei',
+              'status': 'OK' if reg_nginx_pid.stat.exists and (reg_nginx_pid_inhalt.stdout | int) > 1 else 'WARNUNG',
+              'wert': 'vorhanden' if reg_nginx_pid.stat.exists else 'fehlt',
+              'hinweis': 'PID-Datei leer oder fehlt' if not reg_nginx_pid.stat.exists or (reg_nginx_pid_inhalt.stdout | int) <= 1 else ''
+            },
+            {
+              'name': 'Worker-Prozesse',
+              'status': 'OK' if (reg_nginx_worker.stdout | int) > 0 else 'WARNUNG',
+              'wert': reg_nginx_worker.stdout | trim + ' Worker laufen',
+              'hinweis': 'Keine Worker-Prozesse!' if (reg_nginx_worker.stdout | int) == 0 else ''
+            },
+            {
+              'name': 'Port 80',
+              'status': 'OK' if reg_nginx_port80.rc == 0 else 'FEHLER',
+              'wert': 'lauscht' if reg_nginx_port80.rc == 0 else 'lauscht NICHT',
+              'hinweis': 'Port 80 nicht offen!' if reg_nginx_port80.rc != 0 else ''
+            },
+            {
+              'name': 'Port 443',
+              'status': 'OK' if reg_nginx_port443.rc == 0 else 'INFO',
+              'wert': 'lauscht' if reg_nginx_port443.rc == 0 else 'nicht aktiv',
+              'hinweis': ''
+            },
+            {
+              'name': 'Aktive vHosts',
+              'status': 'OK' if reg_nginx_vhosts.files | length > 0 else 'WARNUNG',
+              'wert': (reg_nginx_vhosts.files | length | string) + ' vHosts aktiv',
+              'hinweis': 'Keine aktiven vHosts in sites-enabled' if reg_nginx_vhosts.files | length == 0 else ''
+            },
+            {
+              'name': 'HTTP localhost erreichbar',
+              'status': 'OK' if reg_nginx_http.stdout in ['200','301','302','403'] else 'WARNUNG',
+              'wert': 'HTTP ' + reg_nginx_http.stdout | default('keine Antwort'),
+              'hinweis': 'nginx antwortet nicht auf localhost' if reg_nginx_http.stdout not in ['200','301','302','403'] else ''
+            },
+            {
+              'name': 'Fehler im Error-Log',
+              'status': 'OK' if (reg_nginx_log_fehler.stdout | int) == 0 else 'WARNUNG',
+              'wert': reg_nginx_log_fehler.stdout | trim + ' Fehler',
+              'hinweis': 'Fehler im nginx Error-Log!' if (reg_nginx_log_fehler.stdout | int) > 0 else ''
+            },
+            {
+              'name': 'Ressourcen',
+              'status': 'OK',
+              'wert': reg_nginx_ressourcen.stdout | default('unbekannt'),
+              'hinweis': ''
+            }
+          ],
+          'spezialtest': true
+        }]
+      }}
+  when: reg_nginx_pkg.rc == 0
+
+- name: "NGX | ✅ nginx Spezialtest abgeschlossen"
+  ansible.builtin.debug:
+    msg: "nginx getestet — Status: {{ (app_results | last).status }}"
+  when: reg_nginx_pkg.rc == 0

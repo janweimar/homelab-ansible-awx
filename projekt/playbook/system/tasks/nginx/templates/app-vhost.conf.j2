@@ -1,0 +1,98 @@
+{% set _domain = item.split('/')[0] %}
+{% if item.split('/')|length == 3 %}
+{% set _proxy_ip = item.split('/')[1] %}
+{% set _proxy_port = item.split('/')[2] %}
+{% else %}
+{% set _proxy_ip = 'localhost' %}
+{% set _proxy_port = item.split('/')[1] %}
+{% endif %}
+# {{ _domain }} — nginx Reverse Proxy (universell)
+# Erstellt: {{ ansible_date_time.iso8601 }}
+# SSL: {{ nginx_ssl | default(false) | bool }}
+# ModSecurity: {{ nginx_modsecurity | default(false) | bool }}
+# VPN-only: {{ app_vpn_only | default(false) | bool }}
+
+{% if nginx_ssl | default(false) | bool %}
+# ── HTTP → HTTPS Redirect ──────────────────────────────────
+server {
+    listen 80;
+    server_name {{ _domain }};
+    return 301 https://$host$request_uri;
+}
+
+{% endif %}
+# ── Hauptserver ─────────────────────────────────────────────
+server {
+{% if nginx_ssl | default(false) | bool %}
+    listen 443 ssl http2;
+{% elif app_vpn_only | default(false) | bool %}
+{% set _vpn_port = (app_port | default('', true) | string | trim) or '8080' %}
+    listen {{ ansible_wg0.ipv4.address }}:{{ _vpn_port }};
+{% else %}
+    listen 80;
+{% endif %}
+    server_name {{ _domain }};
+
+{% if nginx_ssl | default(false) | bool %}
+    # SSL Zertifikate (Let's Encrypt)
+    ssl_certificate {{ paths.letsencrypt_live[ansible_os_family] }}/{{ _domain }}/fullchain.pem;
+    ssl_certificate_key {{ paths.letsencrypt_live[ansible_os_family] }}/{{ _domain }}/privkey.pem;
+
+    # SSL Konfiguration (Modern)
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
+    ssl_prefer_server_ciphers on;
+
+    # HSTS
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+{% endif %}
+    # Sicherheits-Header
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+
+    # Uploads
+    client_max_body_size 100M;
+
+    # Redirects ohne Port (verhindert dass /pfad auf IP:PORT/pfad/ umgeleitet wird)
+    absolute_redirect off;
+    port_in_redirect off;
+
+    # Logs
+{% if nginx_ssl | default(false) | bool %}
+    access_log {{ paths.nginx_log_dir[ansible_os_family] }}/{{ _domain }}_ssl_access.log;
+    error_log {{ paths.nginx_log_dir[ansible_os_family] }}/{{ _domain }}_ssl_error.log;
+{% else %}
+    access_log {{ paths.nginx_log_dir[ansible_os_family] }}/{{ _domain }}_access.log;
+    error_log {{ paths.nginx_log_dir[ansible_os_family] }}/{{ _domain }}_error.log;
+{% endif %}
+
+{% if nginx_modsecurity | default(false) | bool %}
+    # ModSecurity WAF
+    modsecurity on;
+    modsecurity_rules_file {{ paths.modsecurity_conf[ansible_os_family] }};
+
+{% endif %}
+    location / {
+        proxy_pass http://{{ _proxy_ip }}:{{ _proxy_port }};
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+{% if nginx_ssl | default(false) | bool %}
+        proxy_set_header X-Forwarded-Proto https;
+{% else %}
+        proxy_set_header X-Forwarded-Proto http;
+{% endif %}
+
+        # WebSocket Support
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Timeouts (lang für AI/schwere Apps)
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+    }
+}

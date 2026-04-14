@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+
+  ###########################################################################
+  # Directus
+  ###########################################################################
+  directus:
+    image: directus/directus:latest
+    container_name: directus
+    ports:
+      - "{{ app_port | default('8055') }}:8055"
+    environment:
+      SECRET: "{{ app_secret_key }}"
+
+      # Datenbank-Verbindung
+      DB_CLIENT: "{{ _db_client }}"
+      DB_HOST: "directus_db"
+      DB_PORT: "{{ _db_port }}"
+      DB_DATABASE: "directus"
+      DB_USER: "directus"
+      DB_PASSWORD: "{{ app_db_password }}"
+
+      ADMIN_EMAIL: "{{ app_admin_email }}"
+      ADMIN_PASSWORD: "{{ app_admin_password }}"
+
+      # URL
+      PUBLIC_URL: "{{ urls[ansible_host].directus.url | default('http://localhost:8055') }}"
+
+      # Mail (optional)
+      EMAIL_FROM: "{{ admin_email | default('') }}"
+      EMAIL_TRANSPORT: "smtp"
+      EMAIL_SMTP_HOST: "{{ urls[ansible_host].msmtp.host | default('') }}"
+      EMAIL_SMTP_PORT: "{{ urls[ansible_host].msmtp.port | default('587') }}"
+      EMAIL_SMTP_USER: "{{ smtp_user | default('') }}"
+      EMAIL_SMTP_PASSWORD: "{{ smtp_password | default('') }}"
+
+    volumes:
+      - /opt/directus/uploads:/directus/uploads
+      - /opt/directus/extensions:/directus/extensions
+    depends_on:
+      directus_db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - directus_net
+
+  ###########################################################################
+  # Datenbank (mariadb | postgresql | mysql)
+  ###########################################################################
+  directus_db:
+    image: "{{ _db_image }}"
+    container_name: directus_db
+    environment: "{{ _db_env }}"
+    volumes:
+      - /opt/directus/db:/var/lib/{{ _db_data_dir }}
+    restart: unless-stopped
+    networks:
+      - directus_net
+    healthcheck:
+      test: {{ _db_healthcheck }}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  directus_net:
+    driver: bridge

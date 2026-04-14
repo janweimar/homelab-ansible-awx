@@ -1,0 +1,393 @@
+---
+###########################################################################
+# 🔒 Wazuh Manager - Hauptkonfiguration (idempotent)
+# Reihenfolge:
+#   1. wazuh-install.sh herunterladen und ausfuehren (NUR bei Neuinstallation)
+#   2. ossec_manager.conf.j2 deployen (IMMER)
+#   3. nginx als Reverse Proxy konfigurieren (IMMER)
+###########################################################################
+
+###########################################################################
+# 0. Prüfe ob Wazuh Manager bereits installiert ist
+###########################################################################
+- name: Pruefe ob Wazuh Manager bereits installiert ist - wazuh_manager_task.yml
+  ansible.builtin.command: dpkg -s wazuh-manager
+  register: _wazuh_manager_installed
+  failed_when: false
+  changed_when: false
+
+- name: Info - Wazuh Manager bereits installiert - wazuh_manager_task.yml
+  ansible.builtin.debug:
+    msg: "✅ Wazuh Manager ist bereits installiert - Installation wird uebersprungen, Config wird deployed."
+  when: _wazuh_manager_installed.rc == 0
+
+###########################################################################
+# 1. wazuh-install.sh herunterladen und ausfuehren
+#    NUR wenn Manager NICHT installiert oder Deinstallation/Neuinstallation
+###########################################################################
+- block:
+    # 📦 wazuh-install.sh herunterladen (immer aktuell von Wazuh)
+    - name: Lade wazuh-install.sh von packages.wazuh.com herunter - wazuh_manager_task.yml
+      ansible.builtin.get_url:
+        url: https://packages.wazuh.com/4.14/wazuh-install.sh
+        dest: /tmp/wazuh-install.sh
+        mode: "0700"
+        force: true
+
+    # 🔧 Installationsmodus auf Flag mappen
+    - name: Mappe Installationsmodus auf Script-Flag - wazuh_manager_task.yml
+      ansible.builtin.set_fact:
+        wazuh_install_flag: >
+          {%- if wazuh_install_mode == 'Erstinstallation' -%}-a
+          {%- elif wazuh_install_mode == 'Neuinstallation' -%}-a -o
+          {%- elif wazuh_install_mode == 'Deinstallieren' -%}-u
+          {%- endif -%}
+
+    # 🔧 Port direkt im Script anpassen (per sed auf Zeile http_port=443)
+    - name: Setze Dashboard-Port auf 5601 im Script (nginx Modus) - wazuh_manager_task.yml
+      ansible.builtin.replace:
+        path: /tmp/wazuh-install.sh
+        regexp: "^http_port=443$"
+        replace: "http_port=5601"
+      when: wazuh_nginx_integration | default(false) | bool
+
+    - name: Setze benutzerdefinierten Dashboard-Port im Script - wazuh_manager_task.yml
+      ansible.builtin.replace:
+        path: /tmp/wazuh-install.sh
+        regexp: "^http_port=443$"
+        replace: "http_port={{ wazuh_install_port }}"
+      when:
+        - not (wazuh_nginx_integration | default(false) | bool)
+        - wazuh_install_port | default('') | length > 0
+
+    # 🔧 Installationsbefehl zusammenbauen
+    - name: Baue Installationsbefehl zusammen - wazuh_manager_task.yml
+      ansible.builtin.set_fact:
+        wazuh_install_cmd: "bash /tmp/wazuh-install.sh {{ wazuh_install_flag | trim }} -i{% if wazuh_install_verbose | default('false') | string | lower == 'true' %} -v{% endif %}"
+
+    # 🔒 APT-Lock freigeben (unattended-upgrades stoppen)
+    - name: Stoppe unattended-upgrades vor Installation - wazuh_manager_task.yml
+      ansible.builtin.service:
+        name: unattended-upgrades
+        state: stopped
+      failed_when: false
+
+    - name: Warte bis APT-Lock frei ist - wazuh_manager_task.yml
+      ansible.builtin.shell: |
+        while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+          sleep 5
+        done
+      changed_when: false
+
+    # 🚀 wazuh-install.sh ausfuehren
+    - name: Fuehre wazuh-install.sh aus - wazuh_manager_task.yml
+      ansible.builtin.shell:
+        cmd: "{{ wazuh_install_cmd }}"
+        chdir: /tmp
+      changed_when: true
+
+    - name: Loesche wazuh-install.sh nach Installation - wazuh_manager_task.yml
+      ansible.builtin.file:
+        path: /tmp/wazuh-install.sh
+        state: absent
+
+    - name: Starte unattended-upgrades nach Installation - wazuh_manager_task.yml
+      ansible.builtin.service:
+        name: unattended-upgrades
+        state: started
+      failed_when: false
+
+    # 🔒 Wazuh APT-Repo deaktivieren (verhindert unbeabsichtigte Updates)
+    - name: Deaktiviere Wazuh APT-Repo - wazuh_manager_task.yml
+      ansible.builtin.shell:
+        cmd: "sed -i 's/^deb /#deb /' /etc/apt/sources.list.d/wazuh.list"
+      changed_when: false
+      failed_when: false
+
+    - name: Aktualisiere Paketlisten nach Repo-Deaktivierung - wazuh_manager_task.yml
+      ansible.builtin.apt:
+        update_cache: true
+      changed_when: false
+
+    # 🔑 Admin-Passwort generieren und anzeigen
+    - name: Generiere neues Admin-Passwort - wazuh_manager_task.yml
+      ansible.builtin.shell:
+        cmd: /usr/share/wazuh-indexer/plugins/opensearch-security/tools/wazuh-passwords-tool.sh -u admin
+      register: wazuh_admin_password
+      changed_when: true
+      when: wazuh_install_mode != 'Deinstallieren'
+
+    - name: Extrahiere Admin Passwort aus Ausgabe - wazuh_manager_task.yml
+      ansible.builtin.set_fact:
+        _wazuh_admin_pass: >-
+          {{ (wazuh_admin_password.stdout
+             | regex_search('password for user admin is ([^\n\\]+)', '\1')
+             | default(['NICHT GEFUNDEN']))
+             | first | trim }}
+      when: wazuh_install_mode != 'Deinstallieren'
+
+    - name: ⚠️ WICHTIG - Wazuh Admin Zugangsdaten - wazuh_manager_task.yml
+      ansible.builtin.debug:
+        msg:
+          - "================================================================"
+          - "🔑 WAZUH DASHBOARD ZUGANGSDATEN"
+          - "================================================================"
+          - "  User:     admin                                               "
+          - "  Passwort: {{ _wazuh_admin_pass }}                             "
+          - "================================================================"
+          - "  URL: https://{{ ansible_host }}"
+          - "================================================================"
+          - "⚠️  PASSWORT SOFORT NACH ERSTER ANMELDUNG AENDERN!"
+          - "================================================================"
+      when: wazuh_install_mode != 'Deinstallieren'
+
+  when:
+    - _wazuh_manager_installed.rc != 0 or wazuh_install_mode in ['Neuinstallation', 'Deinstallieren']
+
+###########################################################################
+# 2. ossec_manager.conf.j2 deployen (IMMER wenn nicht deinstalliert)
+###########################################################################
+- block:
+    - name: Sichere originale Manager ossec.conf - wazuh_manager_task.yml
+      ansible.builtin.copy:
+        src: /var/ossec/etc/ossec.conf
+        dest: /var/ossec/etc/ossec.conf.bak
+        remote_src: true
+        mode: "0640"
+        owner: root
+        group: wazuh
+      failed_when: false
+
+    - name: Deploye WhatsApp Integration Script - wazuh_manager_task.yml
+      ansible.builtin.copy:
+        src: templates/custom-whatsapp
+        dest: /var/ossec/integrations/custom-whatsapp
+        owner: root
+        group: wazuh
+        mode: "0750"
+      when: wazuh_whatsapp_enabled | default(false) | bool
+
+    - name: Stoppe wazuh-manager vor Config-Aenderung - wazuh_manager_task.yml
+      ansible.builtin.systemd:
+        name: wazuh-manager
+        state: stopped
+      failed_when: false
+
+    - name: Warte bis wazuh-manager gestoppt ist - wazuh_manager_task.yml
+      ansible.builtin.pause:
+        seconds: 5
+
+    - name: Deploye ossec_manager.conf.j2 nach /var/ossec/etc/ossec.conf - wazuh_manager_task.yml
+      ansible.builtin.template:
+        src: templates/ossec_manager.conf.j2
+        dest: /var/ossec/etc/ossec.conf
+        owner: root
+        group: wazuh
+        mode: "0640"
+        backup: true
+
+    - name: Validiere ossec.conf vor Restart - wazuh_manager_task.yml
+      ansible.builtin.command: /var/ossec/bin/wazuh-analysisd -t
+      register: _wazuh_config_test
+      failed_when: false
+      changed_when: false
+
+    - name: Config-Validierung fehlgeschlagen - Backup wiederherstellen - wazuh_manager_task.yml
+      block:
+        - name: Stelle Backup wieder her - wazuh_manager_task.yml
+          ansible.builtin.copy:
+            src: /var/ossec/etc/ossec.conf.bak
+            dest: /var/ossec/etc/ossec.conf
+            remote_src: true
+            mode: "0640"
+            owner: root
+            group: wazuh
+
+        - name: Starte wazuh-manager mit Backup-Config - wazuh_manager_task.yml
+          ansible.builtin.systemd:
+            name: wazuh-manager
+            state: started
+
+        - name: Fehler melden - Config ungueltig - wazuh_manager_task.yml
+          ansible.builtin.fail:
+            msg: |
+              ❌ ossec.conf Validierung fehlgeschlagen!
+              Backup wurde wiederhergestellt und Manager laeuft wieder.
+              Fehler: {{ _wazuh_config_test.stderr | default('unbekannt') }}
+      when: _wazuh_config_test.rc != 0
+
+    - name: Starte wazuh-manager nach Config-Aenderung - wazuh_manager_task.yml
+      ansible.builtin.systemd:
+        name: wazuh-manager
+        state: started
+
+    - name: Warte auf wazuh-manager Start - wazuh_manager_task.yml
+      ansible.builtin.wait_for:
+        port: 1514
+        host: 127.0.0.1
+        delay: 5
+        timeout: 60
+
+    - name: Pruefe wazuh-manager Status - wazuh_manager_task.yml
+      ansible.builtin.command: /var/ossec/bin/wazuh-control status
+      register: _wazuh_manager_status
+      changed_when: false
+      failed_when: false
+
+    - name: 📊 Wazuh Manager Config Zusammenfassung - wazuh_manager_task.yml
+      ansible.builtin.debug:
+        msg:
+          - "✅ Wazuh Manager ossec.conf deployed!"
+          - "📋 Vulnerability Detector, Active Response, E-Mail Alerting aktiv"
+          - "📋 SCA (CIS Benchmarks), Compliance (PCI-DSS, GDPR, MITRE) aktiv"
+          - "📊 Status: {{ _wazuh_manager_status.stdout_lines | default(['unbekannt']) }}"
+  when: wazuh_install_mode | default('') != 'Deinstallieren'
+
+###########################################################################
+# 3. nginx Konfiguration (Reverse Proxy fuer Wazuh Dashboard)
+###########################################################################
+- block:
+    - name: Stelle sicher dass webroot Verzeichnis existiert - wazuh_manager_task.yml
+      ansible.builtin.file:
+        path: "{{ paths.webroot[ansible_os_family] }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+
+    - name: Alle nginx Configs VOR nginx_configure loeschen - wazuh_manager_task.yml
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/default"
+        - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/default.conf"
+        - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.wazuh.domain }}.conf"
+        - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.wazuh.domain }}_ssl.conf"
+        - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.wazuh.domain }}_temp.conf"
+      ignore_errors: true
+
+    - name: 🌐 Konfiguriere nginx fuer Wazuh Dashboard - wazuh_manager_task.yml
+      ansible.builtin.include_tasks: "{{ task_paths.nginx_configure }}"
+      vars:
+        domain_port: "{{ server_urls.wazuh.domain }}/{{ server_urls.wazuh.port }}"
+        domain_port_ssl: "{{ server_urls.wazuh.domain }}/{{ server_urls.wazuh.port }}"
+        admin_email: "{{ admin_email }}"
+        nginx_ssl: "{{ server_ssl }}"
+        nginx_modsecurity: "{{ nginx_modsecurity | default(false) }}"
+
+    - name: Alte nginx Default-Seiten loeschen - wazuh_manager_task.yml
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/default"
+        - "{{ paths.nginx_conf_dir[ansible_os_family] }}/sites-available/default"
+        - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/default.conf"
+      ignore_errors: true
+
+    - name: Alte Wazuh vHost Configs loeschen - wazuh_manager_task.yml
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.wazuh.domain }}.conf"
+        - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.wazuh.domain }}_ssl.conf"
+        - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.wazuh.domain }}_temp.conf"
+      ignore_errors: true
+
+    # --- HTTP-Modus ---
+    - name: HTTP vHost deployen - wazuh_manager_task.yml
+      ansible.builtin.template:
+        src: "{{ nginx_paths[ansible_host].wazuh[80].vHost_80 }}"
+        dest: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.wazuh.domain }}.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      when: not (server_ssl | bool)
+
+    # --- HTTPS-Modus ---
+    - block:
+        - name: HTTPS Redirect vHost deployen (Port 80) - wazuh_manager_task.yml
+          ansible.builtin.template:
+            src: "{{ nginx_paths[ansible_host].wazuh[443].vHost_80 }}"
+            dest: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.wazuh.domain }}.conf"
+            owner: root
+            group: root
+            mode: "0644"
+
+        - name: HTTPS vHost deployen (Port 443) - wazuh_manager_task.yml
+          ansible.builtin.template:
+            src: "{{ nginx_paths[ansible_host].wazuh[443].vHost_443 }}"
+            dest: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.wazuh.domain }}_ssl.conf"
+            owner: root
+            group: root
+            mode: "0644"
+      when: server_ssl | bool
+
+    ###########################################################################
+    # 📋 Geladene ModSecurity Regeln ermitteln (fuer Doku)
+    ###########################################################################
+    - name: Ermittle geladene ModSecurity Regeldateien - wazuh_manager_task.yml
+      ansible.builtin.find:
+        paths: "{{ paths.owasp_crs[ansible_os_family] }}/rules"
+        patterns: "*.conf"
+        recurse: false
+      register: _modsec_rules_found
+      when: nginx_modsecurity | default(false) | string | lower == 'true'
+      failed_when: false
+
+    - name: Setze ModSecurity Regelliste fuer Doku - wazuh_manager_task.yml
+      ansible.builtin.set_fact:
+        modsec_loaded_rules: >-
+          {{ _modsec_rules_found.files
+             | default([])
+             | map(attribute='path')
+             | map('basename')
+             | sort
+             | list }}
+      when: nginx_modsecurity | default(false) | string | lower == 'true'
+
+    - name: Teste nginx Konfiguration - wazuh_manager_task.yml
+      ansible.builtin.command: "{{ command.nginx_test[ansible_os_family] }}"
+      changed_when: false
+
+    - name: Restart nginx - wazuh_manager_task.yml
+      ansible.builtin.command: "{{ command.nginx_restart[ansible_os_family] }}"
+      changed_when: true
+
+    - name: 📊 Wazuh nginx Zusammenfassung - wazuh_manager_task.yml
+      ansible.builtin.debug:
+        msg:
+          - "✅ nginx Reverse Proxy fuer Wazuh Dashboard konfiguriert!"
+          - "🔗 URL: {{ server_urls.wazuh.url }}"
+
+  when:
+    - wazuh_nginx_integration | default(false) | bool
+    - wazuh_install_mode | default('') != 'Deinstallieren'
+
+###########################################################################
+# 🗑️ Deinstallation — nginx Abhaengigkeiten pruefen
+###########################################################################
+- name: Setze App-Name fuer nginx Deinstall-Check - wazuh_manager_task.yml
+  ansible.builtin.set_fact:
+    _nginx_dep_app_name: wazuh_manager
+  when: wazuh_install_mode | default('') == 'Deinstallieren'
+
+- name: Lade service_dep Variablen - wazuh_manager_task.yml
+  ansible.builtin.include_vars:
+    file: "{{ vars_paths.service_dep }}"
+  when: wazuh_install_mode | default('') == 'Deinstallieren'
+
+- name: Setze Dependency-Check Variablen fuer nginx - wazuh_manager_task.yml
+  ansible.builtin.set_fact:
+    _dep_service_name: nginx
+    _dep_app_name: wazuh_manager
+  when: wazuh_install_mode | default('') == 'Deinstallieren'
+
+- name: Pruefe nginx Abhaengigkeiten und entferne vHost oder nginx - wazuh_manager_task.yml
+  ansible.builtin.include_tasks:
+    file: "{{ task_paths.service_dep_check }}"
+  when:
+    - wazuh_install_mode | default('') == 'Deinstallieren'
+    - wazuh_nginx_integration | default(false) | bool

@@ -1,0 +1,17 @@
+---
+###########################################################################
+# Deaktivierungs-Tasks für Netzwerk-Konfiguration
+# Setzt Konfigurationen zurück ohne zu deinstalliert
+###########################################################################
+
+###########################################################################
+# 1. gai.conf zurücksetzen
+###########################################################################
+#- name: 🔄 gai.conf auf Standard zurücksetzen
+#  ansible.builtin.copy:
+#    dest: "/etc/gai.conf"
+#    content: |
+#      # Default gai.conf
+#    owner: root
+#    group: root
+#    mode: "0644"

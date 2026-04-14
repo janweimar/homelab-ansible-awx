@@ -1,0 +1,212 @@
+# STATUS: NICHT GETESTET
+#####################################################################
+# 🧰 Post-Install Kubernetes (nach Paketinstallation)
+# Ziel: Stabiler, reproduzierbarer Control-Plane-Setup auf Ubuntu 24.04
+#       mit nftables (iptables-nf_tables), kubeadm init, kubeconfig Setup,
+#       Calico Deployment und API-Server Health-Check.
+#####################################################################
+
+#####################################################################
+# 👤 kube User + ACL sicherstellen
+#####################################################################
+- name: 🔍 Prüfe ob kube User existiert - kubernet_task.yml
+  ansible.builtin.command: id {{ kube_user }}
+  register: _kube_user_check
+  failed_when: false
+  changed_when: false
+
+- name: 👤 Erstelle kube User - kubernet_task.yml
+  ansible.builtin.user:
+    name: "{{ kube_user }}"
+    shell: /bin/bash
+    create_home: true
+    system: false
+  when: _kube_user_check.rc != 0
+
+- name: 📦 ACL Paket installieren (für become_user) - kubernet_task.yml
+  ansible.builtin.apt:
+    name: acl
+    state: present
+    update_cache: false
+
+- name: 📊 DEBUG kube User - kubernet_task.yml
+  ansible.builtin.debug:
+    msg: "👤 kube_user: {{ kube_user }} ({{ 'existiert bereits' if _kube_user_check.rc == 0 else 'neu erstellt' }})"
+
+#####################################################################
+# 📦 Stack-Variablen laden aus kube_stack_versionen.yml
+#####################################################################
+- name: 📦 Lade Kubernetes Stack-Konfiguration - kubernet_task.yml
+  ansible.builtin.set_fact:
+    kube_stack: "{{ kube_stack_versionen[kube_stack_auswahl] }}"
+
+- name: 📦 Debug Stack-Auswahl - kubernet_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "Stack: {{ kube_stack_auswahl }}"
+      - "Kube Version: {{ kube_stack.kube.version }}"
+      - "CNI Plugin: {{ kube_stack.netzwerk.cni_plugin }}"
+      - "Pod CIDR: {{ kube_stack.netzwerk.pod_network_cidr }}"
+
+#####################################################################
+# 🔒 Kubernetes-Pakete fixieren
+# Hintergrund:
+#   - Ubuntu/Debian aktualisieren kubeadm/kubelet/kubectl sonst automatisch.
+#   - Das kann Cluster-Upgrades unkontrolliert auslösen.
+#   - Wir fixieren die Versionen, bis ein kontrolliertes Upgrade erfolgt.
+#####################################################################
+- name: 📌 Hold Kubernetes packages
+  ansible.builtin.command: >
+    apt-mark hold kubeadm kubelet kubectl
+
+#####################################################################
+# ▶️ containerd & kubelet sicherstellen
+# Hintergrund:
+#   - kubeadm init benötigt laufenden containerd & kubelet.
+#   - kubelet startet erst richtig, wenn kubeadm die Config erzeugt.
+#####################################################################
+- name: ▶️ Ensure containerd is running
+  ansible.builtin.service:
+    name: containerd
+    state: started
+    enabled: true
+
+- name: ▶️ Ensure kubelet is running
+  ansible.builtin.service:
+    name: kubelet
+    state: started
+    enabled: true
+
+#####################################################################
+# 🚀 Kubernetes Control Plane initialisieren
+# Hintergrund:
+#   - kubeadm init erzeugt:
+#       /etc/kubernetes/admin.conf
+#       /etc/kubernetes/manifests/*
+#       kube-proxy ConfigMap
+#       CA, Zertifikate, API-Server, Scheduler, Controller-Manager
+#   - "creates:" verhindert mehrfaches Ausführen → idempotent.
+#####################################################################
+- name: 🚀 Initialize Kubernetes control plane - kubernet_task.yml
+  ansible.builtin.command: >-
+    kubeadm init
+    --pod-network-cidr={{ kube_stack.netzwerk.pod_network_cidr }}
+    --service-cidr={{ kube_stack.netzwerk.service_cidr }}
+    {% if kube_api_advertise_address | default('') != '' %}
+    --apiserver-advertise-address={{ kube_api_advertise_address }}
+    {% endif %}
+  args:
+    creates: /etc/kubernetes/admin.conf
+
+- name: 🧩 Allow scheduling on control-plane node (single-node cluster)
+  ansible.builtin.command: >
+    kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: taint_result
+  changed_when: "'untainted' in taint_result.stdout"
+  failed_when: false
+
+#####################################################################
+# ⏳ Warten bis API-Server erreichbar ist
+# Hintergrund:
+#   - kubeadm init startet API-Server als Static Pod.
+#   - Wir warten aktiv, bis /healthz OK liefert.
+#   - Ohne diesen Schritt schlägt Calico-Deployment oft fehl.
+#####################################################################
+- name: ⏳ Wait for API server health
+  ansible.builtin.command: kubectl get --raw='/healthz'
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: kube_health
+  retries: 20
+  delay: 5
+  until: kube_health.rc == 0
+
+#####################################################################
+# 🔧 admin.conf korrekt setzen (root)
+# Hintergrund:
+#   - kubeadm erzeugt admin.conf.
+#   - Wir stellen sicher, dass sie root gehört und korrekt geschützt ist.
+#####################################################################
+- name: 🔧 Ensure admin.conf permissions
+  ansible.builtin.file:
+    path: /etc/kubernetes/admin.conf
+    owner: root
+    group: root
+    mode: "0600"
+
+#####################################################################
+# 🔧 kubectl für User "kube" einrichten
+# Hintergrund:
+#   - kubeadm kopiert kubeconfig NICHT für normale User.
+#   - Wir erzeugen ~/.kube und kopieren admin.conf.
+#   - Dadurch kann der User "kube" kubectl nutzen.
+#####################################################################
+- name: 📂 Ensure kube .kube directory exists - kubernet_task.yml
+  ansible.builtin.file:
+    path: /home/{{ kube_user }}/.kube
+    state: directory
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0700"
+
+- name: 🔧 Setup kubectl config for kube user - kubernet_task.yml
+  ansible.builtin.copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/{{ kube_user }}/.kube/config
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0600"
+    remote_src: true
+
+#####################################################################
+# 🌐 Calico Netzwerkplugin installieren
+# Hintergrund:
+#   - Calico benötigt funktionierenden API-Server.
+#   - Wird zu früh ausgeführt → CrashLoopBackOff.
+#   - iptables/nftables-Basis ist bereits in den pre_tasks abgesichert.
+#####################################################################
+- name: 🌐 Install CNI network plugin ({{ kube_stack.netzwerk.cni_plugin }}) - kubernet_task.yml
+  ansible.builtin.command: >-
+    kubectl apply -f {{ kube_stack.netzwerk[kube_stack.netzwerk.cni_plugin + '_manifest_url'] }}
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+
+#####################################################################
+# 🧪 Kubernetes Status prüfen (robust & nicht fehleranfällig)
+# Hintergrund:
+#   - systemctl status liefert rc=3 bei Auto-Restart → ungeeignet
+#   - is-active ist deterministisch
+#   - kubectl prüft den echten Clusterzustand
+#####################################################################
+
+- name: 🧪 Check containerd service state
+  ansible.builtin.command: systemctl is-active containerd
+  register: containerd_state
+  changed_when: false
+  failed_when: containerd_state.stdout != "active"
+
+- name: 🧪 Check kubelet service state
+  ansible.builtin.command: systemctl is-active kubelet
+  register: kubelet_state
+  changed_when: false
+  failed_when: kubelet_state.stdout not in ["active", "activating"]
+
+- name: 🧪 Wait until Kubernetes node becomes Ready
+  ansible.builtin.command: kubectl get nodes --no-headers
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: node_status
+  retries: 30
+  delay: 10
+  until: "' Ready ' in node_status.stdout"
+  changed_when: false
+
+- name: 🧪 Debug – Kubernetes Status Übersicht
+  ansible.builtin.debug:
+    msg:
+      - "📦 containerd: {{ containerd_state.stdout }}"
+      - "⚙️ kubelet: {{ kubelet_state.stdout }}"
+      - "🧠 Node-Status:"
+      - "{{ node_status.stdout }}"

@@ -1,0 +1,10 @@
+[postfix]
+enabled  = {{ mail_postfix_enable }}
+filter   = postfix[mode=more]
+bantime  = {{ mail_postfix_bantime }}
+findtime = {{ mail_postfix_findtime }}
+maxretry = {{ mail_postfix_maxretry }}
+port     = {{ mail_postfix_ports }}
+action   = nftables_custom[name=SMTP, port="{{ mail_postfix_ports }}"]
+logpath  = /var/log/mail.log
+backend  = systemd

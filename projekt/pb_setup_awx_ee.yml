@@ -1,0 +1,214 @@
+---
+###########################################################################
+# AWX Execution Environment bauen und bereitstellen
+# Multi-OS | idempotent | AWX-kompatibel | Standalone-faehig
+###########################################################################
+# Credentials (AWX ueberschreibt diese Defaults):
+#   allg_status: aktiviert | deaktiviert | deinstalliert
+#   ee_image_name: Image-Name (z.B. awx-ee, odoo-ee, custom-ee)
+#   ee_image_tag: Image-Tag/Version (z.B. latest, 1.0.0, dev)
+#   container_runtime: docker | podman
+#   push_to_registry: true | false (Image nach Build pushen?)
+#   awx_ee_registry_user: Registry-Benutzer (optional, nur bei Push)
+#   awx_ee_registry_password: Registry-Passwort (optional, nur bei Push)
+#   server_ssl: true | false (SSL fuer nginx)
+#
+# URLs:
+#   Registry-URL wird aus os_urls.yml geladen:
+#   urls[ansible_host].awx_ee.registry
+#   ssh_key: SSH-Zugangsdaten
+#
+# Beschreibung:
+# Baut ein Custom AWX Execution Environment mit ansible-builder.
+# Unterstuetzt Docker und Podman als Container-Runtime.
+# Installiert nginx als Reverse Proxy fuer die Docker Registry (Read-Only).
+# Startet eine lokale Docker Registry als Container.
+#
+# Standalone-Aufruf (ohne AWX):
+#   ansible-playbook pb_inst_awx_ee.yml -i inventory -e allg_status=aktiviert
+#   ansible-playbook pb_inst_awx_ee.yml -i inventory -e container_runtime=podman -e allg_status=aktiviert
+#   ansible-playbook pb_inst_awx_ee.yml -i inventory -e allg_status=deinstalliert
+#
+# BEST PRACTICES:
+# - Wenn moeglich kein Code im Playbook, sondern in pre_task/task auslagern
+# - Nicht benoetigte Service-Includes loeschen (nicht auskommentieren)
+###########################################################################
+
+- name: pb_setup_awx_ee.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+    - playbooks_paths.yml
+
+  vars:
+    # =====================================================================
+    # MPb-Standard Variablen
+    # =====================================================================
+    # Hauptanwendung(en) - wird in pre_tasks per set_fact gesetzt
+    var_pack_name: [] # wird per set_fact in pre_tasks gesetzt
+
+    # Abhaengigkeiten - nginx fuer Reverse Proxy
+    var_dependencies_list:
+      - nginx
+
+    # Voraussetzungen
+    var_prerequisites:
+
+    # Installationsreihenfolge: 1 = erst Dependencies (nginx) dann Hauptanwendung (docker/podman)
+    var_inst_order: 1
+
+    # Zusaetzliche Services
+    var_sonder_start:
+    var_sonder_autostart:
+
+    # Nicht unterstuetzte OS
+    unsupported_systems:
+      - FreeBSD
+
+    # Playbook-Log-Dokumentation (Template-Pfad)
+    pb_doku_template: awx_ee_doku
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden & setzen
+    ###########################################################################
+    - block:
+        - name: Lade alle Variablen-Dateien aus var_list.yml - pb_setup_awx_ee.yml
+          include_vars:
+            file: "{{ item }}"
+          loop: "{{ var_files }}"
+
+        - name: Setze var_pack_name basierend auf container_runtime - pb_setup_awx_ee.yml
+          ansible.builtin.set_fact:
+            var_pack_name:
+              - "{{ container_runtime }}"
+
+    ###########################################################################
+    # Hook: Pre-Start (nach Variablen-Laden)
+    ###########################################################################
+    - name: Hook Pre-Start - pb_setup_awx_ee.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Server-URLs und Defaults setzen
+    ###########################################################################
+    - block:
+        - name: Setze server_urls fuer aktuellen Host - pb_setup_awx_ee.yml
+          ansible.builtin.set_fact:
+            server_urls: "{{ urls[ansible_host] }}"
+
+        - name: Setze ee_config Default (wird in pretask ueberschrieben) - pb_setup_awx_ee.yml
+          ansible.builtin.set_fact:
+            ee_config: {}
+
+        - name: Info Container-Runtime und Registry - pb_setup_awx_ee.yml
+          ansible.builtin.debug:
+            msg:
+              - "Status: {{ allg_status }}"
+              - "Container-Runtime: {{ container_runtime }} | Paketgruppe: {{ var_pack_name }}"
+              - "Registry: {{ server_urls.awx_ee.registry }}"
+
+    ###########################################################################
+    # Systemcheck & Prerequisites
+    ###########################################################################
+    - name: Importiere Systemcheck - pb_setup_awx_ee.yml
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: Importiere Systemcheck zwingend benoetigter Komponenten - pb_setup_awx_ee.yml
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks
+    ###########################################################################
+    - block:
+        - name: Importiere Paketmanager-Lock pruefen - pb_setup_awx_ee.yml
+          ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+        - name: Importiere Debug ausgabe bei Playbook start - pb_setup_awx_ee.yml
+          ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+    ###########################################################################
+    # Playbook-spezifische Pre-Tasks
+    ###########################################################################
+    - block:
+        - name: Importiere pre_task - pb_setup_awx_ee.yml
+          ansible.builtin.include_tasks: "{{ task_paths.awx_ee_pretask }}"
+
+      when: allg_status == "aktiviert"
+
+  tasks:
+    ###########################################################################
+    # HAUPTLOGIK - Container-Runtime + nginx + Registry + EE Image
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Hook: Pre-Install (vor Installation)
+        ###########################################################################
+        - name: Hook Pre-Install - pb_setup_awx_ee.yml
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        ###########################################################################
+        # Docker Repository hinzufuegen (nur bei Docker)
+        ###########################################################################
+        - name: Docker Repository hinzufuegen - pb_setup_awx_ee.yml
+          ansible.builtin.include_tasks: "{{ task_paths.add_repos_client }}"
+          vars:
+            var_repo_list: "docker"
+          when: (container_runtime) == 'docker'
+
+        ###########################################################################
+        # Standard-Installation (Container-Runtime + nginx)
+        ###########################################################################
+        - name: Komplette installation von var_pack_name und var_dependencies_list - pb_setup_awx_ee.yml
+          ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+        ###########################################################################
+        # Container-Runtime Konfiguration
+        ###########################################################################
+        - name: Docker konfigurieren - pb_setup_awx_ee.yml
+          ansible.builtin.include_tasks: "{{ task_paths.docker_install }}"
+          when: container_runtime == 'docker'
+
+        - name: Podman konfigurieren - pb_setup_awx_ee.yml
+          ansible.builtin.include_tasks: "{{ task_paths.podman_install }}"
+          when: container_runtime == 'podman'
+
+        ###########################################################################
+        # EE: Registry + nginx + Image bauen
+        ###########################################################################
+        - name: Ausfuehren der kompletten EE Konfiguration - pb_setup_awx_ee.yml
+          ansible.builtin.include_tasks: "{{ task_paths.awx_ee_task }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # Deaktivierung (nicht relevant fuer EE)
+    ###########################################################################
+    - block:
+        - name: Info - EE kann nicht deaktiviert werden - pb_setup_awx_ee.yml
+          ansible.builtin.debug:
+            msg: "EE ist ein Container-Image - zum Entfernen 'deinstalliert' verwenden."
+
+      when: allg_status == "deaktiviert"
+
+    ###########################################################################
+    # Deinstallation
+    ###########################################################################
+    - block:
+        - name: Ausfuehren der EE Deinstallation - pb_setup_awx_ee.yml
+          ansible.builtin.include_tasks: "{{ task_paths.awx_ee_deinstall }}"
+
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # Hook: end (am Ende des Playbooks)
+    ###########################################################################
+    - name: Hook Post-Install - pb_setup_awx_ee.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

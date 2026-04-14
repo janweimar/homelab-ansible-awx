@@ -1,0 +1,120 @@
+---
+###############################################################
+# 📦 Update durchführen anhand credential ja/nein
+###############################################################
+- name: 🔄 sys update
+  ansible.builtin.include_tasks: "{{ include_paths.repos_update_aktualisieren }}"
+  when: update_before_install | bool
+
+###############################################################
+# 📦 Basis-Pakete Hauptprogramm als erstes!! (alle Systeme, mit Version)
+###############################################################
+- block:
+    # Gruppen / Rechte konfigurieren
+    - name: 🔄 Gruppen und Rechte konfigurieren
+      ansible.builtin.include_tasks: "{{ include_paths.install_allg_main }}"
+  when: var_inst_order is not defined or var_inst_order == 0
+
+###############################################################
+# 📦 Abhängigkeiten Hauptprogramm (mehrere Keys möglich, mit Version)
+###############################################################
+- block:
+    # Gruppen / Rechte konfigurieren
+    - name: 🔄 Installation Hauptprogramm
+      ansible.builtin.include_tasks: "{{ include_paths.install_allg_dep }}"
+
+###############################################################
+# 📦 Basis-Pakete Hauptprogramm erst nach dependencies !! (alle Systeme, mit Version)
+###############################################################
+- block:
+    # Gruppen / Rechte konfigurieren
+    - name: 🔄 Installation Hauptprogramm
+      ansible.builtin.include_tasks: "{{ include_paths.install_allg_main }}"
+  when: var_inst_order == 1
+
+###############################################################
+# 💎 Gem-Pakete Installation (alle Systeme) - TEST mit shell
+###############################################################
+- block:
+    - name: Installiere Gem-Pakete (Hauptprogramm) via shell
+      ansible.builtin.shell: |
+        gem install {{ item.name }}{{ ' -v ' + item.version if item.version|length > 0 else '' }}
+      loop: "{{ var_pack_name
+        | map('extract', packages.gem | default({}))
+        | map(attribute=ansible_os_family, default=[])
+        | flatten }}"
+      when:
+        - (var_pack_name | default([])) | length > 0
+      become: yes
+
+    - name: Installiere Gem-Pakete (Abhängigkeiten) via shell
+      ansible.builtin.shell: |
+        gem install {{ item.name }}{{ ' -v ' + item.version if item.version|length > 0 else '' }}
+      loop: "{{ var_dependencies_list
+        | map('extract', packages.gem | default({}))
+        | map(attribute=ansible_os_family, default=[])
+        | flatten }}"
+      when:
+        - (var_dependencies_list | default([])) | length > 0
+      become: yes
+
+  when: packages.gem is defined
+###############################################################
+# 🔄 Neustartprüfung & optionaler Reboot
+###############################################################
+- block:
+    - name: 🔄 Neustartprüfung & optionaler Reboot -install_allg.yml
+      block:
+        - name: 🔍 Prüfen, ob Neustart erforderlich ist -install_allg.yml
+          ansible.builtin.stat:
+            path: "{{ paths.reboot_required[ansible_os_family] }}"
+          register: reboot_flag
+
+    - name: 🔄 Systemneustart (falls erforderlich) -install_allg.yml
+      ansible.builtin.reboot:
+        msg: "Systemneustart nach Paketinstallation"
+        pre_reboot_delay: 5
+        reboot_timeout: 600
+        post_reboot_delay: 10
+      when: reboot_flag.stat.exists
+
+###############################################################
+# 🧩 Debug-Ausgabe (mit Versionen)
+###############################################################
+- name: 📊 Bereite Paket-Ausgabe vor
+  ansible.builtin.set_fact:
+    _pkg_main_list: "{{ var_pack_name | default([]) | map('extract', packages.apt) | map(attribute=ansible_os_family) | map(attribute=sys_major|string) | flatten | list }}"
+    _pkg_deps_list: "{{ var_dependencies_list | default([]) | map('extract', packages.apt) | map(attribute=ansible_os_family) | map(attribute=sys_major|string) | flatten | list }}"
+
+- name: 📊 Formatiere Paket-Ausgabe
+  ansible.builtin.set_fact:
+    _pkg_main_display: >-
+      {%- set result = [] -%}
+      {%- for p in _pkg_main_list -%}
+      {%-   if p.version -%}
+      {%-     set _ = result.append(p.name ~ ' (' ~ p.version ~ ')') -%}
+      {%-   else -%}
+      {%-     set _ = result.append(p.name ~ ' (latest)') -%}
+      {%-   endif -%}
+      {%- endfor -%}
+      {{ result }}
+    _pkg_deps_display: >-
+      {%- set result = [] -%}
+      {%- for p in _pkg_deps_list -%}
+      {%-   if p.version -%}
+      {%-     set _ = result.append(p.name ~ ' (' ~ p.version ~ ')') -%}
+      {%-   else -%}
+      {%-     set _ = result.append(p.name ~ ' (latest)') -%}
+      {%-   endif -%}
+      {%- endfor -%}
+      {{ result }}
+
+- name: 📊 Ausgabe installierter Pakete
+  ansible.builtin.debug:
+    msg:
+      - "✅ Paketinstallation abgeschlossen."
+      - "---"
+      - "APT Pakete (Hauptprogramm):"
+      - "{{ _pkg_main_display }}"
+      - "APT Pakete (Abhängigkeiten):"
+      - "{{ _pkg_deps_display }}"

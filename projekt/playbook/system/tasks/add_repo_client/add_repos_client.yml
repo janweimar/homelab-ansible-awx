@@ -1,0 +1,73 @@
+---
+# ============================================================
+# REPO MANAGEMENT - CLIENT (Alle löschen außer System)
+# ============================================================
+
+# ------------------------------------------------------------
+# 1) SOLL-Liste vorbereiten
+# ------------------------------------------------------------
+- name: REPO – SOLL-Liste aus Credential (String zu Liste)
+  ansible.builtin.set_fact:
+    repo_list_normalized: "{{ var_repo_list.split(',') | map('trim') | list }}"
+
+- name: DEBUG – SOLL-Liste (zu installierende Repos)
+  ansible.builtin.debug:
+    msg: "{{ repo_list_normalized | length }} Repos werden installiert: {{ repo_list_normalized | join(', ') }}"
+
+- name: REPO – SOLL-Dict erstellen
+  ansible.builtin.set_fact:
+    soll_repo_dict: >-
+      {{
+        soll_repo_dict | default({}) | combine({
+          item: repo[item][ansible_os_family][0]
+        })
+      }}
+  loop: "{{ repo_list_normalized }}"
+  when: repo[item][ansible_os_family] is defined
+
+# ------------------------------------------------------------
+# 2) Alle *.sources ermitteln und löschen (außer System)
+# ------------------------------------------------------------
+- name: REPO – Alle vorhandenen *.sources ermitteln
+  ansible.builtin.find:
+    paths: "{{ paths.repo_paths[ansible_os_family] }}"
+    patterns: "*.sources"
+  register: all_source_files
+
+- name: REPO – Dateinamen extrahieren (ohne .sources)
+  ansible.builtin.set_fact:
+    all_repos: "{{ all_source_files.files | map(attribute='path') | map('basename') | map('regex_replace', '\\.sources$', '') | list }}"
+
+- name: REPO – Zu löschende Repos (alle außer System)
+  ansible.builtin.set_fact:
+    repos_to_delete: "{{ all_repos | difference(system_repos_protected | default(['ubuntu'])) }}"
+
+- name: DEBUG – Repos werden gelöscht
+  ansible.builtin.debug:
+    msg: "{{ repos_to_delete | length }} Repos löschen: {{ repos_to_delete | join(', ') }}"
+
+- name: REPO – Alle *.sources löschen (außer System)
+  ansible.builtin.file:
+    path: "{{ paths.repo_paths[ansible_os_family] }}/{{ item }}.sources"
+    state: absent
+  loop: "{{ repos_to_delete }}"
+
+# ------------------------------------------------------------
+# 3) Alle SOLL-Repos neu anlegen
+# ------------------------------------------------------------
+- name: REPO – SOLL-Repos installieren
+  ansible.builtin.include_tasks: "{{ task_paths.add_repos_client_add_single }}"
+  loop: "{{ repo_list_normalized }}"
+  loop_control:
+    loop_var: repo_name
+
+# ------------------------------------------------------------
+# 4) Zusammenfassung
+# ------------------------------------------------------------
+- name: REPO – Zusammenfassung
+  ansible.builtin.debug:
+    msg: |
+      ✓ Repo-Verwaltung abgeschlossen:
+        - Gelöscht: {{ repos_to_delete | length }} Repos
+        - Installiert: {{ repo_list_normalized | length }} Repos
+        - Geschützt: {{ system_repos_protected | default(['ubuntu']) | join(', ') }}

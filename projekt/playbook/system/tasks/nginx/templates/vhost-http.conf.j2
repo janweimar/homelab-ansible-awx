@@ -1,0 +1,36 @@
+# {{ item.split('/')[0] }} - HTTP Reverse Proxy
+# Erstellt: {{ ansible_date_time.iso8601 }}
+
+server {
+    listen 80;
+    server_name {{ item.split('/')[0] }};
+
+    # Größere Uploads erlauben
+    client_max_body_size 50M;
+
+    # Logs
+    access_log {{ paths.nginx_log_dir[ansible_os_family] }}/{{ item.split('/')[0] }}_access.log;
+    error_log {{ paths.nginx_log_dir[ansible_os_family] }}/{{ item.split('/')[0] }}_error.log;
+
+    # ModSecurity
+    modsecurity on;
+    modsecurity_rules_file {{ paths.modsecurity_conf[ansible_os_family] }};
+
+    location / {
+        {% if item.split('/')|length == 3 %}
+        proxy_pass http://{{ item.split('/')[1] }}:{{ item.split('/')[2] }};
+        {% else %}
+        proxy_pass http://localhost:{{ item.split('/')[1] }};
+        {% endif %}
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket Support
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}

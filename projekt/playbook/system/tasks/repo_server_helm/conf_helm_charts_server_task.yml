@@ -1,0 +1,117 @@
+---
+###########################################################################
+# 🚀 conf_helm_charts_server_task.yml
+# Helm Chart Cache — Lokale Kopien von Upstream-Charts
+###########################################################################
+# Gleiche Logik wie Aptly (APT-Pakete) und cgit (Git-Repos):
+#   1. Upstream-Repos registrieren (helm repo add)
+#   2. Charts in definierten Versionen ziehen (helm pull)
+#   3. Index generieren (helm repo index)
+#   4. nginx liefert /helm/ als lokales Helm-Repo aus
+###########################################################################
+
+# ============================================================
+# 1) Verzeichnis sicherstellen
+# ============================================================
+- name: 📂 Helm Chart Cache Verzeichnis erstellen - conf_helm_charts_server_task.yml
+  ansible.builtin.file:
+    path: "{{ paths.helm_charts_base[ansible_os_family] }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# ============================================================
+# 2) Upstream Helm Repos registrieren
+# ============================================================
+- name: 📦 Helm Repos registrieren - conf_helm_charts_server_task.yml
+  ansible.builtin.command: >-
+    helm repo add {{ item.repo_name }} {{ item.repo_url }}
+  loop: "{{ helm_charts }}"
+  register: helm_repo_add_result
+  changed_when: "'has been added' in helm_repo_add_result.stdout"
+  failed_when:
+    - helm_repo_add_result.rc != 0
+    - "'already exists' not in helm_repo_add_result.stderr"
+
+- name: 🔄 Helm Repos aktualisieren - conf_helm_charts_server_task.yml
+  ansible.builtin.command: helm repo update
+  changed_when: false
+
+# ============================================================
+# 3) Vorhandene Charts ermitteln (IST-Zustand)
+# ============================================================
+- name: 🔍 Vorhandene Chart-Dateien ermitteln - conf_helm_charts_server_task.yml
+  ansible.builtin.find:
+    paths: "{{ paths.helm_charts_base[ansible_os_family] }}"
+    patterns: "*.tgz"
+  register: existing_charts
+
+- name: 🔍 Vorhandene Chart-Liste aufbereiten - conf_helm_charts_server_task.yml
+  ansible.builtin.set_fact:
+    existing_chart_files: "{{ existing_charts.files | map(attribute='path') | map('basename') | list }}"
+
+# ============================================================
+# 4) SOLL-Liste flach aufbereiten
+# ============================================================
+- name: 📋 SOLL Chart-Liste aufbereiten - conf_helm_charts_server_task.yml
+  ansible.builtin.set_fact:
+    helm_charts_flat: >-
+      {%- set result = [] -%}
+      {%- for repo in helm_charts -%}
+      {%-   for chart in repo.charts -%}
+      {%-     set _ = result.append({
+                'repo_name': repo.repo_name,
+                'name': chart.name,
+                'version': chart.version,
+                'filename': chart.name ~ '-' ~ chart.version ~ '.tgz'
+              }) -%}
+      {%-   endfor -%}
+      {%- endfor -%}
+      {{ result }}
+
+# ============================================================
+# 5) Fehlende Charts herunterladen
+# ============================================================
+- name: ⬇️ Fehlende Helm Charts herunterladen - conf_helm_charts_server_task.yml
+  ansible.builtin.command: >-
+    helm pull {{ item.repo_name }}/{{ item.name }}
+    --version {{ item.version }}
+    --destination {{ paths.helm_charts_base[ansible_os_family] }}
+  loop: "{{ helm_charts_flat }}"
+  when: item.filename not in existing_chart_files
+  register: helm_pull_result
+  changed_when: true
+
+# ============================================================
+# 6) Repository-Index generieren
+# ============================================================
+- name: 📇 Helm Repo Index generieren - conf_helm_charts_server_task.yml
+  ansible.builtin.command: >-
+    helm repo index {{ paths.helm_charts_base[ansible_os_family] }}
+    --url https://{{ server_urls.repo_server_apt.domain }}/helm
+  changed_when: true
+
+# ============================================================
+# 7) Ergebnis ausgeben
+# ============================================================
+- name: 🔍 Aktuelle Charts nach Pull ermitteln - conf_helm_charts_server_task.yml
+  ansible.builtin.find:
+    paths: "{{ paths.helm_charts_base[ansible_os_family] }}"
+    patterns: "*.tgz"
+  register: final_charts
+
+- name: 📊 Helm Chart Cache Status - conf_helm_charts_server_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "Helm Chart Cache — {{ paths.helm_charts_base[ansible_os_family] }}"
+      - "=========================================="
+      - "Charts im Cache: {{ final_charts.files | length }}"
+      - "SOLL laut os_repo.yml: {{ helm_charts_flat | length }}"
+      - "=========================================="
+      - "Dateien:"
+      - "{{ final_charts.files | map(attribute='path') | map('basename') | sort | list }}"
+      - "=========================================="
+      - "Lokales Repo: https://{{ server_urls.repo_server_apt.domain }}/helm/"
+      - "=========================================="

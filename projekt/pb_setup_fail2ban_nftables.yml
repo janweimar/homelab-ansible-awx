@@ -1,0 +1,189 @@
+---
+###########################################################################
+# 🔒 Fail2Ban + nftables Installation und Konfiguration
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials:
+#   allg_status: aktiviert | deaktiviert | deinstalliert
+#   vpn_enabled: Bool (true/false) – aktiviert VPN-Regeln (WireGuard) aus failsafe_ips.yml
+#   ssh_key: SSH-Zugangsdaten
+#
+# Jail-Auswahl + Config in default_vars.yml:
+#   fail2ban.ssh_enable / nginx_enable / mail_postfix_enable /
+#   mail_dovecot_enable / odoo_enable / awx_enable (bool)
+#   fail2ban.*_bantime / *_findtime / *_maxretry / *_ports
+#
+# Beschreibung:
+# Installiert Fail2Ban mit nftables-Integration. Konfiguriert Jails
+# basierend auf aktivierten Diensten (SSH, Mail, Nginx, Odoo, AWX).
+# Erstellt nftables Tabellen, Chains und Sets für IP-Blocking.
+#
+# Hinweise:
+# - nftables wird als Dependency installiert
+# - Trusted IPs aus failsafe_ips.yml werden als Whitelist genutzt
+# - Jails werden nur bei aktiviertem Dienst konfiguriert
+#
+# BEST PRACTICES:
+# - Wenn möglich kein Code im Playbook, sondern in pre_task/task auslagern
+# - Nicht benötigte Service-Includes löschen (nicht auskommentieren)
+###########################################################################
+
+- name: pb_setup_fail2ban_nftables.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+    - playbooks_paths.yml
+
+  vars:
+    # Hauptanwendung(en)
+    var_pack_name:
+      - fail2ban
+
+    # Abhängigkeiten
+    var_dependencies_list:
+      - nftables
+
+    # Voraussetzungen
+    var_prerequisites:
+
+    # Installationsreihenfolge (0 = erst Hauptanwendung, 1 = erst Dependencies)
+    var_inst_order: 1
+
+    # Zusätzliche Services
+    var_sonder_start: nftables
+    var_sonder_autostart:
+
+    # Nicht unterstützte OS
+    unsupported_systems:
+
+    # Playbook-Kontext für Template-Auswahl
+    templates_paths_pb: fail2ban
+
+    # Playbook-Log-Dokumentation (Template-Pfad)
+    pb_doku_template: fail2ban_doku
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden & setzen
+    ###########################################################################
+    - name: Lade alle Variablen-Dateien - pb_inst_fail2ban_nftables.yml
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop: "{{ var_files }}"
+
+    ###########################################################################
+    # Hook: Pre-Start (nach Variablen-Laden)
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start - pb_inst_fail2ban_nftables.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck & Prerequisites
+    ###########################################################################
+    - name: 🔄 Importiere Systemcheck - pb_inst_fail2ban_nftables.yml
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Importiere Systemcheck zwingend benötigter Komponenten - pb_inst_fail2ban_nftables.yml
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks
+    ###########################################################################
+    - name: 🔄 Importiere Paketmanager-Lock prüfen - pb_inst_fail2ban_nftables.yml
+      ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+    - name: 🔄 Importiere Debug ausgabe bei Playbook start - pb_inst_fail2ban_nftables.yml
+      ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+    ###########################################################################
+    # Playbook-spezifische Pre-Tasks
+    ###########################################################################
+    - name: 🔄 VPN-Variable setzen - pb_inst_fail2ban_nftables.yml
+      ansible.builtin.set_fact:
+        fire_vpn_enabled: "{{ vpn_enabled | default(false) }}"
+      when: allg_status == "aktiviert"
+
+    - name: 🔄 Importiere Trusted IPs - pb_inst_fail2ban_nftables.yml
+      ansible.builtin.include_tasks: "{{ task_paths.trusted_nftable }}"
+      when: allg_status == "aktiviert"
+
+    - name: 🔄 Importiere pre_task - pb_inst_fail2ban_nftables.yml
+      ansible.builtin.include_tasks: "{{ task_paths.fail2ban_pretask }}"
+      when: allg_status == "aktiviert"
+
+  tasks:
+    ###########################################################################
+    # HAUPTLOGIK - Installation
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Hook: Pre-Install (vor Installation)
+        ###########################################################################
+        - name: 🔧 Hook Pre-Install - pb_inst_fail2ban_nftables.yml
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        ###########################################################################
+        # Standard-Installation
+        ###########################################################################
+        - name: Komplette installation von var_pack_name und var_dependencies_list - pb_inst_fail2ban_nftables.yml
+          ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+        ###########################################################################
+        # Playbook-spezifische Konfiguration
+        ###########################################################################
+        - name: Ausführen der kompletten Konfiguration - pb_inst_fail2ban_nftables.yml
+          ansible.builtin.include_tasks: "{{ task_paths.fail2ban_task }}"
+
+        ###########################################################################
+        # Service-Management
+        ###########################################################################
+        - name: 🔄 Startet Hauptdienst - pb_inst_fail2ban_nftables.yml
+          ansible.builtin.include_tasks: "{{ include_paths.services_start }}"
+
+        - name: 🔄 Autostart aktivieren - pb_inst_fail2ban_nftables.yml
+          ansible.builtin.include_tasks: "{{ include_paths.services_autostart }}"
+
+        - name: 🔄 Spezielle Services starten - pb_inst_fail2ban_nftables.yml
+          ansible.builtin.include_tasks: "{{ include_paths.services_start_speziell }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # Deaktivierung
+    ###########################################################################
+    - block:
+        - name: 🔄 Dienste stoppen - pb_inst_fail2ban_nftables.yml
+          ansible.builtin.include_tasks: "{{ include_paths.services_stop }}"
+
+      when: allg_status == "deaktiviert"
+
+    ###########################################################################
+    # Deinstallation
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Standard-Deinstallation
+        ###########################################################################
+        - name: 🔄 Deinstallationsscript mit debug Ausgabe - pb_inst_fail2ban_nftables.yml
+          ansible.builtin.include_tasks: "{{ include_paths.deinstall_allg }}"
+
+        ###########################################################################
+        # Playbook-spezifische Deinstallation
+        ###########################################################################
+        - name: 🔄 Spezifische Deinstallation nftables - pb_inst_fail2ban_nftables.yml
+          ansible.builtin.include_tasks: "{{ task_paths.fail2ban_deinstall }}"
+
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # Hook: end (am Ende des Playbooks)
+    ###########################################################################
+    - name: 🔧 Hook End - pb_inst_fail2ban_nftables.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

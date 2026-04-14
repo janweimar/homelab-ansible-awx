@@ -1,0 +1,81 @@
+---
+# ============================================================
+# WIREGUARD SERVER - POST-TASK
+# ============================================================
+# Validierung und Informationen nach Installation
+# ============================================================
+
+# --------------------------------------------------------
+# Doku-Variablen sammeln
+# --------------------------------------------------------
+- name: WG Server – Sammle WireGuard Status für Doku
+  ansible.builtin.command: wg show
+  register: vpn_doku_status
+  changed_when: false
+  failed_when: false
+
+- name: WG Server – Sammle Interface Details für Doku
+  ansible.builtin.command: wg show wg0
+  register: vpn_doku_interface
+  changed_when: false
+  failed_when: false
+
+- name: WG Server – Prüfe IPv4 Forwarding für Doku
+  ansible.builtin.command: sysctl net.ipv4.ip_forward
+  register: vpn_doku_ipv4_forward
+  changed_when: false
+  failed_when: false
+
+- name: WG Server – Prüfe IPv6 Forwarding für Doku
+  ansible.builtin.command: sysctl net.ipv6.conf.all.forwarding
+  register: vpn_doku_ipv6_forward
+  changed_when: false
+  failed_when: false
+
+- name: WG Server – Lese nftables WireGuard Regeln für Doku
+  ansible.builtin.slurp:
+    src: /etc/nftables.d/30-wireguard.nft
+  register: vpn_doku_nft_rules
+  failed_when: false
+
+- name: WG Server – Sammle aktive nftables Konfiguration für Doku
+  ansible.builtin.shell: nft list ruleset | grep -A 20 "wireguard\|wg0" || echo "Keine WireGuard nftables Regeln gefunden"
+  register: vpn_doku_nft_active
+  changed_when: false
+  failed_when: false
+
+# --------------------------------------------------------
+# Zusammenfassung ausgeben
+# --------------------------------------------------------
+- name: WG Server – Zusammenfassung
+  ansible.builtin.debug:
+    msg: |
+      ✅ WireGuard VPN Server erfolgreich installiert!
+      
+      🔧 Server Konfiguration:
+         Interface:     {{ vpn_interface }}
+         Port:          {{ vpn_port }}/UDP
+         Server IP:     {{ vpn_server_ip }}
+         Subnet:        {{ vpn_subnet }}
+         Public Key:    {{ vpn_server_public_key }}
+      
+      👥 Konfigurierte Clients ({{ vpn_clients | length }}):
+      {% for client in vpn_clients %}
+         - {{ client.name }}
+           IP:         {{ client.vpn_ip }}
+           Host:       {{ client.ansible_host }}
+           Public Key: {{ client.public_key[:20] }}...
+      {% endfor %}
+      
+      🔥 Firewall:
+         Port {{ vpn_port }}/UDP: OFFEN (WAN)
+         NAT/Forwarding:          AKTIV
+      
+      🚀 Nächste Schritte:
+         1. Auf Clients: pb_setup_vpn_client.yml ausführen
+         2. Verbindung testen: ping {{ vpn_server_ip }}
+
+- name: WG Server – WireGuard Interface Details
+  ansible.builtin.debug:
+    var: vpn_doku_status.stdout_lines
+  when: vpn_doku_status.rc == 0

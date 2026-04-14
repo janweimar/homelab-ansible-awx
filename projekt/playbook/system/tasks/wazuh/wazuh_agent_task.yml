@@ -1,0 +1,92 @@
+---
+###########################################################################
+# 🔒 Wazuh Agent - Task (idempotent)
+# Ablauf: Stop → Config löschen → Config deployen → Start
+###########################################################################
+
+- name: Deaktiviere Wazuh APT-Repo - wazuh_agent_task.yml
+  ansible.builtin.shell:
+    cmd: "sed -i 's/^deb /#deb /' /etc/apt/sources.list.d/wazuh.list"
+  changed_when: false
+  failed_when: false
+
+###########################################################################
+# 1. STOP
+###########################################################################
+- name: Pruefe ob wazuh-agent laeuft - wazuh_agent_task.yml
+  ansible.builtin.command: /var/ossec/bin/wazuh-control status
+  register: _wazuh_agent_running
+  changed_when: false
+  failed_when: false
+
+- name: Stoppe wazuh-agent - wazuh_agent_task.yml
+  ansible.builtin.systemd:
+    name: wazuh-agent
+    state: stopped
+  when: _wazuh_agent_running.rc == 0
+  failed_when: false
+
+- name: Warte bis wazuh-agent gestoppt ist - wazuh_agent_task.yml
+  ansible.builtin.pause:
+    seconds: 3
+  when: _wazuh_agent_running.rc == 0
+
+###########################################################################
+# 2. CONFIG LOESCHEN
+###########################################################################
+- name: Sichere originale ossec.conf als Backup - wazuh_agent_task.yml
+  ansible.builtin.copy:
+    src: /var/ossec/etc/ossec.conf
+    dest: /var/ossec/etc/ossec.conf.bak
+    remote_src: true
+    mode: "0640"
+    owner: root
+    group: wazuh
+  failed_when: false
+
+- name: Loesche alte ossec.conf - wazuh_agent_task.yml
+  ansible.builtin.file:
+    path: /var/ossec/etc/ossec.conf
+    state: absent
+
+###########################################################################
+# 3. CONFIG DEPLOYEN
+###########################################################################
+- name: Deploye ossec_agent.conf.j2 nach /var/ossec/etc/ossec.conf - wazuh_agent_task.yml
+  ansible.builtin.template:
+    src: templates/ossec_agent.conf.j2
+    dest: /var/ossec/etc/ossec.conf
+    owner: root
+    group: wazuh
+    mode: "0640"
+
+###########################################################################
+# 4. START
+###########################################################################
+- name: Daemon reload - wazuh_agent_task.yml
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Starte wazuh-agent - wazuh_agent_task.yml
+  ansible.builtin.systemd:
+    name: wazuh-agent
+    state: started
+    enabled: true
+
+- name: Warte auf wazuh-agent Start - wazuh_agent_task.yml
+  ansible.builtin.pause:
+    seconds: 5
+
+- name: Pruefe wazuh-agent Status - wazuh_agent_task.yml
+  ansible.builtin.command: /var/ossec/bin/wazuh-control status
+  register: _wazuh_agent_status
+  changed_when: false
+  failed_when: false
+
+- name: 📊 Wazuh Agent Zusammenfassung - wazuh_agent_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ Wazuh Agent ossec.conf deployed!"
+      - "📋 FIM, Rootcheck, SCA, Syscollector, Log Collection aktiv"
+      - "🔗 Manager: {{ wazuh_manager_ip | default('10.200.0.20') }}"
+      - "📊 Status: {{ _wazuh_agent_status.stdout_lines | default(['unbekannt']) }}"

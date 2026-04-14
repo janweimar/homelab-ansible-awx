@@ -1,0 +1,6 @@
+- name: Debug Stop
+  ansible.builtin.debug:
+    msg: "Playbook wird hier bewusst abgebrochen!"
+- name: Playbook abbrechen
+  ansible.builtin.fail:
+    msg: "Debug‑Stop ausgelöst – Ende."

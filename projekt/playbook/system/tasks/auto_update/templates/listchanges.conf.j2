@@ -1,0 +1,11 @@
+[apt]
+# Verwaltet durch Ansible - pb_inst_conf_auto_update.yml
+# Aenderungen werden beim naechsten Playbook-Lauf ueberschrieben!
+
+# Changelogs per Mail versenden
+frontend=mail
+email_address={{ admin_email }}
+confirm=false
+save_seen=/var/lib/apt/listchanges.db
+which=both
+email_format=text

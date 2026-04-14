@@ -1,0 +1,152 @@
+---
+###########################################################################
+# 🌐 Modul 05 — Netzwerk & Konnektivität
+# =========================================================================
+# Zweck  : Netzwerkinterfaces, offene Ports, Firewall, Verbindungen
+# Liest  : ip, ss, nftables, iptables, /etc/resolv.conf
+# Schreibt in: netzwerk_results
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+# =========================================================================
+# Netzwerkkonfiguration
+# =========================================================================
+
+- name: "05 | Netzwerkinterfaces erfassen"
+  ansible.builtin.command: ip -o addr show
+  register: reg_interfaces
+  changed_when: false
+  failed_when: false
+
+- name: "05 | Routing-Tabelle erfassen"
+  ansible.builtin.command: ip route show
+  register: reg_routing
+  changed_when: false
+  failed_when: false
+
+- name: "05 | DNS-Konfiguration lesen"
+  ansible.builtin.command: cat /etc/resolv.conf
+  register: reg_dns
+  changed_when: false
+  failed_when: false
+
+- name: "05 | DNS-Auflösung testen"
+  ansible.builtin.command: "getent hosts google.com"
+  register: reg_dns_test
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Offene Ports
+# =========================================================================
+
+- name: "05 | Alle lauschenden TCP-Ports erfassen"
+  ansible.builtin.command: ss -tlnp
+  register: reg_tcp_ports
+  changed_when: false
+  failed_when: false
+
+- name: "05 | Alle lauschenden UDP-Ports erfassen"
+  ansible.builtin.command: ss -ulnp
+  register: reg_udp_ports
+  changed_when: false
+  failed_when: false
+
+- name: "05 | Aktive Verbindungen erfassen"
+  ansible.builtin.command: ss -tnp
+  register: reg_verbindungen
+  changed_when: false
+  failed_when: false
+
+- name: "05 | Ausgehende Verbindungen analysieren"
+  ansible.builtin.shell: ss -tnp | grep ESTAB | awk '{print $5, $6}' | sort -u
+  register: reg_ausgehende
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Firewall
+# =========================================================================
+
+- name: "05 | nftables Regeln erfassen (falls vorhanden)"
+  ansible.builtin.command: nft list ruleset
+  register: reg_nftables
+  changed_when: false
+  failed_when: false
+
+- name: "05 | iptables Regeln erfassen (falls vorhanden)"
+  ansible.builtin.command: iptables -L -n -v
+  register: reg_iptables
+  changed_when: false
+  failed_when: false
+
+- name: "05 | ufw Status prüfen (falls vorhanden)"
+  ansible.builtin.command: ufw status verbose
+  register: reg_ufw
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ergebnisse in Variable speichern
+# =========================================================================
+
+- name: "05 | Ergebnisse in netzwerk_results speichern"
+  ansible.builtin.set_fact:
+    netzwerk_results:
+      status: "{{ 'WARNUNG' if reg_dns_test.rc != 0 else 'OK' }}"
+      zusammenfassung:
+        ok: "{{ 1 if reg_dns_test.rc == 0 else 0 }}"
+        warnungen: "{{ 1 if reg_dns_test.rc != 0 else 0 }}"
+        fehler: 0
+      details:
+        - name: "Netzwerkinterfaces"
+          status: "OK"
+          wert: "{{ reg_interfaces.stdout_lines | length }} Interfaces gefunden"
+          hinweis: ""
+
+        - name: "DNS-Auflösung"
+          status: "{{ 'FEHLER' if reg_dns_test.rc != 0 else 'OK' }}"
+          wert: "{{ 'DNS funktioniert' if reg_dns_test.rc == 0 else 'DNS nicht erreichbar!' }}"
+          hinweis: "{{ 'DNS-Auflösung fehlgeschlagen — /etc/resolv.conf prüfen' if reg_dns_test.rc != 0 else '' }}"
+
+        - name: "Lauschende TCP-Ports"
+          status: "OK"
+          wert: "{{ reg_tcp_ports.stdout_lines | length - 1 }} TCP-Ports offen"
+          hinweis: ""
+
+        - name: "Lauschende UDP-Ports"
+          status: "OK"
+          wert: "{{ reg_udp_ports.stdout_lines | length - 1 }} UDP-Ports offen"
+          hinweis: ""
+
+        - name: "Aktive ausgehende Verbindungen"
+          status: "{{ 'WARNUNG' if reg_ausgehende.stdout_lines | length > 20 else 'OK' }}"
+          wert: "{{ reg_ausgehende.stdout_lines | length }} ausgehende Verbindungen"
+          hinweis: "{{ 'Viele ausgehende Verbindungen — bitte prüfen' if reg_ausgehende.stdout_lines | length > 20 else '' }}"
+
+        - name: "nftables"
+          status: "{{ 'OK' if reg_nftables.rc == 0 else 'INFO' }}"
+          wert: "{{ 'Regeln geladen' if reg_nftables.rc == 0 else 'nftables nicht aktiv' }}"
+          hinweis: ""
+
+        - name: "iptables"
+          status: "OK"
+          wert: "{{ 'Regeln vorhanden' if reg_iptables.rc == 0 else 'iptables nicht konfiguriert' }}"
+          hinweis: ""
+
+        - name: "ufw"
+          status: "OK"
+          wert: "{{ 'aktiv' if 'Status: active' in reg_ufw.stdout else 'inaktiv oder nicht installiert' }}"
+          hinweis: ""
+
+      interfaces: "{{ reg_interfaces.stdout_lines | default([]) }}"
+      routing: "{{ reg_routing.stdout_lines | default([]) }}"
+      dns: "{{ reg_dns.stdout_lines | default([]) }}"
+      tcp_ports: "{{ reg_tcp_ports.stdout_lines | default([]) }}"
+      udp_ports: "{{ reg_udp_ports.stdout_lines | default([]) }}"
+      ausgehende_verbindungen: "{{ reg_ausgehende.stdout_lines | default([]) }}"
+      nftables_regeln: "{{ reg_nftables.stdout_lines | default([]) }}"
+
+- name: "05 | ✅ Netzwerk-Analyse abgeschlossen"
+  ansible.builtin.debug:
+    msg: "Netzwerk erfasst — DNS: {{ 'OK' if reg_dns_test.rc == 0 else 'FEHLER' }} — Status: {{ netzwerk_results.status }}"

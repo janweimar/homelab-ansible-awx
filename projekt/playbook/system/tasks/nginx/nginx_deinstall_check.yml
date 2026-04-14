@@ -1,0 +1,68 @@
+---
+###########################################################################
+# nginx_deinstall_check.yml
+# Prueft ob nginx entfernt oder nur der eigene vHost deaktiviert werden soll
+###########################################################################
+# Logik:
+#   1. Alle nginx_dependencies ausser der eigenen App pruefen
+#   2. Wenn eine andere App noch aktiv (server_state aktiv) → nur vHost entfernen
+#   3. Wenn keine andere App aktiv → nginx komplett entfernen
+#
+# Erwartet:
+#   - _nginx_dep_app_name: Name der eigenen App (z.B. 'wazuh_manager')
+#   - nginx_dependencies aus nginx_dep.yml
+#   - ansible_local.server_state aus server_state.fact
+###########################################################################
+
+###########################################################################
+# 1. Pruefe ob andere nginx-abhaengige Apps noch aktiv sind
+###########################################################################
+- name: Pruefe nginx Abhaengigkeiten im server_state - nginx_deinstall_check.yml
+  ansible.builtin.set_fact:
+    _nginx_other_active: >-
+      {{ nginx_dependencies
+         | dict2items
+         | selectattr('key', '!=', _nginx_dep_app_name)
+         | selectattr('value.state_section', 'defined')
+         | map(attribute='value.state_section')
+         | select('in', (ansible_local.server_state | default({})).keys())
+         | list
+         | length > 0 }}
+
+- name: Info - andere nginx-Apps aktiv - nginx_deinstall_check.yml
+  ansible.builtin.debug:
+    msg: "ℹ️ Andere nginx-Apps noch aktiv — nur vHost wird entfernt, nginx bleibt!"
+  when: _nginx_other_active | bool
+
+- name: Info - keine anderen nginx-Apps aktiv - nginx_deinstall_check.yml
+  ansible.builtin.debug:
+    msg: "ℹ️ Keine anderen nginx-Apps aktiv — nginx wird komplett entfernt!"
+  when: not _nginx_other_active | bool
+
+###########################################################################
+# 2. Eigene vHost-Dateien aus sites-enabled entfernen (immer)
+###########################################################################
+- name: Entferne eigene vHost-Dateien aus sites-enabled - nginx_deinstall_check.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ item }}"
+    state: absent
+  loop: "{{ nginx_dependencies[_nginx_dep_app_name].vhost_files }}"
+  ignore_errors: true
+
+###########################################################################
+# 3. nginx komplett entfernen wenn keine anderen Apps aktiv
+###########################################################################
+- name: Entferne nginx komplett - nginx_deinstall_check.yml
+  ansible.builtin.apt:
+    name: "{{ packages.apt.nginx_deinstall[ansible_distribution][ansible_distribution_major_version] | map(attribute='name') | list }}"
+    state: absent
+    purge: true
+    autoremove: true
+  when: not _nginx_other_active | bool
+
+- name: Lade nginx neu wenn andere Apps noch aktiv - nginx_deinstall_check.yml
+  ansible.builtin.systemd:
+    name: nginx
+    state: reloaded
+  when: _nginx_other_active | bool
+  failed_when: false

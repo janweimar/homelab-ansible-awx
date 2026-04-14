@@ -1,0 +1,10 @@
+## Ollama Deployment Dokumentation
+
+**Datum:** {{ ansible_date_time.iso8601 }}
+**Server:** {{ ansible_host }} ({{ ansible_hostname }})
+**App:** {{ app_name }}
+**Deploy-Typ:** {{ app_deploy_type | default('docker') }}
+**DB:** {{ app_db_type | default('none') }}
+**Port:** {{ app_port | default('11434') }}
+**Domain:** {{ urls[ansible_host][app_name].domain | default('nicht konfiguriert') }}
+**Status:** {{ allg_status }}

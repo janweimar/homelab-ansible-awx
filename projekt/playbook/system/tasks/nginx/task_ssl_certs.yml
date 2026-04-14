@@ -1,0 +1,66 @@
+---
+###########################################################################
+# 🔐 SSL Zertifikate mit Let's Encrypt Certbot
+# Wiederverwendbar für nginx/Apache
+###########################################################################
+# Benötigte Variablen:
+#   domain_port_ssl_list: Liste der Domains
+#   admin_email: E-Mail für Let's Encrypt
+#
+# WICHTIG: Port 80 muss DAUERHAFT offen sein in:
+#   1. GeoIP Chain (geo_tab) — Let's Encrypt Server stehen in USA
+#   2. Firewall Chain (fire_tab in_chain) — Port 80 incoming
+#   Sonst schlägt auch certbot renew (Cronjob alle 90 Tage) fehl!
+###########################################################################
+
+- name: 📁 Webroot-Verzeichnis sicherstellen - task_ssl_certs.yml
+  ansible.builtin.file:
+    path: "{{ paths.webroot[ansible_os_family] }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+
+- name: 📝 Erstelle temporäre HTTP Blöcke für Certbot - task_ssl_certs.yml
+  ansible.builtin.template:
+    src: "{{ nginx_paths[ansible_host].vHost_certbot_temp }}"
+    dest: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ item.split('/')[0] }}_temp.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ domain_port_ssl_list }}"
+
+- name: 🔄 Restart nginx für Certbot - task_ssl_certs.yml
+  ansible.builtin.command: "{{ command.nginx_restart[ansible_os_family] }}"
+  changed_when: true
+
+- name: 🧪 Prüfe ob nginx läuft - task_ssl_certs.yml
+  ansible.builtin.command: "{{ command.nginx_test[ansible_os_family] }}"
+  register: _nginx_pre_certbot
+  changed_when: false
+
+- name: 📊 DEBUG nginx Status vor Certbot - task_ssl_certs.yml
+  ansible.builtin.debug:
+    msg: "{{ '✅ nginx läuft — starte Certbot' if _nginx_pre_certbot.rc == 0 else '❌ nginx Config fehlerhaft! Certbot wird vermutlich scheitern.' }}"
+
+- name: 🔐 Beantrage Let's Encrypt Zertifikate - task_ssl_certs.yml
+  ansible.builtin.command: >
+    {{ command.certbot_webroot[ansible_os_family] }}
+    -w {{ paths.webroot[ansible_os_family] }}
+    -d {{ item.split('/')[0] }}
+    --non-interactive
+    --agree-tos
+    --email "{{ admin_email }}"
+  loop: "{{ domain_port_ssl_list }}"
+  register: certbot_result
+  ignore_errors: yes
+
+- name: 📊 Zeige Certbot Ergebnisse - task_ssl_certs.yml
+  ansible.builtin.debug:
+    msg: "{{ certbot_result.results | map(attribute='stdout') | list }}"
+
+- name: 🗑️ Entferne temporäre Certbot Configs - task_ssl_certs.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ item.split('/')[0] }}_temp.conf"
+    state: absent
+  loop: "{{ domain_port_ssl_list }}"

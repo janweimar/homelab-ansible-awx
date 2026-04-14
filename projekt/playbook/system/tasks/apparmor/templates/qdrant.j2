@@ -1,0 +1,50 @@
+# AppArmor Profile für Qdrant
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/bin/qdrant {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  
+  # Capabilities
+  capability dac_override,
+  capability setuid,
+  capability setgid,
+  capability net_bind_service,
+  
+  # Netzwerk
+  network inet stream,
+  network inet6 stream,
+  network unix stream,
+  
+  # Qdrant Binary
+  /usr/bin/qdrant mr,
+  
+  # Data Storage
+  /var/lib/qdrant/** rw,
+  /opt/qdrant/** rw,
+  
+  # Config
+  /etc/qdrant/** r,
+  
+  # Snapshots/Backups
+  /var/backups/qdrant/** rw,
+  
+  # Logs
+  /var/log/qdrant/** w,
+  
+  # Runtime
+  /run/qdrant/** rw,
+  
+  # Temp
+  /tmp/** rw,
+  
+  # Proc
+  @{PROC}/** r,
+  
+  # Sys
+  /sys/** r,
+}

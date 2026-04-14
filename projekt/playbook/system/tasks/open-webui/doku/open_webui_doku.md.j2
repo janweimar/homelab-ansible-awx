@@ -1,0 +1,12 @@
+## Open WebUI Deployment Dokumentation
+
+**Datum:** {{ ansible_date_time.iso8601 }}
+**Server:** {{ ansible_host }} ({{ ansible_hostname }})
+**App:** {{ app_name }}
+**Deploy-Typ:** {{ app_deploy_type | default('docker') }}
+**DB:** SQLite (intern)
+**Port:** {{ app_port | default('8080') }}
+**Domain:** {{ urls[ansible_host][app_name].domain | default('nicht konfiguriert') }}
+**Ollama:** http://ollama-service.ollama.svc.cluster.local:11434
+**Externe Datenquellen:** Qdrant + MariaDB (cluster-intern)
+**Status:** {{ allg_status }}

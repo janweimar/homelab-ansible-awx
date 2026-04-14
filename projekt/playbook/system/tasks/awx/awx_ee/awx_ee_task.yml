@@ -1,0 +1,246 @@
+---
+###########################################################################
+# AWX Execution Environment Hauptkonfiguration - awx_ee_task.yml
+# Docker Registry + nginx + EE-Image bauen und optional pushen
+# Registry-URL wird aus os_urls.yml geladen (server_urls.awx_ee.registry)
+###########################################################################
+
+# ============================================================
+# INSECURE REGISTRY - bei HTTP (kein SSL) Docker daemon.json anpassen
+# Muss VOR dem Registry-Container kommen, da Docker-Restart
+# ============================================================
+- block:
+    - name: Setze insecure_registries fuer HTTP-Modus - awx_ee_task.yml
+      ansible.builtin.set_fact:
+        insecure_registries:
+          - "{{ server_urls.awx_ee.registry }}"
+
+    - name: Docker daemon.json mit insecure-registry aktualisieren - awx_ee_task.yml
+      ansible.builtin.include_tasks: "{{ task_paths.docker_install }}"
+  when:
+    - not (server_ssl | bool)
+    - container_runtime == 'docker'
+
+# ============================================================
+# DOCKER REGISTRY - Container starten (nach daemon.json!)
+# ============================================================
+- block:
+    - name: Registry-Verzeichnis anlegen - awx_ee_task.yml
+      ansible.builtin.file:
+        path: "{{ paths.registry_base[ansible_os_family] }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Docker Registry Container stoppen falls vorhanden - awx_ee_task.yml
+      ansible.builtin.command: docker rm -f registry
+      failed_when: false
+      changed_when: false
+
+    - name: Docker Registry Container erstellen und starten - awx_ee_task.yml
+      ansible.builtin.command: >-
+        docker run -d
+        --name registry
+        --restart always
+        -p 127.0.0.1:{{ server_urls.awx_ee.port }}:5000
+        -v {{ paths.registry_base[ansible_os_family] }}:/var/lib/registry
+        -e REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY=/var/lib/registry
+        registry:2
+      changed_when: true
+  when: container_runtime == 'docker'
+
+# ============================================================
+# NGINX - vHost fuer Docker Registry (Read-Only)
+# ============================================================
+- name: nginx vHost fuer Docker Registry konfigurieren - awx_ee_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.nginx_configure }}"
+  vars:
+    domain_port: "{{ server_urls.awx_ee.domain }}/{{ server_urls.awx_ee.port }}"
+    domain_port_ssl: "{{ server_urls.awx_ee.domain }}/{{ server_urls.awx_ee.port }}"
+    admin_email: "{{ urls[ansible_host].admin_email }}"
+    nginx_ssl: "{{ server_ssl }}"
+    nginx_modsecurity: "{{ nginx_modsecurity }}"
+
+# ============================================================
+# NGINX - Default-Seiten loeschen + vHosts selbst deployen
+# ============================================================
+- name: nginx Default-Seiten loeschen - awx_ee_task.yml
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/default"
+    - "{{ paths.nginx_conf_dir[ansible_os_family] }}/sites-available/default"
+    - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/default.conf"
+  ignore_errors: true
+
+# --- HTTP-Modus (server_ssl: false) -> nur Port 80 ---
+- name: HTTP vHost deployen - awx_ee_task.yml
+  ansible.builtin.template:
+    src: "{{ nginx_paths[ansible_host].awx_ee[80].vHost_80 }}"
+    dest: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.awx_ee.domain }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  when: not (server_ssl | bool)
+
+# --- HTTPS-Modus (server_ssl: true) -> Port 80 Redirect + Port 443 ---
+- block:
+    - name: HTTPS Redirect vHost deployen (Port 80) - awx_ee_task.yml
+      ansible.builtin.template:
+        src: "{{ nginx_paths[ansible_host].awx_ee[443].vHost_80 }}"
+        dest: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.awx_ee.domain }}.conf"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: HTTPS vHost deployen (Port 443) - awx_ee_task.yml
+      ansible.builtin.template:
+        src: "{{ nginx_paths[ansible_host].awx_ee[443].vHost_443 }}"
+        dest: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.awx_ee.domain }}_ssl.conf"
+        owner: root
+        group: root
+        mode: "0644"
+  when: server_ssl | bool
+
+- name: Teste nginx Konfiguration nach vHost Deploy - awx_ee_task.yml
+  ansible.builtin.command: "{{ command.nginx_test[ansible_os_family] }}"
+  changed_when: false
+
+- name: Restart nginx nach vHost Deploy - awx_ee_task.yml
+  ansible.builtin.command: "{{ command.nginx_restart[ansible_os_family] }}"
+  changed_when: true
+
+# ============================================================
+# CLEANUP - Altes Image loeschen (immer neu bauen)
+# ============================================================
+- name: Pruefe ob altes EE Image existiert - awx_ee_task.yml
+  ansible.builtin.command: >-
+    {{ container_runtime }} image inspect
+    {{ server_urls.awx_ee.registry }}/{{ ee_image_name }}:{{ ee_image_tag }}
+  register: old_image_check
+  changed_when: false
+  failed_when: false
+
+- name: Altes EE Image loeschen - awx_ee_task.yml
+  ansible.builtin.command: >-
+    {{ container_runtime }} rmi
+    {{ server_urls.awx_ee.registry }}/{{ ee_image_name }}:{{ ee_image_tag }}
+  when: old_image_check.rc == 0
+  changed_when: true
+
+- name: Build-Cache loeschen - awx_ee_task.yml
+  ansible.builtin.command: >-
+    {{ container_runtime }} builder prune -f
+  changed_when: true
+
+# ============================================================
+# BUILD - Phase 1: Context generieren (ansible-builder create)
+# ============================================================
+- name: Build-Context generieren - awx_ee_task.yml
+  ansible.builtin.command: >
+    ansible-builder create
+    --file execution-environment.yml
+    --verbosity 3
+  args:
+    chdir: "{{ paths.awx_ee_build_dir[ansible_os_family] }}"
+  register: create_result
+  changed_when: true
+
+- name: Abbruch bei Context-Fehler - awx_ee_task.yml
+  ansible.builtin.fail:
+    msg: "ansible-builder create fehlgeschlagen! {{ create_result.stderr }}"
+  when: create_result.rc != 0
+
+# ============================================================
+# BUILD - Phase 2: Image bauen mit --network=host
+# Nutzt Host-DNS, funktioniert mit Docker und Podman
+# ============================================================
+- name: EE Image bauen mit --network=host (kann 10-20 Minuten dauern!) - awx_ee_task.yml
+  ansible.builtin.command: >
+    {{ container_runtime }} build
+    --network=host
+    -f context/Dockerfile
+    -t {{ server_urls.awx_ee.registry }}/{{ ee_image_name }}:{{ ee_image_tag }}
+    context
+  args:
+    chdir: "{{ paths.awx_ee_build_dir[ansible_os_family] }}"
+  register: build_result
+  changed_when: "'Successfully tagged' in build_result.stdout or 'Created image' in build_result.stdout or build_result.rc == 0"
+  async: 3600
+  poll: 30
+
+- name: Build-Log bei Fehler anzeigen - awx_ee_task.yml
+  ansible.builtin.debug:
+    msg: "{{ build_result.stdout_lines + build_result.stderr_lines }}"
+  when: build_result.rc != 0
+
+- name: Abbruch bei Build-Fehler - awx_ee_task.yml
+  ansible.builtin.fail:
+    msg: "EE Image Build fehlgeschlagen! Siehe Log oben."
+  when: build_result.rc != 0
+
+# ============================================================
+# VERIFY - Image pruefen
+# ============================================================
+- name: Pruefe ob EE Image vorhanden ist - awx_ee_task.yml
+  ansible.builtin.command: >
+    {{ container_runtime }} image inspect {{ server_urls.awx_ee.registry }}/{{ ee_image_name }}:{{ ee_image_tag }}
+  register: image_check
+  changed_when: false
+  failed_when: false
+
+- name: Abbruch wenn Image nicht gefunden - awx_ee_task.yml
+  ansible.builtin.fail:
+    msg: "EE Image wurde nicht gefunden nach dem Build!"
+  when: image_check.rc != 0
+
+- name: Image-Groesse ermitteln - awx_ee_task.yml
+  ansible.builtin.command: >
+    {{ container_runtime }} image ls {{ server_urls.awx_ee.registry }}/{{ ee_image_name }}:{{ ee_image_tag }} --format "{{ '{{' }}.Size{{ '}}' }}"
+  register: image_size
+  changed_when: false
+
+# ============================================================
+# PUSH - Image zur lokalen Registry (ueber localhost, nicht nginx)
+# nginx ist Read-Only (GET/HEAD) - Push muss direkt auf den Container
+# ============================================================
+- block:
+    - name: Image fuer lokalen Push taggen - awx_ee_task.yml
+      ansible.builtin.command: >
+        {{ container_runtime }} tag
+        {{ server_urls.awx_ee.registry }}/{{ ee_image_name }}:{{ ee_image_tag }}
+        127.0.0.1:{{ server_urls.awx_ee.port }}/{{ ee_image_name }}:{{ ee_image_tag }}
+      changed_when: true
+
+    - name: EE Image zur lokalen Registry pushen - awx_ee_task.yml
+      ansible.builtin.command: >
+        {{ container_runtime }} push 127.0.0.1:{{ server_urls.awx_ee.port }}/{{ ee_image_name }}:{{ ee_image_tag }}
+      register: push_result
+      changed_when: "'Pushed' in push_result.stdout or 'digest:' in push_result.stdout"
+
+    - name: Push-Status - awx_ee_task.yml
+      ansible.builtin.debug:
+        msg:
+          - "EE Image zur Registry gepusht!"
+          - "Lokal: 127.0.0.1:{{ server_urls.awx_ee.port }}/{{ ee_image_name }}:{{ ee_image_tag }}"
+          - "Pull:  {{ server_urls.awx_ee.registry }}/{{ ee_image_name }}:{{ ee_image_tag }}"
+
+  when: push_to_registry | bool
+
+# ============================================================
+# ZUSAMMENFASSUNG
+# ============================================================
+- name: EE Build-Zusammenfassung - awx_ee_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "AWX Execution Environment erfolgreich gebaut!"
+      - ""
+      - "Image: {{ server_urls.awx_ee.registry }}/{{ ee_image_name }}:{{ ee_image_tag }}"
+      - "Groesse: {{ image_size.stdout }}"
+      - "Runtime: {{ container_runtime }}"
+      - "Registry Push: {{ 'Ja' if (push_to_registry | bool) else 'Nein (nur lokal)' }}"
+      - ""
+      - "Verwendung in AWX:"
+      - "  Image: {{ server_urls.awx_ee.registry }}/{{ ee_image_name }}:{{ ee_image_tag }}"

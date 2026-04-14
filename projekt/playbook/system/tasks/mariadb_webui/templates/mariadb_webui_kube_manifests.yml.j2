@@ -1,0 +1,77 @@
+---
+###########################################################################
+# Adminer WebUI Kubernetes Manifest
+# DB kommt aus Common Task (db_deploy.yml) — NICHT hier!
+# Hier nur die Adminer Web-Oberfläche
+###########################################################################
+{% set _port = (app_port | default('', true) | string | trim) or '8080' %}
+{% set _db_host = app_name + '-db' %}
+{% set _db_user = app_name | replace('-', '_') %}
+{% set _db_name = app_name | replace('-', '_') %}
+
+# Adminer Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ app_name }}
+  namespace: {{ app_name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ app_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}
+    spec:
+      containers:
+        - name: adminer
+          image: adminer:latest
+{% if app_no_update | default(false) | bool %}
+          imagePullPolicy: IfNotPresent
+{% endif %}
+          ports:
+            - containerPort: {{ _port | int }}
+          env:
+            - name: ADMINER_DEFAULT_SERVER
+              value: "{{ _db_host }}"
+            - name: ADMINER_DESIGN
+              value: "dracula"
+          resources:
+            requests:
+              memory: "{{ app_resources[app_name].memory_request }}"
+              cpu: "{{ app_resources[app_name].cpu_request }}"
+            limits:
+              memory: "{{ app_resources[app_name].memory_limit }}"
+              cpu: "{{ app_resources[app_name].cpu_limit }}"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ _port | int }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ _port | int }}
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 5
+---
+# Adminer Service (NodePort)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ app_name }}-service
+  namespace: {{ app_name }}
+spec:
+  type: NodePort
+  selector:
+    app: {{ app_name }}
+  ports:
+    - port: {{ _port | int }}
+      targetPort: {{ _port | int }}

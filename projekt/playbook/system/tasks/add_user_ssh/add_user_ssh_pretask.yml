@@ -1,0 +1,92 @@
+---
+###########################################################################
+# Pre-Tasks für User & SSH Konfiguration
+# Wird vor der Hauptkonfiguration ausgeführt
+###########################################################################
+
+###########################################################################
+# 1. System-Update durchführen
+###########################################################################
+- name: 🔄 System Update durchführen
+  ansible.builtin.include_tasks: "{{ include_paths.repos_update_aktualisieren }}"
+  when: update_system | default(true) | bool
+
+###########################################################################
+# 2. Validierung der Variablen
+###########################################################################
+- name: ✅ Prüfe ob add_user_sudo definiert ist
+  ansible.builtin.fail:
+    msg: "Variable 'add_user_sudo' muss definiert sein!"
+  when: add_user_sudo is not defined or add_user_sudo | length == 0
+
+- name: ✅ Prüfe ob new_user_password definiert ist
+  ansible.builtin.fail:
+    msg: "Variable 'new_user_password' muss definiert sein!"
+  when: new_user_password is not defined or new_user_password | length == 0
+
+- name: ✅ Prüfe ob Server-IP in file_paths definiert ist
+  ansible.builtin.fail:
+    msg: "Server IP {{ ansible_default_ipv4.address }} ist nicht in file_paths.ssh_pub_key definiert!"
+  when: ansible_default_ipv4.address not in file_paths.ssh_pub_key
+
+- name: ✅ Prüfe ob add_user_sudo in file_paths definiert ist
+  ansible.builtin.fail:
+    msg: "User {{ add_user_sudo }} ist nicht in file_paths.ssh_pub_key definiert!"
+  when: add_user_sudo is not defined or add_user_sudo | length == 0
+
+- name: ✅ Prüfe ob SSH Public Key Datei existiert
+  ansible.builtin.stat:
+    path: "{{ file_paths.ssh_pub_key[ansible_default_ipv4.address][add_user_sudo] }}"
+  delegate_to: localhost
+  become: false # ← WICHTIG: Kein sudo auf localhost!
+  register: ssh_key_file_check
+  failed_when: not ssh_key_file_check.stat.exists
+
+###########################################################################
+# 3. Backup der aktuellen SSH-Config erstellen
+###########################################################################
+- name: 📁 Erstelle Backup-Ordner für SSH-Config
+  ansible.builtin.file:
+    path: "{{ paths.ssh.backup_dir[ansible_os_family] }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: 💾 Erstelle Backup der aktuellen sshd_config
+  ansible.builtin.copy:
+    src: "{{ paths.ssh.config[ansible_os_family] }}"
+    dest: "{{ paths.ssh.backup_dir[ansible_os_family] }}/sshd_config.backup-{{ ansible_date_time.iso8601_basic_short }}"
+    remote_src: true
+    mode: "0600"
+  ignore_errors: true
+
+###########################################################################
+# 4. Vars Bearbeiten
+###########################################################################
+- name: Benutzernamen für die spezifische IP-Adresse extrahieren
+  set_fact:
+    extracted_users: "{{ file_paths.ssh_pub_key[ansible_default_ipv4.address].keys() | list }}"
+
+- name: allow_users_whitelist aus Credentials als Liste vorbereiten
+  set_fact:
+    allow_users_whitelist_processed: >-
+      {%- if allow_users_whitelist is string and allow_users_whitelist | length > 0 -%}
+        {%- if "," in allow_users_whitelist -%}
+          {{ allow_users_whitelist.split(",") | map("trim") | select("ne", "") | list }}
+        {%- else -%}
+          {{ [allow_users_whitelist | trim] | select("ne", "") | list }}
+        {%- endif -%}
+      {%- elif allow_users_whitelist is iterable and not (allow_users_whitelist is string) -%}
+        {{ allow_users_whitelist | map("trim") | select("ne", "") | list }}
+      {%- else -%}
+        []
+      {%- endif -%}
+
+- name: Extrahierte Benutzer und Whitelist zusammenführen und Duplikate entfernen
+  set_fact:
+    allow_users_ssh: "{{ (extracted_users + allow_users_whitelist_processed) | unique | list }}"
+
+- name: Final zusammengeführte Benutzer anzeigen
+  debug:
+    var: allow_users_ssh

@@ -1,0 +1,80 @@
+---
+###########################################################################
+# 📝 app_deploy_state_write.yml
+# Block in Facts schreiben + Manifest sicherstellen
+###########################################################################
+# Wird bei aktiviert + deaktiviert aufgerufen (NICHT bei deinstalliert)
+#
+# 1. _manifest_file Variable setzen
+# 2. Pruefen ob Manifest-Datei existiert
+# 3. Wenn nicht: Template rendern + kubectl apply
+#
+# Benoetigte Variablen:
+#   app_name, _app_base_name, kube_user, _is_kubernetes,
+#   task_paths (fuer Template-Pfad)
+#
+# Hinweis: Der Block wird ueber hook_end_pb → write_server_state.yml
+#          geschrieben. Dieser Task stellt nur sicher dass das Manifest
+#          existiert NACHDEM der Block in den Facts steht.
+###########################################################################
+
+# ============================================================
+# 1) Manifest-Dateiname fuer Facts setzen
+# ============================================================
+- name: 📝 Setze _manifest_file - app_deploy_state_write.yml
+  ansible.builtin.set_fact:
+    _manifest_file: "{{ app_name }}_app.yaml"
+
+# ============================================================
+# 2) Pruefen ob Manifest existiert (nur K8s)
+# ============================================================
+- block:
+    - name: 🔍 Pruefe ob Manifest existiert - app_deploy_state_write.yml
+      ansible.builtin.stat:
+        path: "/home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml"
+      register: _manifest_exists
+      become_user: "{{ kube_user }}"
+
+    - name: 📊 DEBUG Manifest-Status - app_deploy_state_write.yml
+      ansible.builtin.debug:
+        msg: "{{ '✅ Manifest vorhanden: ' + app_name + '_app.yaml' if _manifest_exists.stat.exists else '⚠️ Manifest fehlt: ' + app_name + '_app.yaml — wird neu erstellt!' }}"
+
+    # ============================================================
+    # 3) Manifest neu erstellen wenn es fehlt
+    # ============================================================
+    - block:
+        - name: 📁 Manifests-Verzeichnis sicherstellen - app_deploy_state_write.yml
+          ansible.builtin.file:
+            path: "/home/{{ kube_user }}/manifests"
+            state: directory
+            owner: "{{ kube_user }}"
+            group: "{{ kube_user }}"
+            mode: "0755"
+
+        - name: 📝 Manifest aus Template rendern - app_deploy_state_write.yml
+          ansible.builtin.template:
+            src: "{{ task_paths[_app_base_name + '_kube_manifests'] }}"
+            dest: "/home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml"
+            owner: "{{ kube_user }}"
+            group: "{{ kube_user }}"
+            mode: "0644"
+
+        - name: 🚀 Manifest anwenden - app_deploy_state_write.yml
+          ansible.builtin.command: >
+            kubectl apply -f /home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml
+          become_user: "{{ kube_user }}"
+          environment:
+            HOME: "/home/{{ kube_user }}"
+            KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+          register: _manifest_apply
+          changed_when: "'created' in _manifest_apply.stdout or 'configured' in _manifest_apply.stdout"
+
+        - name: 📊 DEBUG Manifest neu erstellt - app_deploy_state_write.yml
+          ansible.builtin.debug:
+            msg:
+              - "✅ Manifest {{ app_name }}_app.yaml neu erstellt und angewendet"
+              - "{{ _manifest_apply.stdout_lines | default([]) }}"
+
+      when: not _manifest_exists.stat.exists
+
+  when: _is_kubernetes | bool

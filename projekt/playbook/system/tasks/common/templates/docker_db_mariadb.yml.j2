@@ -1,0 +1,29 @@
+---
+###########################################################################
+# MariaDB Docker-Compose (wiederverwendbar)
+# Variablen: app_name, app_db_password
+###########################################################################
+
+services:
+  {{ app_name }}-db:
+    image: mariadb:11
+    container_name: {{ app_name }}-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: "{{ app_db_password }}"
+      MARIADB_DATABASE: "{{ app_name }}"
+      MARIADB_USER: "{{ app_name }}"
+      MARIADB_PASSWORD: "{{ app_db_password }}"
+    volumes:
+      - {{ app_name }}-db-data:/var/lib/mysql
+    ports:
+      - "127.0.0.1:3306:3306"
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p{{ app_db_password }}"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  {{ app_name }}-db-data:

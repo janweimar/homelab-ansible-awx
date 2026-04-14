@@ -1,0 +1,13 @@
+# {{ item.split('/')[0] }} - Temporär für Let's Encrypt Validation
+
+server {
+    listen 80;
+    server_name {{ item.split('/')[0] }};
+
+    # ModSecurity AUS für Certbot (ACME Challenge darf nicht blockiert werden)
+    modsecurity off;
+
+    location /.well-known/acme-challenge/ {
+        root {{ paths.webroot[ansible_os_family] }};
+    }
+}

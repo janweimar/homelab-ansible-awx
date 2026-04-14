@@ -1,0 +1,100 @@
+---
+###########################################################################
+# 🗑️ awx_deinstall.yml
+# AWX vollständig deinstallieren (Kubernetes)
+###########################################################################
+
+# AWX Instance löschen (Operator räumt DB + Pods auf)
+- name: 🗑️ AWX Instance löschen - awx_deinstall.yml
+  ansible.builtin.command: kubectl delete awx --all -n {{ app_name }}
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  failed_when: false
+  changed_when: true
+
+# Helm Release entfernen (falls von alter Installation vorhanden)
+- name: 🗑️ Helm Release entfernen (falls vorhanden) - awx_deinstall.yml
+  ansible.builtin.command: helm uninstall {{ app_name }}-operator -n {{ app_name }}
+  environment:
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  failed_when: false
+  changed_when: true
+
+# Kustomize-Ressourcen entfernen
+- name: 🔍 Prüfe ob Kustomize-Verzeichnis existiert - awx_deinstall.yml
+  ansible.builtin.stat:
+    path: "/home/{{ kube_user }}/awx-deployment/kustomization.yml"
+  register: _kustomize_dir
+
+- name: 🗑️ Kustomize-Ressourcen entfernen - awx_deinstall.yml
+  ansible.builtin.command: kubectl delete -k /home/{{ kube_user }}/awx-deployment/
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  failed_when: false
+  changed_when: true
+  when: _kustomize_dir.stat.exists | default(false)
+
+# Alle verbleibenden Ressourcen im Namespace löschen
+- name: 🗑️ Alle Ressourcen löschen - awx_deinstall.yml
+  ansible.builtin.command: kubectl delete all --all -n {{ app_name }}
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  failed_when: false
+  changed_when: true
+
+- name: 🗑️ PVCs löschen - awx_deinstall.yml
+  ansible.builtin.command: kubectl delete pvc --all -n {{ app_name }}
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  failed_when: false
+  changed_when: true
+
+- name: 🗑️ Namespace löschen - awx_deinstall.yml
+  ansible.builtin.command: kubectl delete namespace {{ app_name }}
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  failed_when: false
+  changed_when: true
+
+# Lokale Dateien aufräumen
+- name: 🗑️ Kustomize-Verzeichnis entfernen - awx_deinstall.yml
+  ansible.builtin.file:
+    path: "/home/{{ kube_user }}/awx-deployment"
+    state: absent
+
+- name: 🗑️ Manifest-Datei entfernen - awx_deinstall.yml
+  ansible.builtin.file:
+    path: "/home/{{ kube_user }}/manifests/{{ app_name }}_instance.yaml"
+    state: absent
+
+# nginx vHost entfernen (Domain + VPN)
+- name: 🗑️ Entferne nginx Domain vHost - awx_deinstall.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ urls[ansible_host][_app_base_name | default(app_name)].domain | default('') }}.conf"
+    state: absent
+  failed_when: false
+  when: urls[ansible_host][_app_base_name | default(app_name)].domain | default('') | length > 0
+
+- name: 🗑️ Entferne nginx VPN vHost - awx_deinstall.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ app_name }}_vpn.conf"
+    state: absent
+  failed_when: false
+
+- name: 🔄 Restart nginx - awx_deinstall.yml
+  ansible.builtin.command: "{{ command.nginx_restart[ansible_os_family] }}"
+  failed_when: false
+
+- name: 📊 DEBUG Deinstallation abgeschlossen - awx_deinstall.yml
+  ansible.builtin.debug:
+    msg: "🗑️ {{ app_name }} vollständig deinstalliert"

@@ -1,0 +1,28 @@
+# FIREWALL NFTABLES - SYSTEM KONFIGURATION
+
+## 🔥 DEPLOYED FIREWALL-REGELN
+
+### Konfigurierte Ports
+- **INCOMING Ports**: {{ in_ports | default('keine') }}
+- **OUTGOING Ports**: {{ out_ports | default('keine') }}
+- **FORWARD Ports**: {{ for_ports | default('keine') }}
+
+### Policies
+- **INPUT**: {{ fire_policy_input | default('drop') }}
+- **OUTPUT**: {{ fire_policy_output | default('accept') }}
+- **FORWARD**: {{ fire_policy_forward | default('drop') }}
+
+### Rollback-Schutz
+- **Rollback Timer**: {{ rollback_timeout | default('nicht gesetzt') }}
+
+---
+
+## 📜 AKTIVES RULESET
+
+```
+{{ nftables_table_output | default('Keine Ausgabe verfügbar') }}
+```
+
+---
+
+**Status:** ✅ Firewall nftables erfolgreich konfiguriert

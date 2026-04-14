@@ -1,0 +1,335 @@
+---
+###########################################################################
+# Audit Hauptkonfiguration
+###########################################################################
+
+###########################################################################
+# 📝 Audit-Regeln verwalten (dynamisch aus paths.audit_rules)
+###########################################################################
+- name: 📝 Audit-Regeln verwalten
+  block:
+    - name: 📄 Zielpfad je OS dynamisch setzen
+      ansible.builtin.set_fact:
+        audit_rules_target: "{{ paths.audit_rules[ansible_facts.os_family] | default('') }}"
+
+    - name: 🧪 Debug - Zielpfad gesetzt
+      ansible.builtin.debug:
+        msg: |
+          OS-Family: {{ ansible_facts.os_family }}
+          Zielpfad: {{ audit_rules_target }}
+
+    ###################################################################
+    # 1️⃣ AUDIT-REGELN DIREKT ALS LISTE VERWENDEN (KEIN >- !)
+    ###################################################################
+    - name: 🔍 Setze Audit-Regeln-Liste
+      when: audit_rules_target | length > 0
+      ansible.builtin.set_fact:
+        audit_rules_list: "{{ rules.audit[ansible_default_ipv4.address][ansible_facts.os_family] | default([]) }}"
+
+    - name: 🧪 Debug - Audit-Regeln (erste 10)
+      when:
+        - audit_rules_target | length > 0
+        - audit_rules_list is defined
+      ansible.builtin.debug:
+        msg: |
+          Audit-Regeln für {{ ansible_default_ipv4.address }} / {{ ansible_facts.os_family }}:
+          Anzahl: {{ audit_rules_list | length }}
+          
+          Erste 10 Regeln:
+          {% for rule in audit_rules_list[:10] %}
+          {{ loop.index }}. {{ rule }}
+          {% endfor %}
+
+    ###################################################################
+    # 2️⃣ NUR -w REGELN FILTERN (KEIN >- !)
+    ###################################################################
+    - name: 🔍 Filtere nur -w Regeln
+      when: 
+        - audit_rules_target | length > 0
+        - audit_rules_list is defined
+      ansible.builtin.set_fact:
+        audit_watch_rules: "{{ audit_rules_list | select('match', '^-w\\s+.*') | list }}"
+
+    - name: 🧪 Debug - Gefilterte -w Regeln (erste 10)
+      when:
+        - audit_rules_target | length > 0
+        - audit_watch_rules is defined
+      ansible.builtin.debug:
+        msg: |
+          -w Regeln gefunden: {{ audit_watch_rules | length }} Stück
+          
+          Erste 10:
+          {% for rule in audit_watch_rules[:10] %}
+          {{ loop.index }}. {{ rule }}
+          {% endfor %}
+
+    ###################################################################
+    # 3️⃣ PFADE AUS -w REGELN EXTRAHIEREN (KEIN >- !)
+    ###################################################################
+    - name: 🔍 Extrahiere Pfade aus -w Regeln
+      when: 
+        - audit_rules_target | length > 0
+        - audit_watch_rules is defined
+        - audit_watch_rules | length > 0
+      ansible.builtin.set_fact:
+        audit_watch_paths: "{{ audit_watch_rules | map('regex_replace', '^-w\\s+(\\S+)\\s+.*$', '\\1') | list | unique }}"
+
+    - name: 🧪 Debug - Extrahierte Pfade
+      when:
+        - audit_rules_target | length > 0
+        - audit_watch_paths is defined
+      ansible.builtin.debug:
+        msg: |
+          Gefundene Pfade: {{ audit_watch_paths | length }} Stück
+          
+          Alle Pfade:
+          {% for path in audit_watch_paths %}
+          - {{ path }}
+          {% endfor %}
+
+    ###################################################################
+    # 4️⃣ VERZEICHNISSE ANLEGEN
+    ###################################################################
+    - name: 📁 Erstelle überwachte Verzeichnisse (endend mit /)
+      when:
+        - audit_rules_target | length > 0
+        - audit_watch_paths is defined
+        - audit_watch_paths | length > 0
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ audit_watch_paths | select('match', '.*/$') | list }}"
+      ignore_errors: yes
+      register: create_dirs_result
+
+    - name: 🧪 Debug - Verzeichnisse angelegt
+      when:
+        - audit_rules_target | length > 0
+        - create_dirs_result is defined
+        - create_dirs_result.results is defined
+      ansible.builtin.debug:
+        msg: |
+          Verzeichnisse angelegt: {{ create_dirs_result.results | length }} Stück
+
+    - name: 📁 Erstelle Parent-Verzeichnisse für Dateien
+      when:
+        - audit_rules_target | length > 0
+        - audit_watch_paths is defined
+        - audit_watch_paths | length > 0
+      ansible.builtin.file:
+        path: "{{ item | dirname }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ audit_watch_paths | reject('match', '.*/$') | list }}"
+      ignore_errors: yes
+      register: create_parent_dirs_result
+
+    - name: 🧪 Debug - Parent-Verzeichnisse angelegt
+      when:
+        - audit_rules_target | length > 0
+        - create_parent_dirs_result is defined
+        - create_parent_dirs_result.results is defined
+      ansible.builtin.debug:
+        msg: |
+          Parent-Verzeichnisse angelegt: {{ create_parent_dirs_result.results | length }} Stück
+
+    ###################################################################
+    # 5️⃣ DATEIEN ANLEGEN (leer)
+    ###################################################################
+    - name: 📄 Erstelle überwachte Dateien (leer)
+      when:
+        - audit_rules_target | length > 0
+        - audit_watch_paths is defined
+        - audit_watch_paths | length > 0
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: touch
+        mode: "0644"
+      loop: "{{ audit_watch_paths | reject('match', '.*/$') | list }}"
+      ignore_errors: yes
+      register: create_files_result
+
+    - name: 🧪 Debug - Dateien angelegt
+      when:
+        - audit_rules_target | length > 0
+        - create_files_result is defined
+        - create_files_result.results is defined
+      ansible.builtin.debug:
+        msg: |
+          Dateien angelegt: {{ create_files_result.results | length }} Stück
+
+    ###################################################################
+    # 6️⃣ ALLE BESTEHENDEN REGELN LÖSCHEN
+    ###################################################################
+    - name: 🗑️ Lösche alle geladenen Audit-Regeln aus laufendem System
+      when:
+        - audit_rules_target | length > 0
+      ansible.builtin.command: auditctl -D
+      register: audit_delete_result
+      changed_when: audit_delete_result.rc == 0
+      failed_when: false
+
+    - name: 🧪 Debug - Regeln gelöscht
+      when:
+        - audit_rules_target | length > 0
+        - audit_delete_result is defined
+      ansible.builtin.debug:
+        msg: |
+          ✔ Alle Audit-Regeln aus laufendem System gelöscht
+          Return Code: {{ audit_delete_result.rc }}
+
+    - name: 🗑️ Lösche alte Audit-Regeln-Datei
+      when:
+        - audit_rules_target | length > 0
+      ansible.builtin.file:
+        path: "{{ audit_rules_target }}"
+        state: absent
+      register: delete_file_result
+
+    - name: 🧪 Debug - Regel-Datei gelöscht
+      when:
+        - audit_rules_target | length > 0
+        - delete_file_result is defined
+      ansible.builtin.debug:
+        msg: |
+          Regel-Datei: {{ audit_rules_target }}
+          Status: {% if delete_file_result.changed %}✔ gelöscht{% else %}(war bereits weg){% endif %}
+
+    ###################################################################
+    # 7️⃣ NEUE REGELN SCHREIBEN
+    ###################################################################
+    - name: 📝 Schreibe neue Audit-Regeln in Datei
+      when:
+        - audit_rules_target | length > 0
+        - audit_rules_list is defined
+        - audit_rules_list | length > 0
+      ansible.builtin.copy:
+        dest: "{{ audit_rules_target }}"
+        content: |
+          {% for rule in audit_rules_list %}
+          {{ rule }}
+          {% endfor %}
+        owner: root
+        group: root
+        mode: "0640"
+      register: write_rules_result
+
+    - name: 🧪 Debug - Neue Regeln geschrieben
+      when:
+        - audit_rules_target | length > 0
+      ansible.builtin.debug:
+        msg: |
+          Regel-Datei: {{ audit_rules_target }}
+          {% if write_rules_result is defined %}
+          Status: {% if write_rules_result.changed %}✔ neu geschrieben{% else %}(unverändert){% endif %}
+          Anzahl Regeln: {{ audit_rules_list | default([]) | length }}
+          {% else %}
+          Status: (übersprungen - keine Regeln)
+          {% endif %}
+
+    ###################################################################
+    # 8️⃣ REGELN NEU LADEN
+    ###################################################################
+    - name: 🔄 Lade neue Audit-Regeln
+      when:
+        - audit_rules_target | length > 0
+        - audit_rules_list is defined
+        - audit_rules_list | length > 0
+      ansible.builtin.command: augenrules --load
+      register: audit_reload_result
+      changed_when: audit_reload_result.rc == 0
+      failed_when: audit_reload_result.rc != 0
+
+    - name: 🧪 Debug - Regeln-Lade-Ergebnis
+      when:
+        - audit_rules_target | length > 0
+        - audit_reload_result is defined
+      ansible.builtin.debug:
+        msg: |
+          {% if audit_reload_result.rc == 0 %}
+          ✔ Audit-Regeln erfolgreich neu geladen
+          {% else %}
+          ❌ FEHLER beim Laden der Regeln!
+          Return Code: {{ audit_reload_result.rc }}
+          {% endif %}
+          
+          {% if audit_reload_result.stdout | length > 0 %}
+          Stdout: {{ audit_reload_result.stdout }}
+          {% endif %}
+          
+          {% if audit_reload_result.stderr | length > 0 %}
+          Stderr: {{ audit_reload_result.stderr }}
+          {% endif %}
+
+###########################################################################
+# 🧪 Audit – Statusprüfung (OS-UNABHÄNGIG)
+###########################################################################
+- block:
+    #######################################################################
+    # 1️⃣ Dienststatus prüfen
+    #######################################################################
+    - block:
+        - name: 🔍 Audit – Dienststatus prüfen
+          ansible.builtin.command: "{{ services.audit.status[ansible_facts.os_family] }}"
+          register: audit_status
+          changed_when: false
+          failed_when: false
+          when: services.audit.status[ansible_facts.os_family] | length > 0
+
+        - name: 🧪 Ergebnis Dienststatus
+          ansible.builtin.debug:
+            msg: >
+              {{ '✔ auditd läuft'
+                if audit_status.rc == 0
+                else '❌ auditd läuft NICHT' }}
+
+    #######################################################################
+    # 2️⃣ Autostart prüfen
+    #######################################################################
+    - block:
+        - name: 🔍 Audit – Autostart prüfen
+          ansible.builtin.command: "{{ services.audit.is_enabled[ansible_facts.os_family] }}"
+          register: audit_enabled
+          changed_when: false
+          failed_when: false
+          when: services.audit.is_enabled[ansible_facts.os_family] | length > 0
+
+        - name: 🧪 Ergebnis Autostart
+          ansible.builtin.debug:
+            msg: >
+              {{ '✔ auditd Autostart aktiv'
+                if audit_enabled.rc == 0
+                else '❌ auditd Autostart NICHT aktiv' }}
+
+    #######################################################################
+    # 3️⃣ Audit-Regeln prüfen
+    #######################################################################
+    - block:
+        - name: 🔍 Audit – Regeln geladen?
+          ansible.builtin.command: "auditctl -l"
+          register: audit_rules_loaded
+          changed_when: false
+          failed_when: false
+
+        - name: 🧪 Ergebnis Audit-Regeln
+          ansible.builtin.debug:
+            msg: |
+              {% if audit_rules_loaded.stdout | length > 0 %}
+              ✔ Audit-Regeln geladen ({{ audit_rules_loaded.stdout_lines | length }} Regeln)
+              {% else %}
+              ❌ Keine Audit-Regeln geladen
+              {% endif %}
+
+        - name: 📋 Liste geladene Audit-Regeln (erste 20)
+          when: 
+            - audit_rules_loaded.stdout | length > 0
+            - audit_rules_loaded.stdout_lines | length > 0
+          ansible.builtin.debug:
+            msg: |
+              Erste 20 geladene Regeln:
+              {% for line in audit_rules_loaded.stdout_lines[:20] %}
+              {{ line }}
+              {% endfor %}
+              
+              Gesamt: {{ audit_rules_loaded.stdout_lines | length }} Regeln

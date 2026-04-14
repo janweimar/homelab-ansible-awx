@@ -1,0 +1,151 @@
+####################################################################################################################
+
+# AWX/TOWER DURCHLAUF - ÜBERSICHT
+
+####################################################################################################################
+
+###########################################################################
+
+# Erstellt am: {{ ansible_date_time.iso8601 }}
+# Host:        {{ ansible_hostname }}
+# OS:          {{ ansible_distribution }} {{ ansible_distribution_version }}
+# IP:          {{ ansible_default_ipv4.address }}
+
+####################################################################################################################
+
+🔧 JOB-INFORMATIONEN:
+
+Job-ID: {{ awx_job_id }}
+Template-Name: {{ awx_job_template_name }}
+Playbook-Name: {{ ansible_play_name | default('Lokal ausgeführt / Unbekannt') }}
+Ausgeführt von: {{ awx_user_name }}
+
+####################################################################################################################
+
+⚙️ PLAYBOOK-KONFIGURATION:
+
+{% if var_pack_name is defined and var_pack_name %}
+📦 Hauptanwendung(en):
+{% for pack in var_pack_name %}
+  • {{ pack }}
+{% if packages.apt[pack] is defined and packages.apt[pack][ansible_os_family] is defined %}
+{% set pack_list = packages.apt[pack][ansible_os_family][ansible_distribution_major_version] | default([]) %}
+{% if pack_list %}
+{% for pkg in pack_list %}
+    - {{ pkg.name }}{% if pkg.version %} (Version: {{ pkg.version }}){% endif %}
+
+{% endfor %}
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if var_dependencies_list is defined and var_dependencies_list %}
+🔗 Abhängigkeiten (werden installiert, aber NICHT bei start/stop berücksichtigt):
+{% for dep in var_dependencies_list %}
+  • {{ dep }}
+{% if packages.apt[dep] is defined and packages.apt[dep][ansible_os_family] is defined %}
+{% set dep_list = packages.apt[dep][ansible_os_family][ansible_distribution_major_version] | default([]) %}
+{% if dep_list %}
+{% for pkg in dep_list %}
+    - {{ pkg.name }}{% if pkg.version %} (Version: {{ pkg.version }}){% endif %}
+
+{% endfor %}
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if var_prerequisites is defined and var_prerequisites %}
+⚠️ Voraussetzungen (müssen bereits installiert sein):
+{% for prereq in var_prerequisites %}
+  • {{ prereq }}
+{% endfor %}
+
+{% endif %}
+
+{% if var_inst_order is defined %}
+🔄 Installationsreihenfolge: {{ var_inst_order }}
+{% if var_inst_order == 0 %}
+   → Erst Hauptanwendung, dann Dependencies
+{% elif var_inst_order == 1 %}
+   → Erst Dependencies, dann Hauptanwendung
+{% endif %}
+
+{% endif %}
+
+{% if var_sonder_start is defined and var_sonder_start %}
+🚀 Zusätzliche Services für Start: {{ var_sonder_start }}
+
+{% endif %}
+
+{% if var_sonder_autostart is defined and var_sonder_autostart %}
+🔁 Zusätzliche Services für Autostart: {{ var_sonder_autostart }}
+
+{% endif %}
+
+{% if unsupported_systems is defined and unsupported_systems %}
+🚫 Nicht unterstützte Betriebssysteme:
+{% for os in unsupported_systems %}
+  • {{ os }}
+{% endfor %}
+
+{% endif %}
+
+{% if templates_paths_pb is defined and templates_paths_pb %}
+📝 Playbook-Template-Pfad: {{ templates_paths_pb }}
+
+{% endif %}
+
+{% if pb_doku_template is defined and pb_doku_template %}
+📋 Dokumentations-Template: {{ pb_doku_template }}
+
+{% endif %}
+
+####################################################################################################################
+
+{# 
+template *.md.j2 mit playbook spezifischer Dokumentation muss
+in file_paths.yml eingepflegt und im jeweiligen playbook gesetzt werden.
+Beispiel:
+doku_paths_pb:
+  doku_pb:
+    add_user_ssh:
+      doku_pb_md: ansible/projekt/playbook/system/tasks/add_user_ssh/doku/add_user_ssh_doku.md
+      link_doku: https://link.zur.online.doku
+      sonstiges_doku: "Weitere Hinweise zur Dokumentation"
+#}
+####################################################################################################################       
+{# Definition des Pfades aus der Variablen-Struktur #}
+{% set template_path = doku_paths_pb.doku_pb[pb_doku_template].pb_template_doku %}
+{# Einbinden des dynamisch ermittelten Templates #}
+{% include template_path %}
+####################################################################################################################
+
+
+📖 DOKUMENTATION:
+{% if doku_paths_pb.doku_pb[pb_doku_template].doku_pb_md is defined and doku_paths_pb.doku_pb[pb_doku_template].doku_pb_md %}
+   Playbook-Doku: {{ doku_paths_pb.doku_pb[pb_doku_template].doku_pb_md }}
+{% endif %}
+{% if doku_paths_pb.doku_pb[pb_doku_template].link_doku is defined and doku_paths_pb.doku_pb[pb_doku_template].link_doku %}
+   Online-Doku: {{ doku_paths_pb.doku_pb[pb_doku_template].link_doku }}
+{% endif %}
+{% if log_save_client | default(false) %}
+   Speicherort Client: {{ log_save_client_path | default(doku_paths.log_doku_client_default, true) }}
+{% endif %}
+{% if log_save_awx | default(false) %}
+   Speicherort AWX: {{ log_save_awx_path | default(doku_paths.log_doku_awx_default, true) }}
+{% endif %}
+{% if doku_paths_pb.doku_pb[pb_doku_template].sonstiges_doku is defined and doku_paths_pb.doku_pb[pb_doku_template].sonstiges_doku %}
+   Sonstiges: {{ doku_paths_pb.doku_pb[pb_doku_template].sonstiges_doku }}
+{% endif %}
+
+####################################################################################################################
+
+# VOLLSTÄNDIGER AWX/TOWER LOG
+
+####################################################################################################################
+
+{# 
+Log-Ausgabe des gesamten AWX/TOWER Laufs
+#}

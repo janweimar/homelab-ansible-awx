@@ -1,0 +1,140 @@
+---
+###########################################################################
+# 🔄 Automatische Sicherheitsupdates (unattended-upgrades / dnf-automatic)
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials (extra_vars):
+#   allg_status:              aktiviert | deaktiviert | deinstalliert
+#   auto_update_interval:     Update-Intervall in Tagen (default: 1)
+#   auto_update_reboot_time:  Uhrzeit fuer Reboot (default: 02:00)
+#
+# Voraussetzungen:
+#   smtp_user + smtp_password:  SMTP-Credential muss am Job Template sein!
+#   msmtp muss installiert sein (als sendmail-Ersatz registriert)
+#
+# Feste Werte (os_urls.yml):
+#   msmtp.admin_email:        Empfaenger fuer Update-Benachrichtigungen
+#   msmtp.subject_prefix:     Betreff-Prefix fuer Mails
+#
+# Beschreibung:
+# Installiert und konfiguriert automatische Sicherheitsupdates.
+# - Debian/Ubuntu: unattended-upgrades + apt-listchanges
+# - RedHat/CentOS: dnf-automatic
+# - SUSE: dnf-automatic
+# Mail-Benachrichtigung bei installierten Updates ueber msmtp.
+# Automatischer Reboot-Check nach Installation.
+#
+# BEST PRACTICES:
+# - Wenn moeglich kein Code im Playbook, sondern in task auslagern
+# - Nicht benoetigte Service-Includes loeschen (nicht auskommentieren)
+###########################################################################
+
+- name: pb_setup_auto_update.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+    - playbooks_paths.yml
+
+  vars:
+    # Hauptanwendung
+    var_pack_name:
+      - auto_update
+
+    # Abhängigkeiten
+    var_dependencies_list:
+
+    # Voraussetzungen
+    var_prerequisites:
+
+    # Installationsreihenfolge
+    var_inst_order: 0
+
+    # Service-Start nach Installation (Key-Name fuer services[])
+    var_sonder_start: auto_update
+    var_sonder_autostart: auto_update
+
+    # Nicht unterstützte OS
+    unsupported_systems:
+      - Archlinux
+      - FreeBSD
+
+    # Playbook-Kontext
+    templates_paths_pb: auto_update
+    pb_doku_template: auto_update_doku
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden
+    ###########################################################################
+    - name: Lade alle Variablen-Dateien - pb_setup_auto_update.yml
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop: "{{ var_files }}"
+
+    ###########################################################################
+    # Hook: Pre-Start
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start - pb_setup_auto_update.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck
+    ###########################################################################
+    - name: 🔄 Systemcheck - pb_setup_auto_update.yml
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Systemcheck Prerequisites - pb_setup_auto_update.yml
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks
+    ###########################################################################
+    - name: 🔄 Paketmanager-Lock prüfen - pb_setup_auto_update.yml
+      ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+    - name: 🔄 Debug Ausgabe Playbook-Start - pb_setup_auto_update.yml
+      ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+  tasks:
+    ###########################################################################
+    # INSTALLATION & KONFIGURATION
+    ###########################################################################
+    - block:
+        - name: 🔧 Hook Pre-Install - pb_setup_auto_update.yml
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        - name: Installation auto_update - pb_setup_auto_update.yml
+          ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+        - name: auto_update Konfiguration - pb_setup_auto_update.yml
+          ansible.builtin.include_tasks: "{{ task_paths.auto_update_task }}"
+
+        - name: 🔄 Service starten - pb_setup_auto_update.yml
+          ansible.builtin.include_tasks: "{{ include_paths.services_start_speziell }}"
+
+        - name: 🔄 Service aktivieren - pb_setup_auto_update.yml
+          ansible.builtin.include_tasks: "{{ include_paths.services_autostart_speziell }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # DEINSTALLATION
+    ###########################################################################
+    - block:
+        - name: 🔄 Deinstallation auto_update - pb_setup_auto_update.yml
+          ansible.builtin.include_tasks: "{{ include_paths.deinstall_allg }}"
+
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # Hook: End
+    ###########################################################################
+    - name: 🔧 Hook End - pb_setup_auto_update.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

@@ -1,0 +1,39 @@
+---
+###############################################################
+# 💾 Datenbank Backup wiederherstellen
+###############################################################
+- name: 🔍 Prüfe ob Backup existiert
+  ansible.builtin.stat:
+    path: "{{ paths[templates_paths_pb + '_base'][ansible_os_family] }}/backup_pre_update.sql"
+  register: backup_file_exists
+
+- name: 🔄 Warte auf DB-Container
+  ansible.builtin.shell: "{{ command.db_health_check[templates_paths_pb][ansible_os_family] }}"
+  register: db_healthy
+  until: db_healthy.rc == 0
+  retries: 30
+  delay: 5
+  changed_when: false
+  failed_when: false
+  no_log: true
+  when: backup_file_exists.stat.exists
+
+- name: 💾 Restore DB-Backup
+  ansible.builtin.shell: |
+    {{ command.db_restore[templates_paths_pb][ansible_os_family] }} < {{ paths[templates_paths_pb + '_base'][ansible_os_family] }}/backup_pre_update.sql
+  when:
+    - backup_file_exists.stat.exists
+    - db_healthy.rc == 0
+  register: db_restore_done
+  no_log: true
+
+- name: 🗑️ Entferne temporäres Backup
+  ansible.builtin.file:
+    path: "{{ paths[templates_paths_pb + '_base'][ansible_os_family] }}/backup_pre_update.sql"
+    state: absent
+  when: db_restore_done.changed | default(false)
+
+- name: 📊 DB-Restore Info
+  ansible.builtin.debug:
+    msg: "✅ DB-Backup wiederhergestellt und temporäre Datei entfernt"
+  when: db_restore_done.changed | default(false)

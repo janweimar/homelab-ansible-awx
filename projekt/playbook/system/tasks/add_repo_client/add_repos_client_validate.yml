@@ -1,0 +1,61 @@
+---
+###########################################################################
+# ✅ Repository-Liste Validierung
+###########################################################################
+
+- name: ❌ Abbruch wenn var_repo_list fehlt
+  ansible.builtin.assert:
+    that:
+      - var_repo_list is defined
+      - var_repo_list | default('', true) | length > 0
+    fail_msg: "var_repo_list ist nicht gesetzt oder leer – Abbruch"
+
+- name: 🧩 Debug – var_repo_list (String)
+  ansible.builtin.debug:
+    msg: "📦 var_repo_list: {{ var_repo_list | default('nicht gesetzt') }}"
+
+- name: 🧩 Repo-String in Liste umwandeln
+  ansible.builtin.set_fact:
+    repo_list_normalized: >-
+      {{
+        var_repo_list
+        | default('', true)
+        | split(',')
+        | map('trim')
+        | reject('equalto', '')
+        | list
+      }}
+
+- name: 🧪 Prüfen ob angeforderte Repositories existieren (pro Program + OS)
+  ansible.builtin.debug:
+    msg: >
+      {% if
+        repo is not defined
+        or repo.get(program) is not defined
+        or repo[program].get(ansible_os_family) is not defined
+        or (repo[program][ansible_os_family] | length == 0)
+      %}
+      ❌ FEHLER: Für Repository '{{ program }}' sind keine Einträge
+      für OS-Familie '{{ ansible_os_family }}' hinterlegt
+      {% else %}
+      ✅ OK: Repository '{{ program }}' ist für OS-Familie
+      '{{ ansible_os_family }}' vorhanden
+      {% endif %}
+  loop: "{{ repo_list_normalized }}"
+  loop_control:
+    loop_var: program
+
+- name: ❌ Abbruch wenn kein einziges Repository gültig ist
+  ansible.builtin.assert:
+    that:
+      - >
+        (
+          repo_list_normalized
+          | select('in', repo.keys() | list)
+          | select('defined')
+          | list
+          | length
+        ) > 0
+    fail_msg: >
+      Keines der angegebenen Repositories ist im repo-Dictionary
+      für OS-Familie '{{ ansible_os_family }}' definiert

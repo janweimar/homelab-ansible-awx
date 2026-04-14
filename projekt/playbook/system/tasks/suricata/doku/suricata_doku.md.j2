@@ -1,0 +1,47 @@
+# Suricata {{ _suricata_mode | upper }} — Dokumentation
+# Erstellt: {{ ansible_date_time.iso8601 }}
+# Server: {{ ansible_hostname }} ({{ ansible_host }})
+
+## Status
+- **Modus:** {{ _suricata_mode | upper }}
+- **Interface:** {{ _suricata_interface }}
+- **HOME_NET:** {{ _suricata_home_net }}
+- **Rules Update:** {{ 'Ja (Cronjob 03:30)' if _suricata_rule_update | default(true) | bool else 'Nein' }}
+
+## Pfade
+- Config: `/etc/suricata/suricata.yaml`
+- Rules: `/var/lib/suricata/rules/suricata.rules`
+- Logs: `/var/log/suricata/`
+- EVE JSON: `/var/log/suricata/eve.json`
+- Fast Log: `/var/log/suricata/fast.log`
+
+## Befehle
+```bash
+# Status prüfen
+systemctl status suricata
+
+# Logs live verfolgen
+tail -f /var/log/suricata/fast.log
+
+# EVE JSON Alerts anzeigen
+cat /var/log/suricata/eve.json | jq 'select(.event_type=="alert")'
+
+# Rules manuell aktualisieren
+suricata-update && systemctl restart suricata
+
+# Config testen
+suricata -T -c /etc/suricata/suricata.yaml
+```
+
+## Modus
+{% if _suricata_mode == 'ids' %}
+**IDS (Intrusion Detection System)**
+- Passiver Modus: Traffic wird nur analysiert, nicht blockiert
+- Capture: af-packet (Kernel-Bypass für Performance)
+- Alerts werden in `/var/log/suricata/eve.json` geloggt
+{% elif _suricata_mode == 'ips' %}
+**IPS (Intrusion Prevention System)**
+- Inline Modus: Bedrohungen werden aktiv blockiert
+- Capture: nfqueue (nftables leitet Traffic an Suricata)
+- nftables Tabelle `inet suricata` mit NFQUEUE Regel aktiv
+{% endif %}

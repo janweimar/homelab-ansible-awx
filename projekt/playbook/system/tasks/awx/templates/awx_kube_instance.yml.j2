@@ -1,0 +1,46 @@
+apiVersion: awx.ansible.com/v1beta1
+kind: AWX
+metadata:
+  name: {{ app_name }}
+  namespace: {{ app_name }}
+spec:
+  service_type: nodeport
+  ingress_type: none
+
+  # PostgreSQL Storage
+  postgres_storage_class: local-path
+  postgres_storage_requirements:
+    requests:
+      storage: {{ helm_app.postgres_storage | default('10Gi') }}
+
+  # Projekte persistent speichern
+  projects_persistence: true
+  projects_storage_size: {{ helm_app.projects_storage | default('5Gi') }}
+  projects_storage_class: local-path
+  projects_storage_access_mode: ReadWriteOnce
+
+{% set _domain = urls[ansible_host][_app_base_name | default(app_name)].domain | default('') %}
+{% if app_vpn_only | default(false) | bool %}
+{% set _domain = ansible_wg0.ipv4.address %}
+{% endif %}
+{% if _domain | length > 0 %}
+  extra_settings:
+    - setting: REMOTE_HOST_HEADERS
+      value:
+        - HTTP_X_FORWARDED_FOR
+    - setting: CSRF_TRUSTED_ORIGINS
+      value:
+{% if app_vpn_only | default(false) | bool %}
+{% set _vpn_port = (app_port | default('', true) | string | trim) or '8080' %}
+        - http://{{ _domain }}:{{ _vpn_port }}
+{% else %}
+        - https://{{ _domain }}
+{% endif %}
+    - setting: UI_NEXT
+      value: true
+{% endif %}
+{% if helm_app.ee_image is defined and helm_app.ee_image != '' %}
+  ee_images:
+    - name: "Custom AWX EE"
+      image: "{{ helm_app.ee_image }}"
+{% endif %}

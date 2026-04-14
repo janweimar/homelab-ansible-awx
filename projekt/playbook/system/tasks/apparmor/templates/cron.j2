@@ -1,0 +1,43 @@
+# AppArmor Profile für Cron
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/sbin/cron {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  #include <abstractions/authentication>
+  
+  # Capabilities
+  capability setuid,
+  capability setgid,
+  capability dac_override,
+  capability audit_write,
+  capability sys_resource,
+  
+  # Cron Binary
+  /usr/sbin/cron mr,
+  
+  # Konfiguration
+  /etc/crontab r,
+  /etc/cron.d/** r,
+  /var/spool/cron/crontabs/** r,
+  
+  # Scripts ausführen
+  /bin/** rix,
+  /usr/bin/** rix,
+  /usr/local/bin/** rix,
+  /sbin/** rix,
+  /usr/sbin/** rix,
+  
+  # Runtime
+  /run/crond.pid rw,
+  
+  # Logs
+  /var/log/cron.log w,
+  
+  # Temp
+  /tmp/** rw,
+}

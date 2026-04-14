@@ -1,0 +1,134 @@
+---
+###########################################################################
+# 🧹 app_deploy_cleanup.yml
+# Eigenen Block aus Facts loeschen + Manifest-Cleanup
+###########################################################################
+# Wird IMMER aufgerufen (aktiviert, deaktiviert, deinstalliert)
+#
+# 1. State-Section auf app_deploy-<app_name> setzen
+# 2. Eigenen Block [app_deploy-<app_name>] aus server_state.fact loeschen
+# 3. Manifest-Cleanup: nur Manifeste behalten die in Facts stehen
+#
+# Benoetigte Variablen:
+#   app_name, kube_user, _is_kubernetes
+###########################################################################
+
+# ============================================================
+# 1) State-Section dynamisch setzen
+# ============================================================
+- name: 🔧 Setze State-Section auf app_deploy-{{ app_name }} - app_deploy_cleanup.yml
+  ansible.builtin.set_fact:
+    _state_section: "app_deploy-{{ app_name }}"
+
+# ============================================================
+# 2) Eigenen Block aus server_state.fact loeschen
+# ============================================================
+- name: 📋 Lese server_state.fact - app_deploy_cleanup.yml
+  ansible.builtin.slurp:
+    src: /etc/ansible/facts.d/server_state.fact
+  register: _cleanup_state_raw
+  failed_when: false
+
+- name: 🗑️ Entferne [app_deploy-{{ app_name }}] aus server_state.fact - app_deploy_cleanup.yml
+  ansible.builtin.copy:
+    dest: /etc/ansible/facts.d/server_state.fact
+    content: >-
+      {{ (_cleanup_state_raw.content | b64decode)
+         | regex_replace('(?m)^\[app_deploy-' + app_name + '\][^\[]*', '')
+         | trim }}
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - _cleanup_state_raw.content is defined
+    - ('app_deploy-' + app_name) in (_cleanup_state_raw.content | b64decode)
+
+- name: 📊 DEBUG Block geloescht - app_deploy_cleanup.yml
+  ansible.builtin.debug:
+    msg: "🗑️ [app_deploy-{{ app_name }}] aus Facts entfernt"
+
+# ============================================================
+# 3) Manifest-Cleanup (nur K8s)
+#    Liest verbleibende [app_deploy-*] Sections aus Facts,
+#    baut erlaubte Manifest-Liste, loescht den Rest
+# ============================================================
+- block:
+    - name: 🔍 Pruefe ob kube User existiert - app_deploy_cleanup.yml
+      ansible.builtin.command: id {{ kube_user }}
+      register: _cleanup_kube_user_check
+      failed_when: false
+      changed_when: false
+
+    - name: 🔍 Pruefe ob Manifest-Verzeichnis existiert - app_deploy_cleanup.yml
+      ansible.builtin.stat:
+        path: "/home/{{ kube_user }}/manifests"
+      register: _cleanup_manifest_dir
+      when: _cleanup_kube_user_check.rc == 0
+
+    - block:
+        - name: 📋 Lese Facts nach Block-Loeschung - app_deploy_cleanup.yml
+          ansible.builtin.slurp:
+            src: /etc/ansible/facts.d/server_state.fact
+          register: _cleanup_state_after
+          failed_when: false
+
+        - name: 📊 Sammle aktive App-Namen aus Facts - app_deploy_cleanup.yml
+          ansible.builtin.set_fact:
+            _active_app_names: >-
+              {{ (_cleanup_state_after.content | b64decode | default(''))
+                 | regex_findall('(?m)^\[app_deploy-([^\]]+)\]')
+                 | list }}
+          when: _cleanup_state_after.content is defined
+
+        - name: 📊 Setze leere Liste wenn keine Facts - app_deploy_cleanup.yml
+          ansible.builtin.set_fact:
+            _active_app_names: []
+          when: _cleanup_state_after.content is not defined
+
+        - name: 📊 Baue erlaubte Manifest-Liste - app_deploy_cleanup.yml
+          ansible.builtin.set_fact:
+            _active_manifests: "{{ _active_manifests | default([]) + [item + '_app.yaml', item + '_db.yaml'] }}"
+          loop: "{{ _active_app_names }}"
+
+        - name: 📊 Setze leere Manifest-Liste wenn keine Apps - app_deploy_cleanup.yml
+          ansible.builtin.set_fact:
+            _active_manifests: []
+          when: _active_app_names | length == 0
+
+        - name: 📊 Liste vorhandene Manifeste - app_deploy_cleanup.yml
+          ansible.builtin.find:
+            paths: "/home/{{ kube_user }}/manifests"
+            patterns: "*.yaml,*.yml"
+          register: _existing_manifests
+          become_user: "{{ kube_user }}"
+
+        - name: 🗑️ Loesche nicht erlaubte Manifeste - app_deploy_cleanup.yml
+          ansible.builtin.file:
+            path: "{{ item.path }}"
+            state: absent
+          loop: "{{ _existing_manifests.files }}"
+          when: (item.path | basename) not in _active_manifests
+          loop_control:
+            label: "{{ item.path | basename }}"
+
+        - name: 📊 DEBUG Manifest-Cleanup - app_deploy_cleanup.yml
+          ansible.builtin.debug:
+            msg:
+              - "========================================="
+              - "🧹 Manifest-Cleanup"
+              - "========================================="
+              - "Aktive Apps (aus Facts): {{ _active_app_names }}"
+              - "Erlaubte Manifeste: {{ _active_manifests }}"
+              - "Vorhandene Dateien: {{ _existing_manifests.files | map(attribute='path') | map('basename') | list }}"
+              - "========================================="
+
+      when:
+        - _cleanup_kube_user_check.rc == 0
+        - _cleanup_manifest_dir.stat.exists | default(false)
+
+    - name: ℹ️ Manifest-Cleanup uebersprungen (kein kube User oder Verzeichnis) - app_deploy_cleanup.yml
+      ansible.builtin.debug:
+        msg: "ℹ️ Manifest-Cleanup uebersprungen — {{ 'kube User existiert nicht' if _cleanup_kube_user_check.rc != 0 else 'Manifest-Verzeichnis existiert nicht' }}"
+      when: _cleanup_kube_user_check.rc != 0 or not (_cleanup_manifest_dir.stat.exists | default(false))
+
+  when: _is_kubernetes | bool

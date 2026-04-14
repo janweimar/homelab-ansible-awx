@@ -1,0 +1,65 @@
+---
+- name: Installiere Abhängigkeiten (Debian)
+  ansible.builtin.apt:
+    name: "{{ item.name }}{{ '=' + item.version if item.version|length > 0 else '' }}"
+    state: present
+  loop: "{{ var_dependencies_list
+    | map('extract', packages.apt)
+    | map(attribute='Debian')
+    | map(attribute=sys_major|string)
+    | flatten }}"
+  environment: { DEBIAN_FRONTEND: noninteractive }
+  when:
+    - ansible_os_family == "Debian"
+    - (var_dependencies_list | default([])) | length > 0
+#- name: Installiere Abhängigkeiten (RedHat)
+#  ansible.builtin.yum:
+#    name: "{{ item.name }}{{ '-' + item.version if item.version|length > 0 else '' }}"
+#    state: present
+#  loop: "{{ var_dependencies_list
+#    | map('extract', packages.yum)
+#    | map(attribute='RedHat')
+#    | map(attribute=sys_major|string)
+#    | flatten }}"
+#  when:
+#    - ansible_os_family == "RedHat"
+#    - (var_dependencies_list | default([])) | length > 0
+#
+#- name: Installiere Abhängigkeiten (Suse)
+#  ansible.builtin.zypper:
+#    name: "{{ item.name }}{{ '=' + item.version if item.version|length > 0 else '' }}"
+#    state: present
+#  loop: "{{ var_dependencies_list
+#    | map('extract', packages.zypper)
+#    | map(attribute='Suse')
+#    | map(attribute=sys_major|string)
+#    | flatten }}"
+#  when:
+#    - ansible_os_family == "Suse"
+#    - (var_dependencies_list | default([])) | length > 0
+#
+#- name: Installiere Abhängigkeiten (Archlinux)
+#  community.general.pacman:
+#    name: "{{ item.name }}"
+#    state: present
+#  loop: "{{ var_dependencies_list
+#    | map('extract', packages.pacman)
+#    | map(attribute='Archlinux')
+#    | map(attribute=sys_major|string)
+#    | flatten }}"
+#  when:
+#    - ansible_os_family == "Archlinux"
+#    - (var_dependencies_list | default([])) | length > 0
+#
+#- name: Installiere Abhängigkeiten (FreeBSD)
+#  community.general.pkgng:
+#    name: "{{ item.name }}"
+#    state: present
+#  loop: "{{ var_dependencies_list
+#    | map('extract', packages.pkgng)
+#    | map(attribute='FreeBSD')
+#    | map(attribute=sys_major|string)
+#    | flatten }}"
+#  when:
+#    - ansible_os_family == "FreeBSD"
+#    - (var_dependencies_list | default([])) | length > 0

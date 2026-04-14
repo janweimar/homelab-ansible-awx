@@ -1,0 +1,70 @@
+###########################################################################
+# ⏳ Paketmanager-Lock prüfen (Multi-OS stabil)
+# Supported OS: Debian, RedHat, Suse, Archlinux, FreeBSD
+###########################################################################
+- name: ⏳ Check package manager lock
+  ansible.builtin.shell: |
+    case "{{ ansible_os_family }}" in
+      Debian)
+        echo "🔍 Checking apt lock ..."
+        for i in {1..24}; do
+          if lsof /var/lib/dpkg/lock* /var/lib/apt/lists/lock /var/cache/apt/archives/lock >/dev/null 2>&1; then
+            echo "⚠️  apt is locked – waiting 5s ($i/24)"
+            sleep 5
+          else
+            echo "✅ apt is free"
+            exit 0
+          fi
+        done
+        echo "❌ apt remained locked after timeout"
+        exit 1
+        ;;
+      RedHat)
+        echo "🔍 Checking dnf/yum ..."
+        while pgrep -x dnf >/dev/null 2>&1 || pgrep -x yum >/dev/null 2>&1; do
+          echo "⚠️  dnf/yum is running – waiting 5s"
+          sleep 5
+        done
+        echo "✅ dnf/yum is free"
+        ;;
+      Suse)
+        echo "🔍 Checking zypper ..."
+        while pgrep -x zypper >/dev/null 2>&1; do
+          echo "⚠️  zypper is running – waiting 5s"
+          sleep 5
+        done
+        echo "✅ zypper is free"
+        ;;
+      Archlinux)
+        echo "🔍 Checking pacman DB lock ..."
+        for i in {1..24}; do
+          if [ -f /var/lib/pacman/db.lck ]; then
+            echo "⚠️  pacman is locked – waiting 5s ($i/24)"
+            sleep 5
+          else
+            echo "✅ pacman is free"
+            exit 0
+          fi
+        done
+        echo "❌ pacman remained locked"
+        exit 1
+        ;;
+      FreeBSD)
+        echo "🔍 Checking pkg process ..."
+        while pgrep -x pkg >/dev/null 2>&1; do
+          echo "⚠️  pkg is running – waiting 5s"
+          sleep 5
+        done
+        echo "✅ pkg is free"
+        ;;
+      *)
+        echo "ℹ️  Unknown package manager for {{ ansible_os_family }}"
+        ;;
+    esac
+  args:
+    executable: /bin/bash
+  changed_when: false
+  register: pkg_lock_status
+  retries: 1
+  delay: 0
+  when: ansible_os_family in ['Debian', 'RedHat', 'Suse', 'Archlinux', 'FreeBSD']

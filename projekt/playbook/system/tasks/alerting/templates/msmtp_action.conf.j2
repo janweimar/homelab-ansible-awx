@@ -1,0 +1,19 @@
+# fail2ban Action: msmtp Mail-Benachrichtigung
+# Verwaltet durch Ansible - pb_inst_conf_alerting.yml
+
+[Definition]
+
+actionstart =
+
+actionstop =
+
+actioncheck =
+
+actionban = echo -e "Subject: [{{ urls[ansible_host].msmtp.subject_prefix }}] [FAIL2BAN] <n> - IP <ip> gesperrt\nFrom: {{ smtp_user }}\nTo: {{ urls[ansible_host].msmtp.admin_email }}\n\nfail2ban hat die IP <ip> im Jail <n> gesperrt.\n\nZeit: %(time)s\nVersuche: <failures>\nJail: <n>\nHost: %(hostname)s" | msmtp -a {{ urls[ansible_host].msmtp.account }} {{ urls[ansible_host].msmtp.admin_email }}
+
+actionunban =
+
+[Init]
+
+hostname = {{ ansible_hostname }}
+time = $(date '+%%Y-%%m-%%d %%H:%%M:%%S')

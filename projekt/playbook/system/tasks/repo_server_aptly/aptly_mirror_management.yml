@@ -1,0 +1,183 @@
+---
+# ------------------------------------------------------------
+# 1) GPG Key für diesen Mirror importieren
+# ------------------------------------------------------------
+- name: "APTLY – GPG Key importieren - {{ item.name }} - aptly_mirror_management.yml"
+  ansible.builtin.shell: |
+    set -e
+    TMP_KEY="/tmp/{{ item.name }}.gpg"
+    curl -fsSL "{{ item.key_url }}" -o "$TMP_KEY"
+
+    if grep -q "BEGIN PGP PUBLIC KEY BLOCK" "$TMP_KEY"; then
+      gpg --no-default-keyring --keyring /root/.gnupg/trustedkeys.gpg --import "$TMP_KEY" --batch --yes
+    else
+      gpg --dearmor < "$TMP_KEY" | gpg --no-default-keyring --keyring /root/.gnupg/trustedkeys.gpg --import --batch --yes
+    fi
+
+    rm -f "$TMP_KEY"
+  args:
+    executable: /bin/bash
+  environment:
+    GNUPGHOME: /root/.gnupg
+  when: item.key_url is defined
+  changed_when: true
+  failed_when: false
+
+# ------------------------------------------------------------
+# 2) Architektur-Filter normalisieren
+# ------------------------------------------------------------
+- name: "ARCH – arch_filter normalisieren - {{ item.name }} - aptly_mirror_management.yml"
+  ansible.builtin.set_fact:
+    arch_filter_normalized: >-
+      {{
+        ['all']
+        if item.arch_filter is not defined
+          or item.arch_filter is none
+          or item.arch_filter | string | trim == ''
+        else
+          (
+            item.arch_filter.split(',') | map('trim') | list
+            if item.arch_filter is string
+            else item.arch_filter
+          )
+      }}
+
+# ------------------------------------------------------------
+# 3) Paket-Filter String bauen
+# ------------------------------------------------------------
+- name: "APTLY – Paket-Filter generieren - {{ item.name }} - aptly_mirror_management.yml"
+  block:
+    - name: "Prüfen ob Paketliste existiert - aptly_mirror_management.yml"
+      ansible.builtin.set_fact:
+        pkglist_exists: "{{ item.name in repo_self_list_var }}"
+
+    - name: "Warnung wenn Paketliste fehlt - {{ item.name }} - aptly_mirror_management.yml"
+      ansible.builtin.debug:
+        msg: "⚠️ Keine Paketliste für Mirror '{{ item.name }}' definiert - Mirror wird übersprungen!"
+      when: not pkglist_exists
+
+    - name: "Paketliste laden - aptly_mirror_management.yml"
+      ansible.builtin.set_fact:
+        current_pkglist: "{{ repo_self_list_var[item.name] }}"
+      when: pkglist_exists
+
+    - name: "Paket-Filter String bauen - aptly_mirror_management.yml"
+      ansible.builtin.set_fact:
+        aptly_pkg_filter: >-
+          (
+          {{
+            current_pkglist.roll 
+            | map(attribute='name') 
+            | map('regex_replace', '^(.*)$', 'Name (= \1)')
+            | join(' | ')
+          }}
+          )
+      when: pkglist_exists
+
+# ------------------------------------------------------------
+# 4) Architektur-Filter String bauen
+# ------------------------------------------------------------
+- name: "APTLY – Architektur-Filter generieren - {{ item.name }} - aptly_mirror_management.yml"
+  ansible.builtin.set_fact:
+    aptly_arch_filter: >-
+      {% if 'all' in arch_filter_normalized %}
+        all
+      {% else %}
+        ({{ arch_filter_normalized | map('regex_replace', '^(.*)$', '$Architecture (= \1)') | join(' | ') }})
+      {% endif %}
+  when: pkglist_exists
+
+# ------------------------------------------------------------
+# 5) Filter kombinieren
+# ------------------------------------------------------------
+- name: "APTLY – Filter kombinieren - {{ item.name }} - aptly_mirror_management.yml"
+  ansible.builtin.set_fact:
+    aptly_combined_filter: >-
+      {% if aptly_arch_filter == 'all' %}
+        {{ aptly_pkg_filter }}
+      {% else %}
+        ({{ aptly_pkg_filter }} , {{ aptly_arch_filter }})
+      {% endif %}
+  when: pkglist_exists
+
+# ------------------------------------------------------------
+# 6) Mirror prüfen und bei Änderungen neu erstellen
+# ------------------------------------------------------------
+- name: "APTLY – Mirror-Existenz prüfen - {{ item.name }} - aptly_mirror_management.yml"
+  ansible.builtin.command: aptly mirror list -raw
+  register: mirror_exists_check
+  changed_when: false
+  when: pkglist_exists
+
+- name: "APTLY – Bestehenden Mirror löschen falls vorhanden - {{ item.name }} - aptly_mirror_management.yml"
+  ansible.builtin.command: "aptly mirror drop -force {{ item.name }}"
+  when:
+    - pkglist_exists
+    - item.name in mirror_exists_check.stdout_lines
+  changed_when: true
+  failed_when: false
+
+# ------------------------------------------------------------
+# 7) Mirror erstellen (immer neu mit aktuellen Filtern)
+# ------------------------------------------------------------
+- name: "APTLY – Mirror erstellen - {{ item.name }} - aptly_mirror_management.yml"
+  ansible.builtin.command: >
+    aptly mirror create
+    -filter="{{ aptly_combined_filter }}"
+    -filter-with-deps
+    {% if 'all' not in arch_filter_normalized %}
+    -architectures="{{ arch_filter_normalized | join(',') }}"
+    {% endif %}
+    {{ item.name }} {{ item.url }} {{ item.dist }} {{ item.components | default([]) | join(' ') }}
+  changed_when: true
+  when: pkglist_exists
+
+# ------------------------------------------------------------
+# 8) Mirror aktualisieren (404-Fehler tolerieren)
+# ------------------------------------------------------------
+- name: "APTLY – Mirror Update - {{ item.name }} - aptly_mirror_management.yml"
+  ansible.builtin.command:
+    cmd: "aptly mirror update {{ item.name }}"
+  changed_when: true
+  failed_when: false
+  register: mirror_update_result
+  when: pkglist_exists
+
+- name: "APTLY – Update-Warnung bei Fehlern - {{ item.name }} - aptly_mirror_management.yml"
+  ansible.builtin.debug:
+    msg: "⚠️ Einige Pakete konnten nicht geladen werden (normal bei gelöschten Versionen)"
+  when:
+    - pkglist_exists
+    - mirror_update_result.rc != 0
+    - "'404' in (mirror_update_result.stderr | default(''))"
+
+# ------------------------------------------------------------
+# 9) Mirror Status
+# ------------------------------------------------------------
+- name: "APTLY – Mirror Status - {{ item.name }} - aptly_mirror_management.yml"
+  ansible.builtin.debug:
+    msg: "✓ Mirror '{{ item.name }}' erfolgreich verarbeitet"
+  when:
+    - pkglist_exists
+    - mirror_update_result.rc == 0
+
+- name: "APTLY – Mirror Update mit Warnung - {{ item.name }} - aptly_mirror_management.yml"
+  ansible.builtin.debug:
+    msg: |
+      ℹ️ Mirror '{{ item.name }}' - Update abgeschlossen mit Exit-Code {{ mirror_update_result.rc }}
+
+      {% if 'Good signature' in mirror_update_result.stderr %}
+      ✅ GPG-Signatur ist gültig (Dies ist KEIN Fehler!)
+      {% endif %}
+
+      {% if '404' in mirror_update_result.stderr %}
+      ⚠️ Einige Pakete nicht gefunden (404) - wurde übersprungen
+      {% endif %}
+
+      {% if mirror_update_result.rc != 0 and 'Good signature' not in mirror_update_result.stderr and '404' not in mirror_update_result.stderr %}
+      ❌ Möglicher Fehler - bitte stderr prüfen:
+      {{ mirror_update_result.stderr_lines[:5] | join('\n') }}
+      {% endif %}
+  when:
+    - pkglist_exists
+    - mirror_update_result.rc != 0

@@ -1,0 +1,143 @@
+# STATUS: NICHT GETESTET
+---
+###########################################################################
+# 🗄️ mariadb_webui_kube_task.yml
+# MariaDB Code-Wissensdatenbank + Adminer WebUI auf K3s
+###########################################################################
+# Wird vom universellen pb_setup_app_deploy.yml aufgerufen.
+# nginx wird dort gehandelt — hier nur Kubernetes-Deployment.
+#
+# MariaDB: Code-Wissensdatenbank (Befehle, Syntax, Beispiele)
+# Adminer: Leichtgewichtige Web-Oberfläche für DB-Verwaltung
+# Port: 8080 (Adminer)
+#
+# Nutzt wiederverwendbare Common Tasks:
+#   - kube_app_cleanup:     Namespace + Ressourcen aufräumen
+#   - db_deploy:            MariaDB deployen (erkennt DB-Typ automatisch)
+#   - kube_app_wait_ready:  Warten bis alle Pods Ready
+###########################################################################
+
+# ============================================================
+# 0) Variablen + DEBUG
+# ============================================================
+- name: 📊 DEBUG Eingangsvariablen - mariadb_webui_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "🗄️ MariaDB Code-Wissensdatenbank + Adminer"
+      - "=========================================="
+      - "app_name:        {{ app_name }}"
+      - "app_deploy_type: {{ app_deploy_type }}"
+      - "app_db_type:     {{ app_db_type | default('mariadb') }}"
+      - "app_port:        {{ app_port | default('8080') }}"
+      - "kube_user:       {{ kube_user }}"
+      - "=========================================="
+
+# ============================================================
+# 1) Aufräumen — alte Installation entfernen
+# ============================================================
+- name: 🧹 Alte Installation aufräumen - mariadb_webui_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_cleanup }}"
+
+# ============================================================
+# 2) MariaDB deployen (Common Task)
+# ============================================================
+- name: 🗄️ MariaDB deployen - mariadb_webui_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.db_deploy }}"
+  when: app_db_type | default('none') != 'none'
+
+# ============================================================
+# 3) Adminer WebUI deployen
+# ============================================================
+- name: 📁 Manifests-Verzeichnis sicherstellen - mariadb_webui_kube_task.yml
+  ansible.builtin.file:
+    path: "/home/{{ kube_user }}/manifests"
+    state: directory
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0755"
+
+- name: 📝 Adminer Manifest erstellen - mariadb_webui_kube_task.yml
+  ansible.builtin.template:
+    src: playbook/system/tasks/mariadb_webui/templates/mariadb_webui_kube_manifests.yml.j2
+    dest: "/home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml"
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0644"
+
+- name: 🚀 Adminer deployen - mariadb_webui_kube_task.yml
+  ansible.builtin.command: kubectl apply -f /home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _deploy_result
+  changed_when: "'created' in _deploy_result.stdout or 'configured' in _deploy_result.stdout"
+
+- name: 📊 DEBUG Deploy Ergebnis - mariadb_webui_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ Adminer Manifest applied"
+      - "{{ _deploy_result.stdout_lines | default([]) }}"
+
+# ============================================================
+# 4) Warten bis alle Pods Ready (DB + Adminer)
+# ============================================================
+- name: ⏳ Warte auf alle Pods - mariadb_webui_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_wait_ready }}"
+  vars:
+    _app_pod_label: "{{ app_name }}"
+    _expected_ready: 2
+
+# ============================================================
+# 5) Health Check
+# ============================================================
+- name: 🔍 Ermittle Adminer Pod-Name - mariadb_webui_kube_task.yml
+  ansible.builtin.shell: >
+    kubectl get pods -n {{ app_name }}
+    -l app={{ app_name }}
+    -o jsonpath='{.items[0].metadata.name}'
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _adminer_pod
+  changed_when: false
+
+- name: 🧪 Teste Adminer Health - mariadb_webui_kube_task.yml
+  ansible.builtin.shell: >
+    kubectl exec -n {{ app_name }} {{ _adminer_pod.stdout }} --
+    curl -s -o /dev/null -w '%{http_code}'
+    http://localhost:{{ app_port | default('8080') }}/
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _health_check
+  changed_when: false
+  failed_when: false
+
+- name: 📊 DEBUG Health Check - mariadb_webui_kube_task.yml
+  ansible.builtin.debug:
+    msg: "{{ '✅ Adminer Health OK (HTTP ' + _health_check.stdout | default('?') + ')' if _health_check.stdout | default('') == '200' else '⚠️ Adminer Health Check fehlgeschlagen — HTTP ' + _health_check.stdout | default('?') }}"
+
+# ============================================================
+# 6) domain_port setzen (Common Task — K3s/Minikube/K8s)
+# ============================================================
+- name: 🔌 Setze domain_port für nginx - mariadb_webui_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_set_domain_port }}"
+
+# ============================================================
+# 7) Zugangsinfo anzeigen
+# ============================================================
+- name: ✅ MariaDB Code-Wissensdatenbank bereit - mariadb_webui_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "✅ MariaDB Code-Wissensdatenbank + Adminer läuft!"
+      - "=========================================="
+      - "🗄️ DB:       {{ app_name }}-db (MariaDB)"
+      - "🌐 Adminer:  Port {{ app_port | default('8080') }}"
+      - "📊 Health:   {{ '✅ OK' if _health_check.stdout | default('') == '200' else '⚠️ Prüfen!' }}"
+      - "🔌 DB-Host:  {{ app_name }}-db (cluster-intern)"
+      - "=========================================="

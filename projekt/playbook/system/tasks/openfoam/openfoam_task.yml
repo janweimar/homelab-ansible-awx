@@ -1,0 +1,45 @@
+# STATUS: NICHT GETESTET
+---
+###########################################################################
+# 🔬 OpenFOAM Konfiguration
+# Datei: openfoam_task.yml
+# Zweck: OpenFOAM installieren und konfigurieren (nativ oder Docker)
+###########################################################################
+
+# ============================================================
+# Native Installation
+# ============================================================
+- block:
+    - name: 🔬 OpenFOAM nativ installieren - openfoam_task.yml
+      ansible.builtin.debug:
+        msg: "TODO: Native OpenFOAM Installation implementieren"
+
+    # TODO: OpenFOAM Pakete installieren
+    # TODO: Umgebungsvariablen setzen (/etc/profile.d/openfoam.sh)
+    # TODO: OpenFOAM testen (simpleFoam -help)
+
+  when: openfoam_install_mode == "nativ"
+
+# ============================================================
+# Docker Installation
+# ============================================================
+- block:
+    - name: 🐳 OpenFOAM Docker Image pullen - openfoam_task.yml
+      ansible.builtin.debug:
+        msg: "TODO: Docker-basierte OpenFOAM Installation implementieren"
+
+    # TODO: Docker prüfen/installieren
+    # TODO: OpenFOAM Image pullen (openfoam/openfoam-default)
+    # TODO: Arbeitsverzeichnis erstellen
+    # TODO: Docker Compose Template deployen
+
+  when: openfoam_install_mode == "docker"
+
+# ============================================================
+# Verifikation
+# ============================================================
+- name: ✅ OpenFOAM Installation Status - openfoam_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ OpenFOAM konfiguriert"
+      - "Modus: {{ openfoam_install_mode }}"

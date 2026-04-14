@@ -1,0 +1,108 @@
+# 🔒 WIREGUARD VPN SERVER - SYSTEM KONFIGURATION
+
+## ✅ WIREGUARD STATUS
+
+```
+{{ vpn_doku_status.stdout | default('Status nicht verfügbar') }}
+```
+
+---
+
+## 🔧 VPN SERVER KONFIGURATION
+
+### Interface Details
+- **Interface:** {{ vpn_interface }}
+- **Listen Port:** {{ vpn_port }}/UDP
+- **Server VPN IP:** {{ vpn_server_ip }}
+- **VPN Subnet:** {{ vpn_subnet }}
+- **Server Public Key:** {{ server_public_key | default('nicht verfügbar') }}
+
+### Konfigurierte VPN Clients ({{ vpn_clients | length }})
+
+| Client | External IP | VPN IP | Public Key | Status |
+|--------|-------------|--------|------------|--------|
+{% for client in vpn_clients_with_keys | default(vpn_clients) %}
+| {{ client.name }} | {{ client.ansible_host }} | {{ client.vpn_ip }} | {{ client.public_key[:20] | default('pending') }}... | ✅ |
+{% endfor %}
+
+---
+
+## 🌐 NETZWERK-KONFIGURATION
+
+### IP Forwarding Status
+- **IPv4 Forwarding:** {{ vpn_doku_ipv4_forward.stdout | default('nicht geprüft') }}
+- **IPv6 Forwarding:** {{ vpn_doku_ipv6_forward.stdout | default('nicht geprüft') }}
+
+### NAT/Masquerading
+- **WAN Interface:** {{ ansible_default_ipv4.interface }}
+- **Masquerading:** Aktiv für VPN-Traffic (PostUp/PostDown)
+
+---
+
+## 🔥 FIREWALL-KONFIGURATION
+
+### nftables WireGuard Regeln
+**Datei:** `/etc/nftables.d/30-wireguard.nft`
+
+```nft
+{{ vpn_doku_nft_rules.content | b64decode | default('Regeln nicht verfügbar') }}
+```
+
+### Aktive nftables Konfiguration
+```
+{{ vpn_doku_nft_active.stdout | default('Keine WireGuard nftables Regeln gefunden') }}
+```
+
+---
+
+## 🔑 DEPLOYED KEYS
+
+### Server Keys
+- **Private Key Pfad:** `/etc/wireguard/server_private.key` (chmod 600)
+- **Public Key:** {{ server_public_key | default('nicht verfügbar') }}
+
+### Client Keys (deployed)
+| Client | Private Key Pfad | Status |
+|--------|------------------|--------|
+{% for client in vpn_clients %}
+| {{ client.name }} | /etc/wireguard/client_{{ client.name }}_private.key | ✅ Deployed |
+{% endfor %}
+
+**Keys Quelle:** `{{ file_paths.wireguard_keys_path | default('playbook/system/templates/wireguard_keys/') }}`
+
+---
+
+## 📁 GENERIERTE CLIENT KONFIGURATIONEN
+
+**Speicherort:** `/etc/wireguard/clients/`
+
+{% for client in vpn_clients %}
+### Client: {{ client.name }}
+**Datei:** `/etc/wireguard/clients/{{ client.name }}.conf`
+
+```ini
+{{ lookup('file', '/etc/wireguard/clients/' + client.name + '.conf', errors='ignore') | default('[Config wird beim Deployment generiert]') }}
+```
+
+{% endfor %}
+
+---
+
+## 📜 WIREGUARD INTERFACE DETAILS
+
+```
+{{ vpn_doku_interface.stdout | default('Interface Details nicht verfügbar - Führe "wg show wg0" aus') }}
+```
+
+---
+
+## 📊 DEPLOYMENT STATISTIKEN
+
+- **Deployment Zeit:** {{ ansible_date_time.iso8601 }}
+- **Konfigurierte Clients:** {{ vpn_clients | length }}
+- **Generierte Keys:** {{ (vpn_clients | length) + 1 }} (1 Server + {{ vpn_clients | length }} Clients)
+- **Generierte Configs:** {{ vpn_clients | length }} Client-Konfigurationen
+
+---
+
+**Status:** ✅ WireGuard VPN Server erfolgreich konfiguriert

@@ -1,0 +1,8 @@
+// Automatische Sicherheitsupdates - Periodeneinstellung
+// Verwaltet durch Ansible - pb_inst_conf_auto_update.yml
+// Aenderungen werden beim naechsten Playbook-Lauf ueberschrieben!
+
+APT::Periodic::Update-Package-Lists "{{ auto_update_interval | default('1') }}";
+APT::Periodic::Download-Upgradeable-Packages "{{ auto_update_interval | default('1') }}";
+APT::Periodic::AutocleanInterval "7";
+APT::Periodic::Unattended-Upgrade "{{ auto_update_interval | default('1') }}";

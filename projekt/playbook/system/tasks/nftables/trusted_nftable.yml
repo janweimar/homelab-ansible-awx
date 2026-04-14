@@ -1,0 +1,329 @@
+##########################################################################
+# 🧪     Erstellt "Whitelist" aus daten/failsafe_ips.yml
+#         und aktueller AWX Anwendung
+###########################################################################
+
+# 📋 Übersicht: Variablen und wie sie im Playbook genutzt werden können
+
+# Öffentliche IPv4 des AWX-Servers
+# → Abruf: {{ awx_ip.content }}
+# Beispiel: ip saddr {{ awx_ip.content }} tcp dport 22 accept
+
+# Land des AWX-Servers (ISO-Kennung)
+# → Abruf: {{ fire_geo_awx_country }}
+# Beispiel: when: fire_geo_awx_country == "DE"
+
+# Geladene failsafe IPs aus Datei (nach Server-IP-Selektion)
+# → Abruf: {{ failsafe_ips }}
+# Beispiel: {{ failsafe_ips.get('in', {}).get('global', {}).get('ipv4', []) }}
+
+# Kombinierte IPv4-Whitelist (inkl. AWX-IP, uniq)
+# → Abruf: {{ in_os_networks_v4 }} / {{ out_os_networks_v4 }} / {{ for_os_networks_v4 }}
+# Beispiel: loop: "{{ in_os_networks_v4 }}"
+
+# Kombinierte IPv6-Whitelist (uniq)
+# → Abruf: {{ in_os_networks_v6 }} / {{ out_os_networks_v6 }} / {{ for_os_networks_v6 }}
+# Beispiel: loop: "{{ in_os_networks_v6 }}"
+
+# Interfaces
+# → Abruf: {{ in_interfaces }} / {{ out_interfaces }} / {{ for_interfaces }}
+# Beispiel: loop: "{{ in_interfaces }}"
+
+# Ports (failsafe)
+# → Abruf: {{ in_failsafe_ports }}
+# Beispiel: loop: "{{ in_failsafe_ports }}"
+
+# NAT Masquerade
+# → Abruf: {{ nat_masquerade_rules }}
+# Beispiel: loop: "{{ nat_masquerade_rules }}"
+
+# OS-Family des Zielsystems
+# → Abruf: {{ ansible_facts.os_family }}
+# Beispiel: when: ansible_facts.os_family == "Debian"
+
+# Ansible-Port (SSH-Port)
+# → Abruf: {{ ansible_port }}
+# Beispiel: ansible_port=2222 im Inventory oder {{ ansible_port | default('22') }}
+
+#######################################################################
+# 🌐 AWX-IP und Land automatisch und ssh Automatisch ermitteln
+#######################################################################
+- block:
+    - name: 🌐 Öffentliche IP_4 des AWX-Servers ermitteln - trusted_nftable.yml
+      ansible.builtin.uri:
+        url: https://api.ipify.org
+        return_content: yes
+      delegate_to: localhost
+      run_once: true
+      register: awx_ip
+      become: false
+
+    - name: 🗺️ Land des AWX-Servers bestimmen anhand der IP - trusted_nftable.yml
+      ansible.builtin.uri:
+        url: "https://ipapi.co/{{ awx_ip.content }}/country/"
+        return_content: yes
+      delegate_to: localhost
+      run_once: true
+      register: awx_country
+      become: false
+
+    - name: 🔄 Länderkennung in Variable speichern - trusted_nftable.yml
+      ansible.builtin.set_fact:
+        fire_geo_awx_country: "{{ awx_country.content | upper | trim }}"
+
+    - name: 🧪 Debug - anzeigen
+      ansible.builtin.debug:
+        msg:
+          - "🌐 AWX-Server:"
+          - "   • Öffentliche IPv4: {{ awx_ip.content | default('unbekannt') }}"
+          - "   • Land: {{ fire_geo_awx_country | default('unbekannt') }}"
+          - "   • Ansible-Port: {{ ansible_port | default('22') }}"
+
+###########################################################################
+# 🌐 Trusted-IP-Datei laden + Server-Block selektieren
+###########################################################################
+- name: 📥 Trusted-IP-Datei laden - trusted_nftable.yml
+  ansible.builtin.include_vars:
+    file: "{{ task_paths.failsafe_ips }}"
+    name: failsafe_ips_raw
+
+###########################################################################
+# 🔄 Server-spezifischen Block anhand der Host-IP selektieren
+###########################################################################
+- name: 🔄 Server-spezifische Failsafe-IPs auswählen - trusted_nftable.yml
+  ansible.builtin.set_fact:
+    failsafe_ips: "{{ failsafe_ips_raw[ansible_host] }}"
+
+- name: 🧪 Debug - Failsafe-IPs für diesen Host
+  ansible.builtin.debug:
+    msg:
+      - "🔑 Host-IP: {{ ansible_host }}"
+      - "📋 Failsafe-Block geladen: {{ 'ja' if failsafe_ips is defined else 'nein' }}"
+
+###########################################################################
+# 🧠 INPUT-Adressen (saddr)
+###########################################################################
+- block:
+    - name: 🧠 IPs für INPUT (IPv4) aus failsafe_ips.yml + AWX-IP kombinieren → ohne Duplikate
+      ansible.builtin.set_fact:
+        in_os_networks_v4: >-
+          {{ [] 
+            | union((failsafe_ips.get('in', {}).get(ansible_facts.os_family | lower, {}).get('ipv4') | default([], true)))
+            | union((failsafe_ips.get('in', {}).get('global', {}).get('ipv4') | default([], true)))
+            | union(([awx_ip.content] if (awx_ip is defined and (awx_ip.content | default('') | length > 0)) else []))
+            | union((failsafe_ips.get('in', {}).get('vpn', {}).get('ipv4') | default([], true)) if (fire_vpn_enabled | default(false) | bool) else [])
+            | flatten
+            | unique
+            | list }}
+
+    - name: 🪵 Debug kombinierte INPUT-IPv4-Listen
+      ansible.builtin.debug:
+        msg:
+          - "IPv4 INPUT Netzwerke: {{ in_os_networks_v4 }}"
+
+    - name: 🧠 IPs für INPUT (IPv6) aus failsafe_ips.yml → ohne Duplikate
+      ansible.builtin.set_fact:
+        in_os_networks_v6: >-
+          {{ [] 
+            | union((failsafe_ips.get('in', {}).get(ansible_facts.os_family | lower, {}).get('ipv6') | default([], true)))
+            | union((failsafe_ips.get('in', {}).get('global', {}).get('ipv6') | default([], true)))
+            | union((failsafe_ips.get('in', {}).get('vpn', {}).get('ipv6') | default([], true)) if (fire_vpn_enabled | default(false) | bool) else [])
+            | flatten
+            | unique
+            | list }}
+
+    - name: 🪵 Debug kombinierte INPUT-IPv6-Listen
+      ansible.builtin.debug:
+        msg:
+          - "IPv6 INPUT Netzwerke: {{ in_os_networks_v6 }}"
+
+    - name: 🧠 Interfaces für INPUT aus failsafe_ips.yml
+      ansible.builtin.set_fact:
+        in_interfaces: >-
+          {{ []
+            | union((failsafe_ips.get('in', {}).get('global', {}).get('interfaces') | default([], true)))
+            | union((failsafe_ips.get('in', {}).get('vpn', {}).get('interfaces') | default([], true)) if (fire_vpn_enabled | default(false) | bool) else [])
+            | flatten
+            | unique
+            | list }}
+
+    - name: 🧠 Ports für INPUT aus failsafe_ips.yml
+      ansible.builtin.set_fact:
+        in_failsafe_ports: >-
+          {{ []
+            | union((failsafe_ips.get('in', {}).get('global', {}).get('ports') | default([], true)))
+            | union((failsafe_ips.get('in', {}).get('vpn', {}).get('ports') | default([], true)) if (fire_vpn_enabled | default(false) | bool) else [])
+            | flatten
+            | unique
+            | list }}
+
+    - name: 🪵 Debug INPUT Interfaces + Ports
+      ansible.builtin.debug:
+        msg:
+          - "Interfaces INPUT: {{ in_interfaces }}"
+          - "Ports INPUT (failsafe): {{ in_failsafe_ports }}"
+
+  when: fire_geo_main_status | default("") == "aktiviert"
+    or fire_status | default("") == "aktiviert"
+
+###########################################################################
+# 🧠 OUTPUT-Adressen (daddr)
+###########################################################################
+- block:
+    - name: 🧠 IPs für OUTPUT (IPv4) aus failsafe_ips.yml + AWX-IP kombinieren → ohne Duplikate
+      ansible.builtin.set_fact:
+        out_os_networks_v4: >-
+          {{ [] 
+            | union((failsafe_ips.get('out', {}).get(ansible_facts.os_family | lower, {}).get('ipv4') | default([], true)))
+            | union((failsafe_ips.get('out', {}).get('global', {}).get('ipv4') | default([], true)))
+            | union(([awx_ip.content] if (awx_ip is defined and (awx_ip.content | default('') | length > 0)) else []))
+            | union((failsafe_ips.get('out', {}).get('vpn', {}).get('ipv4') | default([], true)) if (fire_vpn_enabled | default(false) | bool) else [])
+            | flatten
+            | unique
+            | list }}
+
+    - name: 🪵 Debug kombinierte OUTPUT-IPv4-Listen
+      ansible.builtin.debug:
+        msg:
+          - "IPv4 OUTPUT Netzwerke: {{ out_os_networks_v4 }}"
+
+    - name: 🧠 IPs für OUTPUT (IPv6) aus failsafe_ips.yml → ohne Duplikate
+      ansible.builtin.set_fact:
+        out_os_networks_v6: >-
+          {{ [] 
+            | union((failsafe_ips.get('out', {}).get(ansible_facts.os_family | lower, {}).get('ipv6') | default([], true)))
+            | union((failsafe_ips.get('out', {}).get('global', {}).get('ipv6') | default([], true)))
+            | union((failsafe_ips.get('out', {}).get('vpn', {}).get('ipv6') | default([], true)) if (fire_vpn_enabled | default(false) | bool) else [])
+            | flatten
+            | unique
+            | list }}
+
+    - name: 🪵 Debug kombinierte OUTPUT-IPv6-Listen
+      ansible.builtin.debug:
+        msg:
+          - "IPv6 OUTPUT Netzwerke: {{ out_os_networks_v6 }}"
+
+    - name: 🧠 Interfaces für OUTPUT aus failsafe_ips.yml
+      ansible.builtin.set_fact:
+        out_interfaces: >-
+          {{ []
+            | union((failsafe_ips.get('out', {}).get('global', {}).get('interfaces') | default([], true)))
+            | union((failsafe_ips.get('out', {}).get('vpn', {}).get('interfaces') | default([], true)) if (fire_vpn_enabled | default(false) | bool) else [])
+            | flatten
+            | unique
+            | list }}
+
+    - name: 🪵 Debug OUTPUT Interfaces
+      ansible.builtin.debug:
+        msg:
+          - "Interfaces OUTPUT: {{ out_interfaces }}"
+
+  when: fire_status | default("")  == "aktiviert"
+
+###########################################################################
+# 🧠 FORWARD-Adressen (for_chain)
+###########################################################################
+- block:
+    - name: 🧠 IPs für FORWARD (IPv4) aus failsafe_ips.yml kombinieren → ohne Duplikate
+      ansible.builtin.set_fact:
+        for_os_networks_v4: >-
+          {{ [] 
+            | union((failsafe_ips.get('for', {}).get(ansible_facts.os_family | lower, {}).get('ipv4') | default([], true)))
+            | union((failsafe_ips.get('for', {}).get('global', {}).get('ipv4') | default([], true)))
+            | union((failsafe_ips.get('for', {}).get('vpn', {}).get('ipv4') | default([], true)) if (fire_vpn_enabled | default(false) | bool) else [])
+            | flatten
+            | unique
+            | list }}
+
+    - name: 🪵 Debug kombinierte FORWARD-IPv4-Listen
+      ansible.builtin.debug:
+        msg:
+          - "IPv4 FORWARD Netzwerke: {{ for_os_networks_v4 }}"
+
+    - name: 🧠 IPs für FORWARD (IPv6) aus failsafe_ips.yml → ohne Duplikate
+      ansible.builtin.set_fact:
+        for_os_networks_v6: >-
+          {{ [] 
+            | union((failsafe_ips.get('for', {}).get(ansible_facts.os_family | lower, {}).get('ipv6') | default([], true)))
+            | union((failsafe_ips.get('for', {}).get('global', {}).get('ipv6') | default([], true)))
+            | union((failsafe_ips.get('for', {}).get('vpn', {}).get('ipv6') | default([], true)) if (fire_vpn_enabled | default(false) | bool) else [])
+            | flatten
+            | unique
+            | list }}
+
+    - name: 🪵 Debug kombinierte FORWARD-IPv6-Listen
+      ansible.builtin.debug:
+        msg:
+          - "IPv6 FORWARD Netzwerke: {{ for_os_networks_v6 }}"
+
+    - name: 🧠 Interfaces für FORWARD aus failsafe_ips.yml
+      ansible.builtin.set_fact:
+        for_interfaces: >-
+          {{ []
+            | union((failsafe_ips.get('for', {}).get('global', {}).get('interfaces') | default([], true)))
+            | union((failsafe_ips.get('for', {}).get('vpn', {}).get('interfaces') | default([], true)) if (fire_vpn_enabled | default(false) | bool) else [])
+            | flatten
+            | unique
+            | list }}
+
+    - name: 🪵 Debug FORWARD Interfaces
+      ansible.builtin.debug:
+        msg:
+          - "Interfaces FORWARD: {{ for_interfaces }}"
+
+  when: fire_status | default("")  == "aktiviert"
+
+###########################################################################
+# 🧠 NAT / Masquerade vorbereiten
+###########################################################################
+- block:
+    - name: 🧠 NAT Masquerade-Regeln aus failsafe_ips.yml
+      ansible.builtin.set_fact:
+        nat_masquerade_rules: >-
+          {{ []
+            | union((failsafe_ips.get('nat', {}).get('masquerade') | default([], true)) if (fire_vpn_enabled | default(false) | bool) else [])
+            | flatten
+            | unique
+            | list }}
+
+    - name: 🪵 Debug NAT Masquerade
+      ansible.builtin.debug:
+        msg:
+          - "NAT Masquerade Regeln: {{ nat_masquerade_rules }}"
+
+  when: fire_status | default("")  == "aktiviert"
+
+###########################################################################
+# 🧠 ignore IP's vorbereiten fail2ban
+###########################################################################
+- block:
+    - name: 🧠 Ignore IPv4-IPs aus failsafe_ips.yml Fail2ban
+      ansible.builtin.set_fact:
+        ignore_ips_v4: >-
+          {{ []
+            | union((failsafe_ips.get('f2b', {}).get('ignore', {}).get('ipv4') | default([], true)))
+            | union(([awx_ip.content] if (awx_ip is defined and (awx_ip.content | default('') | length > 0)) else []))
+            | union((failsafe_ips.get('f2b', {}).get('vpn', {}).get('ipv4') | default([], true)) if (fire_vpn_enabled | default(false) | bool) else [])
+            | flatten
+            | unique
+            | list }}
+
+    - name: 🧠 Ignore IPv6-IPs aus failsafe_ips.yml Fail2ban
+      ansible.builtin.set_fact:
+        ignore_ips_v6: >-
+          {{ []
+            | union((failsafe_ips.get('f2b', {}).get('ignore', {}).get('ipv6') | default([], true)))
+            | flatten
+            | unique
+            | list }}
+
+    - name: 🔍 Debug kombinierte Ignore-IPs
+      debug:
+        msg:
+          - "IPv4 Ignore: {{ ignore_ips_v4 | join(' ') }}"
+          - "IPv6 Ignore: {{ ignore_ips_v6 | join(' ') }}"
+
+  when: allg_status | default("")  == "aktiviert"
+##########################################################################
+# 🧪 Debug-Ausgabe: Whitelist aus failsafe_ips.yml + AWX-IP
+##########################################################################

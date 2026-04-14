@@ -1,0 +1,93 @@
+---
+###########################################################################
+# port_test.yml
+# Universeller Port-Test für alle Apps
+#
+# Liest app_ports[app_name] und testet jeden Port:
+#   http: true  → URI-Test (HTTP GET)
+#   http: false → TCP-Test (wait_for)
+#
+# Ergebnis: Debug-Ausgabe mit ✅/❌ pro Port
+###########################################################################
+
+# ============================================================
+# Prüfe ob app_ports für diese App definiert sind
+# ============================================================
+- name: 🔍 Prüfe ob app_ports für {{ app_name }} definiert - port_test.yml
+  ansible.builtin.set_fact:
+    _port_test_list: "{{ app_ports[_app_base_name | default(app_name)] | default([]) }}"
+
+- name: ⚠️ Keine app_ports definiert - port_test.yml
+  ansible.builtin.debug:
+    msg: "⚠️ Keine Port-Definitionen für {{ _app_base_name | default(app_name) }} in app_ports.yml"
+  when: _port_test_list | length == 0
+
+# ============================================================
+# TCP-Tests (http: false)
+# ============================================================
+- name: 🔌 TCP Port-Test - port_test.yml
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ item.port }}"
+    timeout: 10
+  register: _tcp_results
+  failed_when: false
+  loop: "{{ _port_test_list | selectattr('http', 'equalto', false) | list }}"
+  loop_control:
+    label: "{{ item.name }} ({{ item.port }})"
+  when: _port_test_list | length > 0
+
+# ============================================================
+# HTTP-Tests (http: true)
+# ============================================================
+- name: 🌐 HTTP Port-Test - port_test.yml
+  ansible.builtin.uri:
+    url: "http://localhost:{{ item.port }}{{ item.http_path | default('/') }}"
+    status_code: "{{ item.http_status | default([200]) }}"
+    timeout: 10
+  register: _http_results
+  failed_when: false
+  loop: "{{ _port_test_list | selectattr('http', 'equalto', true) | list }}"
+  loop_control:
+    label: "{{ item.name }} ({{ item.port }})"
+  when: _port_test_list | length > 0
+
+# ============================================================
+# Ergebnis zusammenbauen
+# ============================================================
+- name: 📊 Port-Test Ergebnis - port_test.yml
+  ansible.builtin.debug:
+    msg: >-
+      {{
+        ['==========================================',
+         '🔌 Port-Test: ' + (app_name | string),
+         '==========================================']
+        +
+        (_tcp_results.results | default([]) | map(
+          'regex_replace', '^.*$',
+          '') | list
+        )
+        | zip(_tcp_results.results | default([]))
+        | map('last') | list
+        | map(attribute='item') | list
+        | zip(_tcp_results.results | default([]))
+        | map('list') | list
+        | map('regex_replace', '^.*$', '') | list
+      }}
+  when: false
+
+- name: 📊 TCP Port-Test Ergebnisse - port_test.yml
+  ansible.builtin.debug:
+    msg: "{{ '✅' if item.state | default('') == 'started' else '❌' }} {{ item.item.name }} (Port {{ item.item.port }}) — {{ '🌍 öffentlich' if item.item.public else '🔒 intern/VPN' }}"
+  loop: "{{ _tcp_results.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: _tcp_results.results is defined
+
+- name: 📊 HTTP Port-Test Ergebnisse - port_test.yml
+  ansible.builtin.debug:
+    msg: "{{ '✅' if item.status | default(0) in (item.item.http_status | default([200])) else '❌' }} {{ item.item.name }} (Port {{ item.item.port }}) — {{ '🌍 öffentlich' if item.item.public else '🔒 intern/VPN' }}"
+  loop: "{{ _http_results.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: _http_results.results is defined

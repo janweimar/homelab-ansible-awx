@@ -1,0 +1,54 @@
+version: '3'
+services:
+  bookstack:
+    image: solidnerd/bookstack:latest
+    container_name: bookstack
+    ports:
+      - "{{ server_urls.bookstack.port }}:8080"
+    environment:
+      - DB_HOST=bookstack_db
+      - DB_DATABASE=bookstack
+      - DB_USERNAME=bookstack
+      - DB_PASSWORD={{ bookstack_db_password }}
+      - APP_URL={{ server_urls.bookstack.url }}
+      - APP_KEY=base64:{{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') | b64encode }}
+      - MAIL_DRIVER={{ mail_driver | default('smtp') }}
+      - MAIL_HOST={{ mail_host | default('') }}
+      - MAIL_PORT={{ mail_port | default(587) }}
+      - MAIL_USERNAME={{ mail_username | default('') }}
+      - MAIL_PASSWORD={{ mail_password | default('') }}
+      - MAIL_ENCRYPTION={{ mail_encryption | default('tls') }}
+      - MAIL_FROM={{ mail_from | default('') }}
+      - MAIL_FROM_NAME={{ mail_from_name | default('BookStack') }}
+    volumes:
+      - {{ paths.bookstack_data[ansible_os_family] }}:/var/www/bookstack/public/uploads
+      - {{ paths.bookstack_storage[ansible_os_family] }}:/var/www/bookstack/storage/uploads
+    depends_on:
+      bookstack_db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - bookstack_net
+
+  bookstack_db:
+    image: mariadb:11.2
+    container_name: bookstack_db
+    environment:
+      - MYSQL_ROOT_PASSWORD={{ bookstack_db_password }}
+      - MYSQL_DATABASE=bookstack
+      - MYSQL_USER=bookstack
+      - MYSQL_PASSWORD={{ bookstack_db_password }}
+    volumes:
+      - {{ paths.bookstack_db[ansible_os_family] }}:/var/lib/mysql
+    restart: unless-stopped
+    networks:
+      - bookstack_net
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "bookstack", "-p{{ bookstack_db_password }}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  bookstack_net:
+    driver: bridge

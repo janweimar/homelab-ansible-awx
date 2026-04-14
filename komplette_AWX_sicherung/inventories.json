@@ -1,0 +1,101 @@
+[
+  {
+    "id": 2,
+    "type": "inventory",
+    "url": "/api/v2/inventories/2/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "hosts": "/api/v2/inventories/2/hosts/",
+      "variable_data": "/api/v2/inventories/2/variable_data/",
+      "script": "/api/v2/inventories/2/script/",
+      "activity_stream": "/api/v2/inventories/2/activity_stream/",
+      "job_templates": "/api/v2/inventories/2/job_templates/",
+      "ad_hoc_commands": "/api/v2/inventories/2/ad_hoc_commands/",
+      "access_list": "/api/v2/inventories/2/access_list/",
+      "object_roles": "/api/v2/inventories/2/object_roles/",
+      "instance_groups": "/api/v2/inventories/2/instance_groups/",
+      "copy": "/api/v2/inventories/2/copy/",
+      "labels": "/api/v2/inventories/2/labels/",
+      "groups": "/api/v2/inventories/2/groups/",
+      "root_groups": "/api/v2/inventories/2/root_groups/",
+      "update_inventory_sources": "/api/v2/inventories/2/update_inventory_sources/",
+      "inventory_sources": "/api/v2/inventories/2/inventory_sources/",
+      "tree": "/api/v2/inventories/2/tree/",
+      "organization": "/api/v2/organizations/2/"
+    },
+    "summary_fields": {
+      "organization": {
+        "id": 2,
+        "name": "Homelab_organization",
+        "description": "Gesamtes Projekt (Linux Family)"
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "object_roles": {
+        "admin_role": {
+          "description": "Can manage all aspects of the inventory",
+          "name": "Admin",
+          "id": 53
+        },
+        "update_role": {
+          "description": "May update the inventory",
+          "name": "Update",
+          "id": 54
+        },
+        "adhoc_role": {
+          "description": "May run ad hoc commands on the inventory",
+          "name": "Ad Hoc",
+          "id": 55
+        },
+        "use_role": {
+          "description": "Can use the inventory in a job template",
+          "name": "Use",
+          "id": 56
+        },
+        "read_role": {
+          "description": "May view settings for the inventory",
+          "name": "Read",
+          "id": 57
+        }
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true,
+        "copy": true,
+        "adhoc": true
+      },
+      "labels": {
+        "count": 0,
+        "results": []
+      }
+    },
+    "created": "2026-03-08T09:15:53.868876Z",
+    "modified": "2026-03-08T10:57:32.247403Z",
+    "name": "Homelab_Servers_inventory",
+    "description": "Homelab_Servers",
+    "organization": 2,
+    "kind": "",
+    "host_filter": null,
+    "variables": "",
+    "has_active_failures": true,
+    "total_hosts": 7,
+    "hosts_with_active_failures": 2,
+    "total_groups": 7,
+    "has_inventory_sources": false,
+    "total_inventory_sources": 0,
+    "inventory_sources_with_failures": 0,
+    "pending_deletion": false,
+    "prevent_instance_group_fallback": false
+  }
+]

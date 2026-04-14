@@ -1,0 +1,51 @@
+# AppArmor Profile für Open WebUI
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/bin/open-webui {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  #include <abstractions/python>
+  
+  # Capabilities
+  capability dac_override,
+  capability setuid,
+  capability setgid,
+  capability net_bind_service,
+  
+  # Netzwerk
+  network inet stream,
+  network inet6 stream,
+  network unix stream,
+  
+  # Open WebUI Binary
+  /usr/bin/open-webui mr,
+  /usr/bin/python3* rix,
+  /usr/bin/node rix,
+  
+  # Data & Storage
+  /opt/open-webui/** rw,
+  /var/lib/open-webui/** rw,
+  
+  # Config
+  /etc/open-webui/** r,
+  
+  # Python/Node Libraries
+  /usr/lib/python3*/dist-packages/** r,
+  /usr/lib/node_modules/** r,
+  
+  # Logs
+  /var/log/open-webui/** w,
+  
+  # Runtime
+  /run/open-webui/** rw,
+  
+  # Temp
+  /tmp/** rw,
+  
+  # Ollama Connection
+  network inet stream,
+}

@@ -1,0 +1,73 @@
+---
+###########################################################################
+# AWX Execution Environment Deinstallation - awx_ee_deinstall.yml
+# EE-Image, Registry-Container, nginx vHost und Build-Umgebung entfernen
+###########################################################################
+
+# ============================================================
+# EE Image entfernen
+# ============================================================
+- name: EE Image entfernen - awx_ee_deinstall.yml
+  ansible.builtin.command: >
+    {{ container_runtime }} rmi
+    {{ server_urls.awx_ee.registry }}/{{ ee_image_name }}:{{ ee_image_tag }}
+  register: rmi_result
+  changed_when: rmi_result.rc == 0
+  failed_when: false
+
+# ============================================================
+# Docker Registry Container entfernen
+# ============================================================
+- name: Docker Registry Container stoppen und entfernen - awx_ee_deinstall.yml
+  community.docker.docker_container:
+    name: registry
+    state: absent
+  ignore_errors: true
+
+# ============================================================
+# nginx vHost entfernen
+# ============================================================
+- name: nginx vHost fuer Registry entfernen - awx_ee_deinstall.yml
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.awx_ee.domain }}.conf"
+    - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.awx_ee.domain }}_ssl.conf"
+    - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.awx_ee.domain }}_temp.conf"
+  register: nginx_removed
+
+- name: nginx restart (Registry vHost entfernt) - awx_ee_deinstall.yml
+  ansible.builtin.command: "{{ command.nginx_restart[ansible_os_family] }}"
+  changed_when: true
+  when: nginx_removed.changed
+  ignore_errors: true
+
+# ============================================================
+# Build-Umgebung entfernen
+# ============================================================
+- name: Build-Verzeichnis entfernen - awx_ee_deinstall.yml
+  ansible.builtin.file:
+    path: "{{ paths.awx_ee_build_dir[ansible_os_family] }}"
+    state: absent
+
+- name: ansible-builder deinstalliert - awx_ee_deinstall.yml
+  ansible.builtin.pip:
+    name: ansible-builder
+    state: absent
+    extra_args: "--break-system-packages"
+  ignore_errors: true
+
+# ============================================================
+# Zusammenfassung
+# ============================================================
+- name: Deinstallation abgeschlossen - awx_ee_deinstall.yml
+  ansible.builtin.debug:
+    msg:
+      - "AWX EE deinstalliert"
+      - "Image entfernt: {{ 'Ja' if rmi_result.rc == 0 else 'Nicht gefunden' }}"
+      - "Registry Container entfernt"
+      - "nginx vHost entfernt"
+      - "Build-Verzeichnis entfernt"
+      - "Container-Runtime wurde NICHT deinstalliert (wird evtl. noch gebraucht)"
+      - "nginx wurde NICHT deinstalliert (wird evtl. noch gebraucht)"

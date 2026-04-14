@@ -1,0 +1,36 @@
+// Unattended-Upgrades Konfiguration
+// Verwaltet durch Ansible - pb_inst_conf_auto_update.yml
+// Aenderungen werden beim naechsten Playbook-Lauf ueberschrieben!
+
+Unattended-Upgrade::Allowed-Origins {
+    "${distro_id}:${distro_codename}";
+    "${distro_id}:${distro_codename}-security";
+    "${distro_id}ESMApps:${distro_codename}-apps-security";
+    "${distro_id}ESM:${distro_codename}-infra-security";
+};
+
+// Pakete die NICHT automatisch aktualisiert werden
+// Quelle: daten/vars/app.yml → package_blacklist[ansible_host]
+Unattended-Upgrade::Package-Blacklist {
+{% for pkg in (package_blacklist[ansible_host] | default([])) %}
+    "{{ pkg }}";
+{% endfor %}
+};
+
+// Mail-Benachrichtigung bei Updates (via msmtp als sendmail-Ersatz)
+Unattended-Upgrade::Mail "{{ admin_email }}";
+Unattended-Upgrade::MailReport "on-change";
+
+// Automatischer Reboot wenn noetig
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-Time "{{ auto_update_reboot_time | default('02:00') }}";
+Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
+
+// Nicht mehr benoetigte Abhaengigkeiten entfernen
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "false";
+
+// Syslog Logging
+Unattended-Upgrade::SyslogEnable "true";
+Unattended-Upgrade::SyslogFacility "daemon";

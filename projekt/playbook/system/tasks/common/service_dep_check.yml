@@ -1,0 +1,90 @@
+---
+###########################################################################
+# service_dep_check.yml — Allgemeiner Dependency-Check bei Deinstallation
+###########################################################################
+# Prueft ob ein Dienst (z.B. nginx, postgresql, redis) noch von anderen
+# Apps benoetigt wird bevor er deinstalliert wird.
+#
+# Logik:
+#   1. Alle Apps aus service_dependencies[_dep_service_name] pruefen
+#      (ausser der eigenen App: _dep_app_name)
+#   2. Wenn eine andere App noch aktiv im server_state → nur eigene
+#      Konfiguration entfernen (z.B. vHost, Config-Datei)
+#   3. Wenn keine andere App mehr aktiv → Dienst komplett entfernen
+#
+# Erwartet:
+#   _dep_service_name : Name des Dienstes (z.B. 'nginx', 'postgresql')
+#   _dep_app_name     : Name der eigenen App (z.B. 'wazuh_manager')
+#   service_dependencies aus service_dep.yml
+#   ansible_local.server_state aus server_state.fact
+#
+# Beispielaufruf:
+#   - name: Setze Dependency-Check Variablen
+#     ansible.builtin.set_fact:
+#       _dep_service_name: nginx
+#       _dep_app_name: wazuh_manager
+#
+#   - name: Fuehre Dependency-Check durch
+#     ansible.builtin.include_tasks:
+#       file: "{{ task_paths.service_dep_check }}"
+###########################################################################
+
+###########################################################################
+# 1. Pruefe ob andere Apps den Dienst noch benoetigen
+###########################################################################
+- name: Pruefe ob andere Apps {{ _dep_service_name }} noch benoetigen - service_dep_check.yml
+  ansible.builtin.set_fact:
+    _dep_service_still_needed: >-
+      {{ service_dependencies[_dep_service_name].apps
+         | default({})
+         | dict2items
+         | selectattr('key', '!=', _dep_app_name)
+         | map(attribute='value.state_section')
+         | select('in', (ansible_local.server_state | default({})).keys())
+         | list
+         | length > 0 }}
+
+- name: Info - andere Apps benoetigen {{ _dep_service_name }} noch - service_dep_check.yml
+  ansible.builtin.debug:
+    msg: >-
+      ℹ️ {{ _dep_service_name }} wird noch von anderen Apps benoetigt —
+      nur eigene Konfiguration wird entfernt, {{ _dep_service_name }} bleibt!
+  when: _dep_service_still_needed | bool
+
+- name: Info - keine anderen Apps benoetigen {{ _dep_service_name }} - service_dep_check.yml
+  ansible.builtin.debug:
+    msg: "ℹ️ Keine anderen Apps benoetigen {{ _dep_service_name }} — wird komplett entfernt!"
+  when: not _dep_service_still_needed | bool
+
+###########################################################################
+# 2. Eigene Konfigurationsdateien entfernen (immer)
+###########################################################################
+- name: Entferne eigene Konfigurationsdateien von {{ _dep_app_name }} - service_dep_check.yml
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ service_dependencies[_dep_service_name].apps[_dep_app_name].config_files | default([]) }}"
+  ignore_errors: true
+
+###########################################################################
+# 3. Dienst neu laden wenn andere Apps noch aktiv (nur Konfiguration entfernt)
+###########################################################################
+- name: Lade {{ _dep_service_name }} neu nach Entfernen der eigenen Config - service_dep_check.yml
+  ansible.builtin.systemd:
+    name: "{{ service_dependencies[_dep_service_name].service_name }}"
+    state: reloaded
+  when: _dep_service_still_needed | bool
+  failed_when: false
+
+###########################################################################
+# 4. Dienst komplett entfernen wenn keine anderen Apps mehr aktiv
+###########################################################################
+- name: Entferne {{ _dep_service_name }} komplett - service_dep_check.yml
+  ansible.builtin.apt:
+    name: "{{ service_dependencies[_dep_service_name].packages }}"
+    state: absent
+    purge: true
+    autoremove: true
+  when:
+    - not _dep_service_still_needed | bool
+    - ansible_os_family == 'Debian'

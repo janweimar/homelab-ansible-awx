@@ -1,0 +1,36 @@
+# AppArmor Profile für Aptly
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/bin/aptly {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  
+  # Capabilities
+  capability dac_override,
+  capability chown,
+  
+  # Aptly Binary
+  /usr/bin/aptly mr,
+  
+  # Konfiguration
+  /etc/aptly.conf r,
+  
+  # Repository
+  /srv/aptly/** rw,
+  /var/aptly/** rw,
+  
+  # GPG
+  /usr/bin/gpg rix,
+  /root/.gnupg/** rw,
+  
+  # Temp
+  /tmp/** rw,
+  /var/tmp/** rw,
+  
+  # Downloads
+  /var/cache/apt/archives/** r,
+}

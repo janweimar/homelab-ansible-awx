@@ -1,0 +1,58 @@
+# AppArmor Profile für SSH Daemon
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/sbin/sshd {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  #include <abstractions/authentication>
+  #include <abstractions/wutmp>
+  
+  # Capabilities
+  capability sys_chroot,
+  capability setuid,
+  capability setgid,
+  capability audit_write,
+  capability dac_override,
+  capability dac_read_search,
+  capability net_bind_service,
+  
+  # Netzwerk
+  network inet stream,
+  network inet6 stream,
+  
+  # SSH Binary
+  /usr/sbin/sshd mr,
+  
+  # Konfiguration
+  /etc/ssh/** r,
+  
+  # Host Keys
+  /etc/ssh/ssh_host_*_key r,
+  
+  # User Auth
+  /etc/passwd r,
+  /etc/group r,
+  /etc/shadow r,
+  
+  # Runtime
+  /run/sshd/** rw,
+  /run/sshd.pid rw,
+  
+  # Logs
+  /var/log/auth.log w,
+  
+  # Proc
+  @{PROC}/** r,
+  
+  # Temp
+  /tmp/** rw,
+  
+  # User Shells
+  /bin/bash rix,
+  /bin/sh rix,
+  /usr/bin/bash rix,
+}

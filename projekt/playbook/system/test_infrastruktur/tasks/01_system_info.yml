@@ -1,0 +1,140 @@
+---
+###########################################################################
+# 🖥️  Modul 01 — Systeminfo
+# =========================================================================
+# Zweck  : Kernel, OS, Basis-Systeminformationen erfassen
+# Liest  : uname, /etc/os-release, /proc/version, lsmod
+# Schreibt in: system_info_results
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+# =========================================================================
+# Daten erfassen
+# =========================================================================
+
+- name: "01 | Kernel-Version ermitteln"
+  ansible.builtin.command: uname -r
+  register: reg_kernel_version
+  changed_when: false
+  failed_when: false
+
+- name: "01 | Kernel vollständige Info ermitteln"
+  ansible.builtin.command: uname -a
+  register: reg_kernel_full
+  changed_when: false
+  failed_when: false
+
+- name: "01 | Geladene Kernel-Module erfassen"
+  ansible.builtin.command: lsmod
+  register: reg_lsmod
+  changed_when: false
+  failed_when: false
+
+- name: "01 | Neustart ausstehend prüfen"
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: reg_reboot_required
+
+- name: "01 | Neustart-Grund ermitteln (falls ausstehend)"
+  ansible.builtin.command: cat /var/run/reboot-required.pkgs
+  register: reg_reboot_pkgs
+  changed_when: false
+  failed_when: false
+  when: reg_reboot_required.stat.exists
+
+- name: "01 | Systemd-Version ermitteln"
+  ansible.builtin.command: systemctl --version
+  register: reg_systemd_version
+  changed_when: false
+  failed_when: false
+
+- name: "01 | Uptime ermitteln"
+  ansible.builtin.command: uptime -p
+  register: reg_uptime
+  changed_when: false
+  failed_when: false
+
+- name: "01 | Hostname ermitteln"
+  ansible.builtin.command: hostnamectl
+  register: reg_hostnamectl
+  changed_when: false
+  failed_when: false
+
+- name: "01 | Zeitzone ermitteln"
+  ansible.builtin.command: timedatectl show --property=Timezone --value
+  register: reg_timezone
+  changed_when: false
+  failed_when: false
+
+- name: "01 | NTP-Status prüfen"
+  ansible.builtin.command: timedatectl show --property=NTPSynchronized --value
+  register: reg_ntp_sync
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ergebnisse in Variable speichern
+# =========================================================================
+
+- name: "01 | Ergebnisse in system_info_results speichern"
+  ansible.builtin.set_fact:
+    system_info_results:
+      status: "{{ 'WARNUNG' if reg_reboot_required.stat.exists else 'OK' }}"
+      zusammenfassung:
+        ok: "{{ 0 if reg_reboot_required.stat.exists else 1 }}"
+        warnungen: "{{ 1 if reg_reboot_required.stat.exists else 0 }}"
+        fehler: 0
+      details:
+        - name: "Hostname"
+          status: "OK"
+          wert: "{{ inventory_hostname }}"
+          hinweis: ""
+
+        - name: "Betriebssystem"
+          status: "OK"
+          wert: "{{ ansible_distribution }} {{ ansible_distribution_version }} ({{ ansible_distribution_release }})"
+          hinweis: ""
+
+        - name: "Kernel-Version"
+          status: "OK"
+          wert: "{{ reg_kernel_version.stdout | default('unbekannt') }}"
+          hinweis: ""
+
+        - name: "Architektur"
+          status: "OK"
+          wert: "{{ ansible_architecture }}"
+          hinweis: ""
+
+        - name: "Uptime"
+          status: "OK"
+          wert: "{{ reg_uptime.stdout | default('unbekannt') }}"
+          hinweis: ""
+
+        - name: "Zeitzone"
+          status: "OK"
+          wert: "{{ reg_timezone.stdout | default('unbekannt') }}"
+          hinweis: ""
+
+        - name: "NTP synchronisiert"
+          status: "{{ 'OK' if reg_ntp_sync.stdout == 'yes' else 'WARNUNG' }}"
+          wert: "{{ reg_ntp_sync.stdout | default('unbekannt') }}"
+          hinweis: "{{ 'NTP nicht synchronisiert — Zeitabweichung möglich' if reg_ntp_sync.stdout != 'yes' else '' }}"
+
+        - name: "Neustart ausstehend"
+          status: "{{ 'WARNUNG' if reg_reboot_required.stat.exists else 'OK' }}"
+          wert: "{{ 'JA - Neustart erforderlich' if reg_reboot_required.stat.exists else 'Nein' }}"
+          hinweis: "{{ 'Neustart nach Kernel/Paket-Update ausstehend: ' + reg_reboot_pkgs.stdout | default('') if reg_reboot_required.stat.exists else '' }}"
+
+        - name: "Kernel-Module geladen"
+          status: "OK"
+          wert: "{{ reg_lsmod.stdout_lines | length }} Module geladen"
+          hinweis: ""
+
+        - name: "Kernel vollständig"
+          status: "OK"
+          wert: "{{ reg_kernel_full.stdout | default('unbekannt') }}"
+          hinweis: ""
+
+- name: "01 | ✅ Systeminfo abgeschlossen"
+  ansible.builtin.debug:
+    msg: "Systeminfo erfasst — Status: {{ system_info_results.status }}"

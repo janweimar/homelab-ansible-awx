@@ -1,0 +1,74 @@
+---
+###########################################################################
+# 🗑️ mariadb_webui_deinstall.yml
+# MariaDB Code-Wissensdatenbank + Adminer deinstallieren
+###########################################################################
+
+# Kubernetes-Modus
+- block:
+    - name: 🗑️ Alle Ressourcen löschen - mariadb_webui_deinstall.yml
+      ansible.builtin.command: kubectl delete all --all -n {{ app_name }}
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      failed_when: false
+      changed_when: true
+
+    - name: 🗑️ PVCs löschen - mariadb_webui_deinstall.yml
+      ansible.builtin.command: kubectl delete pvc --all -n {{ app_name }}
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      failed_when: false
+      changed_when: true
+
+    - name: 🗑️ Secrets löschen - mariadb_webui_deinstall.yml
+      ansible.builtin.command: kubectl delete secrets --all -n {{ app_name }}
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      failed_when: false
+      changed_when: true
+
+    - name: 🗑️ Namespace löschen - mariadb_webui_deinstall.yml
+      ansible.builtin.command: kubectl delete namespace {{ app_name }}
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      failed_when: false
+      changed_when: true
+
+    - name: 🗑️ Manifest-Datei entfernen - mariadb_webui_deinstall.yml
+      ansible.builtin.file:
+        path: "/home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml"
+        state: absent
+
+  when: app_deploy_type | default('docker') in ['minikube', 'k3s', 'k8s']
+
+# ============================================================
+# nginx vHost entfernen (Domain + VPN)
+# ============================================================
+- name: 🗑️ Entferne nginx Domain vHost - mariadb_webui_deinstall.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ urls[ansible_host][_app_base_name | default(app_name)].domain | default('') }}.conf"
+    state: absent
+  failed_when: false
+  when: urls[ansible_host][_app_base_name | default(app_name)].domain | default('') | length > 0
+
+- name: 🗑️ Entferne nginx VPN vHost - mariadb_webui_deinstall.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ app_name }}_vpn.conf"
+    state: absent
+  failed_when: false
+
+- name: 🔄 Restart nginx - mariadb_webui_deinstall.yml
+  ansible.builtin.command: "{{ command.nginx_restart[ansible_os_family] }}"
+  failed_when: false
+
+- name: 📊 DEBUG Deinstallation abgeschlossen - mariadb_webui_deinstall.yml
+  ansible.builtin.debug:
+    msg: "🗑️ {{ app_name }} vollständig deinstalliert ({{ app_deploy_type | default('docker') }})"

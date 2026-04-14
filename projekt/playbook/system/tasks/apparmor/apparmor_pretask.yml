@@ -1,0 +1,38 @@
+---
+###########################################################################
+# AppArmor Pre-Tasks
+# Vorbereitungen vor der Installation
+###########################################################################
+
+- name: 📋 AppArmor Pre-Task gestartet
+  ansible.builtin.debug:
+    msg: "Starte AppArmor Pre-Tasks..."
+  when: allg_debug | default(false)
+
+###########################################################################
+# Verzeichnisse prüfen/erstellen (falls benötigt)
+###########################################################################
+# Aktuell keine speziellen Pre-Tasks für AppArmor erforderlich
+# AppArmor nutzt Standard-Systemverzeichnisse
+
+###########################################################################
+# Prüfung ob Kernel-Module verfügbar sind
+###########################################################################
+- name: 🔍 Prüfe ob AppArmor Kernel-Modul geladen ist
+  ansible.builtin.command: "lsmod | grep apparmor"
+  register: apparmor_module_check
+  failed_when: false
+  changed_when: false
+  when: ansible_os_family == "Debian"
+
+- name: 📊 Debug - AppArmor Kernel-Modul Status
+  ansible.builtin.debug:
+    msg: "AppArmor Kernel-Modul: {{ 'geladen' if apparmor_module_check.rc == 0 else 'nicht geladen' }}"
+  when: 
+    - allg_debug | default(false)
+    - ansible_os_family == "Debian"
+
+- name: 📋 AppArmor Pre-Task abgeschlossen
+  ansible.builtin.debug:
+    msg: "AppArmor Pre-Tasks erfolgreich abgeschlossen"
+  when: allg_debug | default(false)

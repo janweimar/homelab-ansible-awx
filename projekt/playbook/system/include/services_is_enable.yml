@@ -1,0 +1,17 @@
+###########################################################################
+# ⚙️ Autostart nach Installation abfragen
+###########################################################################
+- name: 🔄 Autostart nach Installation abfragen
+  ansible.builtin.command: "{{ services[item].is_enable[ansible_os_family] }}"
+  loop: >-
+    {{ (var_pack_name | list)
+       if var_pack_name is iterable and (var_pack_name is not string)
+       else [var_pack_name] }}
+  register: service_is_enable
+  when: is_enable | default(true)
+  changed_when: false
+  ignore_errors: true
+
+- name: 🧪 Ergebnis Autostart
+  ansible.builtin.debug:
+    var: service_is_enable.results

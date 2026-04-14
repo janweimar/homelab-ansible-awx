@@ -1,0 +1,109 @@
+# cgit Publishing Server - Hilfe
+
+## Übersicht
+Dieses Playbook synchronisiert Git-Repositories für den cgit Web-Server.
+
+## Verwendung
+
+### AWX Job Template
+```
+Name: 0009_<ip_repo_server>_conf_cgit_publishing
+Playbook: pb_conf_cgit_publishing_server.yml
+Inventory: Production
+Credentials: SSH repo_max
+```
+
+### Extra Variables
+```yaml
+git_clone_list:
+  - name: ansible
+    url: https://github.com/ansible/ansible.git
+    description: Ansible Automation Platform
+  
+  - name: linux
+    url: https://github.com/torvalds/linux.git
+    description: Linux Kernel
+
+git_batch_size: 20  # Anzahl Repos pro Batch
+awx_job_id: "{{ tower_job_id }}"  # Automatisch von AWX
+```
+
+## Funktionsweise
+
+1. **Vorhandene Repos ermitteln**: Listet alle *.git Verzeichnisse in /srv/git
+2. **Diff berechnen**: Vergleicht mit git_clone_list
+3. **Löschen**: Entfernt nicht mehr benötigte Repos in Batches
+4. **Klonen**: Klont neue Repos als --mirror in Batches
+5. **Reporting**: Sammelt fehlgeschlagene Klone in JSON
+
+## Wichtige Pfade
+
+- **Git Root**: /srv/git/
+- **Temp Dir**: /tmp/ansible_git_clone/
+- **Error Reports**: /tmp/ansible_git_clone/clone_failed_{job_id}/
+- **Localhost Playbooks**: /root/git_repo/
+
+## Befehle
+
+### Manuelles Klonen
+```bash
+cd /srv/git
+git clone --mirror --no-recurse-submodules <URL> <name>.git
+touch <name>.git/git-daemon-export-ok
+echo "Description" > <name>.git/description
+chown -R www-data:www-data <name>.git
+chmod -R 2775 <name>.git
+```
+
+### Repository aktualisieren
+```bash
+cd /srv/git/<name>.git
+git fetch --all --prune
+```
+
+### Fehlersuche
+```bash
+# Vorhandene Repos
+ls -1 /srv/git/*.git
+
+# Fehler-Reports
+cat /tmp/ansible_git_clone/clone_failed_*/failed_repos_*.json
+
+# Git-Logs
+journalctl -u nginx -f
+```
+
+## Batch-Verarbeitung
+
+- Standard: 20 Repos pro Batch
+- Async Execution: 3600s Timeout
+- Poll Interval: 10s
+- Error Handling: Ignoriert "already exists"
+
+## Troubleshooting
+
+### Repository existiert nicht
+```bash
+ls -la /srv/git/<name>.git
+# Falls nicht vorhanden: Manuell klonen
+```
+
+### Berechtigungsfehler
+```bash
+chown -R www-data:www-data /srv/git
+chmod -R 2775 /srv/git
+```
+
+### SSH-Key Probleme
+```bash
+# SSH-Key prüfen
+ssh -T git@github.com
+# Config prüfen
+cat ~/.ssh/config
+```
+
+### Clone schlägt fehl
+```bash
+# Manuell mit Debug
+GIT_TRACE=1 git clone --mirror <URL> /tmp/test.git
+```

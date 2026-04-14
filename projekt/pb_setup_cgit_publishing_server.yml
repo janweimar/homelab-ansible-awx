@@ -1,0 +1,134 @@
+---
+###########################################################################
+# 🧱 pb_conf_cgit_publishing_server.yml
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Unterstützte Systeme: Debian
+# Credentials:
+#   ssh key_credential: Zugangsdaten für SSH-Verbindung
+#
+# Beschreibung:
+#   - Fügt das Git-Repository für den repo-/Git-Server hinzu
+#
+# Nützliche Befehle:
+# curl -s "https://api.github.com/orgs/PX4/repos?per_page=200" | jq -r '.[] | "- name: \(.name)\n  url: \(.clone_url)"'
+#
+###########################################################################
+
+- name: pb_conf_cgit_publishing_server.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    var_pack_name:
+      - ansible_pkg
+
+    var_dependencies_list:
+
+    var_prerequisites:
+
+    var_inst_order: 0
+
+    var_sonder_start:
+
+    var_sonder_autostart:
+
+    unsupported_systems:
+      - RedHat
+      - Suse
+      - Archlinux
+      - FreeBSD
+
+    templates_paths_pb: cgit_publishing
+    pb_doku_template: cgit_publishing
+
+  ###########################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden & setzen
+    ###########################################################################
+    - block:
+        - name: Lade playbooks_paths.yml - pb_conf_cgit_publishing_server.yml
+          include_vars:
+            file: "playbooks_paths.yml"
+
+        - name: Lade alle Variablen-Dateien aus var_list.yml - pb_conf_cgit_publishing_server.yml
+          include_vars:
+            file: "{{ item }}"
+          loop: "{{ var_files }}"
+
+    ###########################################################################
+    # Hook: Pre-Start (nach Variablen-Laden)
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start - pb_conf_cgit_publishing_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck & Prerequisites
+    ###########################################################################
+    - name: 🔄 Importiere Systemcheck - pb_conf_cgit_publishing_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Importiere Systemcheck zwingend benötigter Komponenten - pb_conf_cgit_publishing_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks
+    ###########################################################################
+    - block:
+        - name: 🔄 Paketmanager-Lock prüfen - pb_conf_cgit_publishing_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+        - name: 🔄 Debug – Eingangsvariablen - pb_conf_cgit_publishing_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.debug_start_config }}"
+
+  tasks:
+    ###########################################################################
+    # Voraussetzung: install_cgit muss in pb_setup_repo_server aktiviert sein
+    ###########################################################################
+    - name: ❓ Prüfe ob cgit auf dem Repo-Server aktiviert ist - pb_conf_cgit_publishing_server.yml
+      ansible.builtin.assert:
+        that:
+          - ansible_local.repo_server.install_cgit | default('False') | bool
+        fail_msg: >
+          ❌ ABBRUCH: cgit ist auf diesem Server nicht aktiviert!
+          Bitte zuerst pb_setup_repo_server.yml mit install_cgit=true ausführen.
+        success_msg: "✅ cgit ist aktiviert — fahre fort."
+
+    ###########################################################################
+    # HAUPTLOGIK
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Hook: Pre-Install
+        ###########################################################################
+        - name: 🔧 Hook Pre-Install - pb_conf_cgit_publishing_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        ###########################################################################
+        # Standard-Installation (ansible_pkg)
+        ###########################################################################
+        - name: Komplette installation von var_pack_name und var_dependencies_list - pb_conf_cgit_publishing_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+        ###########################################################################
+        # Playbook-spezifische Konfiguration
+        ###########################################################################
+        - name: 🔄 Importiere Konfigurations-Tasks - pb_conf_cgit_publishing_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.conf_cgit_publishing_server_task_host }}"
+
+        ###########################################################################
+        # Debug check
+        ###########################################################################
+        - name: 🔄 Debug check - pb_conf_cgit_publishing_server.yml
+          ansible.builtin.include_tasks: "{{ task_paths.repo_server_task_check }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # Hook: end
+    ###########################################################################
+    - name: 🔧 Hook Post-Install - pb_conf_cgit_publishing_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

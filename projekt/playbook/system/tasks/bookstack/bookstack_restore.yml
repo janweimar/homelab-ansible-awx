@@ -1,0 +1,193 @@
+---
+###########################################################################
+# 🔄 BookStack Restore Task
+# Spielt Datenbank und Storage aus Backup wieder ein
+###########################################################################
+
+- name: 📊 Debug – Restore Info - bookstack_restore.yml
+  ansible.builtin.debug:
+    msg:
+      - "🔄 BookStack Restore wird gestartet..."
+      - "  - Backup-Verzeichnis: {{ paths.bookstack_backup[ansible_os_family] }}"
+      - "  - Hinweis: Neuestes Backup wird automatisch verwendet"
+
+# ============================================================
+# FINDE NEUESTE BACKUPS
+# ============================================================
+- name: 🔍 Finde neuestes DB-Backup - bookstack_restore.yml
+  ansible.builtin.find:
+    paths: "{{ paths.bookstack_backup[ansible_os_family] }}"
+    patterns: "bookstack_db_*.sql.gz"
+  register: db_backups
+
+- name: 🔍 Finde neuestes Data-Backup - bookstack_restore.yml
+  ansible.builtin.find:
+    paths: "{{ paths.bookstack_backup[ansible_os_family] }}"
+    patterns: "bookstack_data_*.tar.gz"
+  register: data_backups
+
+- name: 🔍 Finde neuestes Storage-Backup - bookstack_restore.yml
+  ansible.builtin.find:
+    paths: "{{ paths.bookstack_backup[ansible_os_family] }}"
+    patterns: "bookstack_storage_*.tar.gz"
+  register: storage_backups
+
+- name: ⚠️ Warnung – Keine Backups gefunden - bookstack_restore.yml
+  ansible.builtin.fail:
+    msg: "❌ Keine Backups gefunden in {{ paths.bookstack_backup[ansible_os_family] }}"
+  when: 
+    - db_backups.files | length == 0
+    - data_backups.files | length == 0
+    - storage_backups.files | length == 0
+
+- name: 📊 Setze neueste Backup-Dateien - bookstack_restore.yml
+  ansible.builtin.set_fact:
+    latest_db_backup: "{{ (db_backups.files | sort(attribute='mtime') | last).path }}"
+    latest_data_backup: "{{ (data_backups.files | sort(attribute='mtime') | last).path }}"
+    latest_storage_backup: "{{ (storage_backups.files | sort(attribute='mtime') | last).path }}"
+  when: 
+    - db_backups.files | length > 0
+    - data_backups.files | length > 0
+    - storage_backups.files | length > 0
+
+- name: 📊 Debug – Verwendete Backups - bookstack_restore.yml
+  ansible.builtin.debug:
+    msg:
+      - "📦 Folgende Backups werden verwendet:"
+      - "  - DB: {{ latest_db_backup | basename }}"
+      - "  - Data: {{ latest_data_backup | basename }}"
+      - "  - Storage: {{ latest_storage_backup | basename }}"
+  when: 
+    - latest_db_backup is defined
+    - latest_data_backup is defined
+    - latest_storage_backup is defined
+
+# ============================================================
+# CONTAINER STOPPEN
+# ============================================================
+- name: ⏸️ Stoppe BookStack Container - bookstack_restore.yml
+  ansible.builtin.command: "{{ command.docker_compose_down[ansible_os_family] }}"
+  args:
+    chdir: "{{ paths.bookstack_base[ansible_os_family] }}"
+  ignore_errors: true
+  changed_when: true
+
+- name: ⏳ Warte 5 Sekunden - bookstack_restore.yml
+  ansible.builtin.pause:
+    seconds: 5
+
+# ============================================================
+# DATENBANK RESTORE
+# ============================================================
+- block:
+    - name: 🗄️ Entpacke DB-Backup - bookstack_restore.yml
+      ansible.builtin.shell: >
+        gunzip -c {{ latest_db_backup }} > {{ paths.bookstack_backup[ansible_os_family] }}/restore_temp.sql
+      changed_when: true
+
+    - name: 🔄 Starte DB-Container - bookstack_restore.yml
+      ansible.builtin.command: docker compose up -d bookstack_db
+      args:
+        chdir: "{{ paths.bookstack_base[ansible_os_family] }}"
+      changed_when: true
+
+    - name: ⏳ Warte auf DB-Container - bookstack_restore.yml
+      ansible.builtin.pause:
+        seconds: 10
+
+    - name: 💾 Restore Datenbank - bookstack_restore.yml
+      ansible.builtin.shell: |
+        docker exec -i bookstack_db mariadb \
+          -u bookstack \
+          -p'{{ bookstack_db_password }}' \
+          bookstack < {{ paths.bookstack_backup[ansible_os_family] }}/restore_temp.sql
+      register: db_restore_result
+      changed_when: true
+      failed_when: db_restore_result.rc != 0
+
+    - name: 🗑️ Entferne temporäre SQL-Datei - bookstack_restore.yml
+      ansible.builtin.file:
+        path: "{{ paths.bookstack_backup[ansible_os_family] }}/restore_temp.sql"
+        state: absent
+
+    - name: ✅ DB-Restore erfolgreich - bookstack_restore.yml
+      ansible.builtin.debug:
+        msg: "✅ Datenbank erfolgreich wiederhergestellt"
+
+  when: 
+    - latest_db_backup is defined
+    - bookstack_db_password is defined
+
+# ============================================================
+# DATA RESTORE
+# ============================================================
+- block:
+    - name: 🗑️ Entferne altes Data-Verzeichnis - bookstack_restore.yml
+      ansible.builtin.file:
+        path: "{{ paths.bookstack_data[ansible_os_family] }}"
+        state: absent
+
+    - name: 💾 Restore Data-Verzeichnis - bookstack_restore.yml
+      ansible.builtin.command: >
+        tar -xzf {{ latest_data_backup }} -C {{ paths.bookstack_base[ansible_os_family] }}
+      changed_when: true
+
+    - name: ✅ Data-Restore erfolgreich - bookstack_restore.yml
+      ansible.builtin.debug:
+        msg: "✅ Data-Verzeichnis erfolgreich wiederhergestellt"
+
+  when: latest_data_backup is defined
+
+# ============================================================
+# STORAGE RESTORE
+# ============================================================
+- block:
+    - name: 🗑️ Entferne altes Storage-Verzeichnis - bookstack_restore.yml
+      ansible.builtin.file:
+        path: "{{ paths.bookstack_storage[ansible_os_family] }}"
+        state: absent
+
+    - name: 💾 Restore Storage-Verzeichnis - bookstack_restore.yml
+      ansible.builtin.command: >
+        tar -xzf {{ latest_storage_backup }} -C {{ paths.bookstack_base[ansible_os_family] }}
+      changed_when: true
+
+    - name: ✅ Storage-Restore erfolgreich - bookstack_restore.yml
+      ansible.builtin.debug:
+        msg: "✅ Storage-Verzeichnis erfolgreich wiederhergestellt"
+
+  when: latest_storage_backup is defined
+
+# ============================================================
+# CONTAINER STARTEN
+# ============================================================
+- name: 🚀 Starte BookStack Container - bookstack_restore.yml
+  ansible.builtin.command: "{{ command.docker_compose_up[ansible_os_family] }}"
+  args:
+    chdir: "{{ paths.bookstack_base[ansible_os_family] }}"
+  changed_when: true
+
+- name: ⏳ Warte auf Container-Start - bookstack_restore.yml
+  ansible.builtin.pause:
+    seconds: 10
+
+- name: 🔍 Prüfe Container-Status - bookstack_restore.yml
+  ansible.builtin.command: docker ps -f name=bookstack
+  register: container_status
+  changed_when: false
+
+# ============================================================
+# RESTORE-ZUSAMMENFASSUNG
+# ============================================================
+- name: 📊 Restore-Zusammenfassung - bookstack_restore.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ BookStack Restore abgeschlossen!"
+      - ""
+      - "💾 Wiederhergestellt:"
+      - "  - Datenbank: {{ latest_db_backup | basename }}"
+      - "  - Data: {{ latest_data_backup | basename }}"
+      - "  - Storage: {{ latest_storage_backup | basename }}"
+      - ""
+      - "🐳 Container-Status:"
+      - "{{ container_status.stdout_lines }}"

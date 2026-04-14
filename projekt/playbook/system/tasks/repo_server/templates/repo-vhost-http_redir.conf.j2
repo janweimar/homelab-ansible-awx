@@ -1,0 +1,20 @@
+# =============================================================================
+# nginx vHost fuer Repo Server (aptly + cgit)
+# Domain: {{ server_urls.repo_server_apt.domain }}
+# HTTP -> HTTPS Redirect
+# =============================================================================
+
+server {
+    listen 80;
+    server_name {{ server_urls.repo_server_apt.domain }};
+
+    # Certbot Challenge
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    # Redirect zu HTTPS
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}

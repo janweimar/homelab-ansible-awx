@@ -1,0 +1,93 @@
+---
+###########################################################################
+# AWX Execution Environment Pre-Task - awx_ee_pretask.yml
+# Prerequisites installieren und Build-Umgebung vorbereiten
+###########################################################################
+
+# ============================================================
+# PIP - Sicherstellen
+# ============================================================
+- name: Prüfe ob pip3 installiert ist - awx_ee_pretask.yml
+  ansible.builtin.command: pip3 --version
+  register: pip_check
+  failed_when: false
+  changed_when: false
+
+- name: pip3 installieren falls nicht vorhanden - awx_ee_pretask.yml
+  ansible.builtin.apt:
+    name:
+      - python3-pip
+      - python3-setuptools
+    state: present
+    update_cache: true
+  when:
+    - pip_check.rc != 0
+    - ansible_os_family == "Debian"
+
+# ============================================================
+# ANSIBLE-BUILDER - Installieren
+# ============================================================
+- name: Prüfe ob ansible-builder installiert ist - awx_ee_pretask.yml
+  ansible.builtin.command: ansible-builder --version
+  register: builder_check
+  failed_when: false
+  changed_when: false
+
+- name: ansible-builder installieren - awx_ee_pretask.yml
+  ansible.builtin.pip:
+    name: ansible-builder
+    state: present
+    extra_args: "--break-system-packages"
+  when: builder_check.rc != 0
+  register: builder_install
+
+- name: ansible-builder Version prüfen - awx_ee_pretask.yml
+  ansible.builtin.command: ansible-builder --version
+  register: builder_version
+  changed_when: false
+
+- name: ansible-builder Status - awx_ee_pretask.yml
+  ansible.builtin.debug:
+    msg: "{{ '📦 ansible-builder neu installiert' if (builder_install is defined and builder_install.changed) else '✅ ansible-builder bereits vorhanden' }} ({{ builder_version.stdout }})"
+
+# ============================================================
+# BUILD-VERZEICHNIS - Erstellen
+# ============================================================
+- name: Build-Verzeichnis erstellen - awx_ee_pretask.yml
+  ansible.builtin.file:
+    path: "{{ paths.awx_ee_build_dir[ansible_os_family] }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# ============================================================
+# EXECUTION-ENVIRONMENT - Kopieren
+# ============================================================
+- name: execution-environment.yml kopieren - awx_ee_pretask.yml
+  ansible.builtin.copy:
+    src: templates/execution-environment.yml
+    dest: "{{ paths.awx_ee_build_dir[ansible_os_family] }}/execution-environment.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  register: ee_config_changed
+
+# ============================================================
+# EE-CONFIG ALS VARIABLE LADEN (fuer Doku-Template)
+# ============================================================
+- name: Lade execution-environment.yml als Variable - awx_ee_pretask.yml
+  ansible.builtin.slurp:
+    src: "{{ paths.awx_ee_build_dir[ansible_os_family] }}/execution-environment.yml"
+  register: ee_config_raw
+
+- name: Parse EE-Config - awx_ee_pretask.yml
+  ansible.builtin.set_fact:
+    ee_config: "{{ ee_config_raw.content | b64decode | from_yaml }}"
+
+- name: Build-Umgebung Info - awx_ee_pretask.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ Build-Umgebung vorbereitet"
+      - "📁 Build-Verzeichnis: {{ paths.awx_ee_build_dir[ansible_os_family] }}"
+      - "📄 EE-Config: {{ 'NEU kopiert' if ee_config_changed.changed else 'unverändert' }}"

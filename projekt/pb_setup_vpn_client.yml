@@ -1,0 +1,190 @@
+---
+###########################################################################
+# 🔒 WireGuard VPN Client Konfiguration
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials:
+#   allg_status: aktiviert | deaktiviert | deinstalliert
+#   wg_private_key: WireGuard Private Key (AWX Credential pro Server)
+#
+# Beschreibung:
+# Installiert und konfiguriert WireGuard VPN Client auf Servern.
+#   - WireGuard Installation
+#   - Client Config aus Template (Private Key via AWX Credential)
+#   - Server Public Key + Client-Liste aus vpn.yml (var_files)
+#   - Automatischer Start beim Boot
+#   - VPN Verbindungstest
+#
+# Hinweise:
+# - Private Key kommt aus AWX Credential (XXXX_wg_privkey)
+# - Public Keys und Client-Liste in vars_paths.vpn (vpn.yml)
+# - vpn_server_endpoint, vpn_server_public_key aus vpn.yml
+# - Client-Identifikation ueber ansible_default_ipv4.address
+#
+# BEST PRACTICES:
+# - Wenn moeglich kein Code im Playbook, sondern in pre_task/task auslagern
+# - Nicht benoetigte Service-Includes loeschen (nicht auskommentieren)
+###########################################################################
+
+- name: pb_setup_vpn_client.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+    - playbooks_paths.yml
+
+  vars:
+    # Hauptanwendung(en)
+    var_pack_name:
+      - wireguard
+
+    # Abhaengigkeiten
+    var_dependencies_list:
+
+    # Voraussetzungen - MUSS bereits installiert sein
+    var_prerequisites:
+
+    # Installationsreihenfolge (0 = erst Hauptanwendung, 1 = erst Dependencies)
+    var_inst_order: 0
+
+    # Zusaetzliche Services
+    var_sonder_start:
+    var_sonder_autostart:
+
+    # Nicht unterstuetzte OS
+    unsupported_systems:
+
+    # Playbook-Log-Dokumentation (Template-Pfad)
+    pb_doku_template: vpn_client_doku
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden & setzen
+    ###########################################################################
+    - name: Lade alle Variablen-Dateien aus var_list.yml - pb_setup_vpn_client.yml
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop: "{{ var_files }}"
+
+    ###########################################################################
+    # Hook: Pre-Start (nach Variablen-Laden)
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start - pb_setup_vpn_client.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck & Prerequisites
+    ###########################################################################
+    - name: 🔄 Importiere Systemcheck - pb_setup_vpn_client.yml
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Importiere Systemcheck zwingend benoetigter Komponenten - pb_setup_vpn_client.yml
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks
+    ###########################################################################
+    - block:
+        - name: 🔄 Importiere Paketmanager-Lock pruefen - pb_setup_vpn_client.yml
+          ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+        - name: 🔄 Importiere Debug ausgabe bei Playbook start - pb_setup_vpn_client.yml
+          ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+  tasks:
+    ###########################################################################
+    # HAUPTLOGIK - Installation
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Hook: Pre-Install (vor Installation)
+        ###########################################################################
+        - name: 🔧 Hook Pre-Install - pb_setup_vpn_client.yml
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        ###########################################################################
+        # Standard-Installation
+        ###########################################################################
+        - name: Komplette installation von var_pack_name und var_dependencies_list - pb_setup_vpn_client.yml
+          ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+        ###########################################################################
+        # Playbook-spezifische Konfiguration
+        ###########################################################################
+        - name: Ausfuehren der kompletten Konfiguration - pb_setup_vpn_client.yml
+          ansible.builtin.include_tasks: "{{ task_paths.wireguard_client_task }}"
+
+        ###########################################################################
+        # Service-Management
+        ###########################################################################
+        - block:
+            - name: 🔄 Startet Hauptdienst - pb_setup_vpn_client.yml
+              ansible.builtin.include_tasks: "{{ include_paths.services_start }}"
+
+            - name: 🔄 Autostart aktivieren - pb_setup_vpn_client.yml
+              ansible.builtin.include_tasks: "{{ include_paths.services_autostart }}"
+
+            - name: 🔄 Status pruefen - pb_setup_vpn_client.yml
+              ansible.builtin.include_tasks: "{{ include_paths.status_inst }}"
+
+            - name: 🔄 Autostart pruefen - pb_setup_vpn_client.yml
+              ansible.builtin.include_tasks: "{{ include_paths.services_is_enable }}"
+
+        ###########################################################################
+        # Post-Tasks - VPN Verbindungstest
+        ###########################################################################
+        - name: WG Client – Teste VPN Verbindung - pb_setup_vpn_client.yml
+          ansible.builtin.command: ping -c 3 {{ vpn_server_ip }}
+          register: vpn_ping
+          failed_when: false
+          changed_when: false
+
+        - name: WG Client – VPN Verbindung Status - pb_setup_vpn_client.yml
+          ansible.builtin.debug:
+            msg: |
+              {% if vpn_ping.rc == 0 %}
+              ✅ VPN Verbindung erfolgreich! Ping zu {{ vpn_server_ip }}: OK
+              {% else %}
+              ❌ VPN Verbindung fehlgeschlagen! Ping zu {{ vpn_server_ip }}: FAIL
+                 Pruefe: systemctl status wg-quick@wg0
+              {% endif %}
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # Deaktivierung
+    ###########################################################################
+    - block:
+        - name: 🔄 Dienste stoppen - pb_setup_vpn_client.yml
+          ansible.builtin.include_tasks: "{{ include_paths.services_stop }}"
+
+      when: allg_status == "deaktiviert"
+
+    ###########################################################################
+    # Deinstallation
+    ###########################################################################
+    - block:
+        - name: 🔄 Deinstallationsscript mit debug Ausgabe - pb_setup_vpn_client.yml
+          ansible.builtin.include_tasks: "{{ include_paths.deinstall_allg }}"
+
+        - name: 🔄 Cleanup Konfiguration - pb_setup_vpn_client.yml
+          ansible.builtin.include_tasks: "{{ include_paths.cleanup }}"
+
+        - name: 🔄 WireGuard Client spezifische Deinstallation - pb_setup_vpn_client.yml
+          ansible.builtin.file:
+            path: /etc/wireguard
+            state: absent
+
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # Hook: end (am Ende des Playbooks)
+    ###########################################################################
+    - name: 🔧 Hook End - pb_setup_vpn_client.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

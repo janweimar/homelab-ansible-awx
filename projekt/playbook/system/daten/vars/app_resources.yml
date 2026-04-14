@@ -1,0 +1,105 @@
+---
+###########################################################################
+# 📦 app_resources.yml
+# Zentrale Resource-Limits für alle Apps (CPU + Memory)
+#
+# Gilt für ALLE Deploy-Typen: minikube, k3s, k8s, docker, podman, nativ
+#
+# Verwendung im Playbook/Template:
+#   {{ app_resources[app_name].memory_request }}
+#   {{ app_resources[app_name].memory_limit }}
+#
+# Neue App: Einfach neuen Block anlegen.
+# Werte können jederzeit angepasst werden.
+###########################################################################
+
+app_resources:
+  directus:
+    memory_request: "256Mi"
+    memory_limit: "512Mi"
+    cpu_request: "250m"
+    cpu_limit: "1000m"
+
+  directus-db:
+    memory_request: "512Mi"
+    memory_limit: "1Gi"
+    cpu_request: "250m"
+    cpu_limit: "500m"
+
+  awx:
+    memory_request: "1Gi"
+    memory_limit: "2Gi"
+    cpu_request: "500m"
+    cpu_limit: "2000m"
+
+  odoo:
+    memory_request: "512Mi"
+    memory_limit: "1Gi"
+    cpu_request: "500m"
+    cpu_limit: "1000m"
+
+  odoo-db:
+    memory_request: "256Mi"
+    memory_limit: "512Mi"
+    cpu_request: "250m"
+    cpu_limit: "500m"
+
+  ollama:
+    memory_request: "4Gi"
+    memory_limit: "32Gi"
+    cpu_request: "2000m"
+    cpu_limit: "8000m"
+
+  ollama-db:
+    memory_request: "256Mi"
+    memory_limit: "512Mi"
+    cpu_request: "250m"
+    cpu_limit: "500m"
+
+  open-webui:
+    memory_request: "256Mi"
+    memory_limit: "2Gi"
+    cpu_request: "250m"
+    cpu_limit: "1000m"
+
+  qdrant:
+    memory_request: "512Mi"
+    memory_limit: "4Gi"
+    cpu_request: "250m"
+    cpu_limit: "1000m"
+
+  open-webui-db:
+    memory_request: "256Mi"
+    memory_limit: "512Mi"
+    cpu_request: "250m"
+    cpu_limit: "500m"
+
+  openclaw:
+    memory_request: "128Mi"
+    memory_limit: "256Mi"
+    cpu_request: "100m"
+    cpu_limit: "500m"
+
+  mariadb-webui:
+    memory_request: "64Mi"
+    memory_limit: "128Mi"
+    cpu_request: "50m"
+    cpu_limit: "250m"
+
+  mariadb-webui-db:
+    memory_request: "256Mi"
+    memory_limit: "1Gi"
+    cpu_request: "250m"
+    cpu_limit: "500m"
+
+  stalwart:
+    memory_request: "512Mi"
+    memory_limit: "1Gi"
+    cpu_request: "250m"
+    cpu_limit: "1000m"
+
+  mailu:
+    memory_request: "512Mi"
+    memory_limit: "2Gi"
+    cpu_request: "500m"
+    cpu_limit: "1000m"

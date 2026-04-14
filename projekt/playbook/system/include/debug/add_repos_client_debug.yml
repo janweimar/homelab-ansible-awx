@@ -1,0 +1,50 @@
+---
+###########################################################################
+# 🐛 DEBUG - Add Repos Client
+###########################################################################
+
+- name: 🧩 Debug – Eingangsvariablen aus allen AWX credentials
+  ansible.builtin.debug:
+    msg:
+      - "📦 Repository Liste (AWX-credential):              {{ var_repo_list | default('nicht gesetzt') }}"
+      - "✅ Status:                                          {{ allg_status | default('nicht gesetzt') }}"
+
+- name: 🛠️ Debug-Ausgabe Playbook Variablen
+  ansible.builtin.debug:
+    msg:
+      - "🔍 Playbook - Informationen"
+      - "------------------------------------------------------------------------"
+      - "📄 Playbook Name:                                   {{ ansible_play_name }}"
+      - "🎯 Playbook Pfad:                                   {{ playbook_dir }}"
+      - "📋 Prerequisites:                                   {{ var_prerequisites | default('keine') }}"
+      - "🚫 Nicht unterstützte Systeme:                      {{ unsupported_systems | default('keine') }}"
+      - "📄 Doku Template:                                   {{ pb_doku_template | default('nicht gesetzt') }}"
+
+- name: 🛠️ Debug-Ausgabe Normalisierte Repository Liste
+  ansible.builtin.debug:
+    msg:
+      - "🔍 Repository Verarbeitung"
+      - "------------------------------------------------------------------------"
+      - "📦 Rohdaten (String):                               {{ var_repo_list | default('nicht gesetzt') }}"
+      - "📋 Normalisiert (Liste):                            {{ repo_list_normalized | default('noch nicht berechnet') }}"
+      - "🔢 Anzahl Repositories:                             {{ (repo_list_normalized | default([])) | length }}"
+  when: repo_list_normalized is defined
+
+- name: 🛠️ Debug-Ausgabe System Facts
+  ansible.builtin.debug:
+    msg:
+      - "🖥️ System - Informationen"
+      - "------------------------------------------------------------------------"
+      - "🏷️ Hostname:                                        {{ ansible_hostname }}"
+      - "🌐 IP-Adresse:                                      {{ ansible_default_ipv4.address | default('nicht verfügbar') }}"
+      - "🐧 OS:                                              {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      - "👨‍💻 OS-Familie:                                       {{ ansible_os_family }}"
+      - "🏗️ Architektur:                                     {{ ansible_architecture }}"
+
+- name: 🛠️ Debug-Ausgabe Verfügbare Repositories (os_repo.yml)
+  ansible.builtin.debug:
+    msg:
+      - "📚 Verfügbare Repositories für {{ ansible_os_family }}"
+      - "------------------------------------------------------------------------"
+      - "{{ repo.keys() | list }}"
+  when: repo is defined

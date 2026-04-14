@@ -1,0 +1,120 @@
+---
+###########################################################################
+# 🚀 kube_app_deploy.yml
+# Universeller Kubernetes App-Deploy Task
+###########################################################################
+# Wird von pb_setup_app_deploy.yml aufgerufen für ALLE Apps die ein
+# Standard-Manifest nutzen (kubectl apply -f).
+#
+# NICHT für AWX! (AWX nutzt Kustomize → eigener awx_kube_task.yml)
+#
+# Was dieser Task macht:
+#   1. Alte Installation aufräumen (kube_app_cleanup)
+#   2. Datenbank deployen (db_deploy, wenn app_db_type != none)
+#   3. Namespace sicherstellen
+#   4. App-Manifest rendern + deployen (kubectl apply -f)
+#   5. Warten bis alle Pods Ready (kube_app_wait_ready)
+#   6. domain_port setzen (kube_set_domain_port)
+#
+# Benötigte Variablen (aus Credential):
+#   app_name, app_deploy_type, app_db_type, app_port
+#   app_db_password, app_admin_email, app_admin_password, app_secret_key
+#   app_nginx_integration, app_ssl, app_modsecurity, app_vpn_only
+#
+# Manifest-Template wird automatisch ermittelt:
+#   task_paths[app_name + '_kube_manifests']
+#   → z.B. tasks/directus/templates/directus_kube_manifests.yml.j2
+#   → z.B. tasks/ollama/templates/ollama_kube_manifests.yml.j2
+#
+# Jede App braucht NUR noch:
+#   1. Ein Manifest-Template (Jinja2)
+#   2. Einen Eintrag in playbooks_paths.yml (Template-Pfad)
+#   3. Einen Eintrag in app_resources.yml (CPU/Memory)
+#   4. Einen Eintrag in app_skip_checks.yml (Skip-Kriterien)
+###########################################################################
+
+# ============================================================
+# 1) Aufräumen — alte Installation entfernen
+# ============================================================
+- name: 🧹 Alte Installation aufräumen - kube_app_deploy.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_cleanup }}"
+
+# ============================================================
+# 2) Datenbank deployen — Common Task
+# ============================================================
+- name: 🗄️ Datenbank deployen - kube_app_deploy.yml
+  ansible.builtin.include_tasks: "{{ task_paths.db_deploy }}"
+  when: app_db_type | default('none') != 'none'
+
+# ============================================================
+# 3) Namespace sicherstellen (falls DB übersprungen)
+# ============================================================
+- name: 📁 Namespace {{ app_name }} sicherstellen - kube_app_deploy.yml
+  ansible.builtin.command: kubectl create namespace {{ app_name }}
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _ns_ensure
+  failed_when:
+    - _ns_ensure.rc != 0
+    - "'already exists' not in _ns_ensure.stderr"
+  changed_when: "'created' in _ns_ensure.stdout"
+
+# ============================================================
+# 4) App-Manifest rendern + deployen
+# ============================================================
+- name: 📁 Manifests-Verzeichnis sicherstellen - kube_app_deploy.yml
+  ansible.builtin.file:
+    path: "/home/{{ kube_user }}/manifests"
+    state: directory
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0755"
+
+# Manifest-Template-Pfad: task_paths[<base_name>_kube_manifests]
+- name: 🔧 Ermittle Manifest-Template-Pfad - kube_app_deploy.yml
+  ansible.builtin.set_fact:
+    _manifest_template_key: "{{ (_app_base_name | default(app_name)) + '_kube_manifests' }}"
+
+- name: ❌ Abbruch wenn Manifest-Template nicht registriert - kube_app_deploy.yml
+  ansible.builtin.fail:
+    msg: >
+      Kein Manifest-Template für '{{ _manifest_template_key }}' in playbooks_paths.yml!
+      Registriere: task_paths.{{ _manifest_template_key }}: playbook/system/tasks/{{ _app_base_name | default(app_name) }}/templates/{{ _app_base_name | default(app_name) }}_kube_manifests.yml.j2
+  when: task_paths[_manifest_template_key] is not defined
+
+- name: 📝 App-Manifest erstellen - kube_app_deploy.yml
+  ansible.builtin.template:
+    src: "{{ task_paths[_manifest_template_key] }}"
+    dest: "/home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml"
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0644"
+
+- name: 🚀 App deployen (kubectl apply -f) - kube_app_deploy.yml
+  ansible.builtin.command: kubectl apply -f /home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _deploy_result
+  changed_when: "'created' in _deploy_result.stdout or 'configured' in _deploy_result.stdout"
+
+- name: 📊 DEBUG Deploy Ergebnis - kube_app_deploy.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ {{ app_name }} Manifest applied ({{ _manifest_template_key }})"
+      - "{{ _deploy_result.stdout_lines | default([]) }}"
+
+# ============================================================
+# 5) Warten bis ALLE Pods Ready — Common Task
+# ============================================================
+- name: ⏳ Warte auf alle Pods - kube_app_deploy.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_wait_ready }}"
+
+# ============================================================
+# 6) domain_port setzen — Common Task
+# ============================================================
+- name: 🔌 Setze domain_port für nginx - kube_app_deploy.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_set_domain_port }}"

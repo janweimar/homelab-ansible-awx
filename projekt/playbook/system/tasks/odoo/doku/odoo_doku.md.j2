@@ -1,0 +1,12 @@
+## Odoo ERP Deployment Dokumentation
+
+**Datum:** {{ ansible_date_time.iso8601 }}
+**Server:** {{ ansible_host }} ({{ ansible_hostname }})
+**App:** {{ app_name }}
+**Deploy-Typ:** {{ app_deploy_type | default('k3s') }}
+**DB:** PostgreSQL (automatisch)
+**Port:** {{ app_port | default('8069') }}
+**Domain:** {{ urls[ansible_host][app_name].domain | default('nicht konfiguriert') }}
+**SSL:** {{ app_ssl | default(false) }}
+**ModSecurity:** {{ app_modsecurity | default(false) }}
+**Status:** {{ allg_status }}

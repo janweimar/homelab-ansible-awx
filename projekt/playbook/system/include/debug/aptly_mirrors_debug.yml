@@ -1,0 +1,16 @@
+---
+###########################################################################
+# Debug-Ausgabe fuer Aptly Mirrors Playbook
+###########################################################################
+
+- name: "📋 Debug: Aptly Mirrors Variablen - aptly_mirrors_debug.yml"
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "Aptly Mirrors Konfiguration"
+      - "=========================================="
+      - "allg_status:  {{ allg_status }}"
+      - "Host:         {{ ansible_hostname }}"
+      - "aptly Basis:  {{ paths.aptly_base[ansible_os_family] | default('n/a') }}"
+      - "aptly Config: {{ paths.aptly_config[ansible_os_family] | default('n/a') }}"
+      - "=========================================="

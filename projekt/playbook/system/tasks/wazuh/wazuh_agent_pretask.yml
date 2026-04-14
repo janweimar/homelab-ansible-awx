@@ -1,0 +1,79 @@
+---
+###########################################################################
+# 🔒 Wazuh Agent - Pre-Tasks (idempotent)
+# Prüft ob Agent bereits installiert ist und überspringt Installation
+###########################################################################
+
+- name: Pruefe ob Wazuh Manager auf diesem Server laeuft - wazuh_agent_pretask.yml
+  ansible.builtin.command: dpkg -s wazuh-manager
+  register: _wazuh_manager_check
+  failed_when: false
+  changed_when: false
+
+- name: Abbruch wenn Wazuh Manager auf diesem Server laeuft - wazuh_agent_pretask.yml
+  ansible.builtin.fail:
+    msg: "Wazuh Manager laeuft auf diesem Server! Agent kann nicht auf dem Manager-Server installiert werden."
+  when: _wazuh_manager_check.rc == 0
+
+- name: Pruefe ob Wazuh Agent bereits installiert ist - wazuh_agent_pretask.yml
+  ansible.builtin.command: dpkg -s wazuh-agent
+  register: _wazuh_agent_check
+  failed_when: false
+  changed_when: false
+
+- name: Info - Wazuh Agent bereits installiert - wazuh_agent_pretask.yml
+  ansible.builtin.debug:
+    msg: "✅ Wazuh Agent ist bereits installiert - Installation wird uebersprungen, Config wird deployed."
+  when: _wazuh_agent_check.rc == 0
+
+- name: Warnung wenn VPN nicht aktiv - wazuh_agent_pretask.yml
+  ansible.builtin.debug:
+    msg: "⚠️ WARNUNG: VPN ist nicht aktiv! jt_setup_vpn_client muss zuerst ausgefuehrt werden."
+  when: >
+    ansible_local.vpn is not defined or
+    ansible_local.vpn.allg_status | default('') != 'aktiviert'
+
+- name: Ermittle Wazuh Manager IP - wazuh_agent_pretask.yml
+  ansible.builtin.set_fact:
+    # VPN aktiv → VPN-IP nehmen, sonst → oeffentliche IP des Managers
+    _wazuh_manager_vpn_ip: >-
+      {%- if ansible_local.vpn is defined and ansible_local.vpn.allg_status | default('') == 'aktiviert' -%}
+        {{ vpn_clients | selectattr('name', 'equalto', 'wazuh_manager') | map(attribute='vpn_ip') | first }}
+      {%- else -%}
+        {{ vpn_clients | selectattr('name', 'equalto', 'wazuh_manager') | map(attribute='ansible_host') | first }}
+      {%- endif -%}
+
+- name: Ermittle Agent-Name aus vpn.yml - wazuh_agent_pretask.yml
+  ansible.builtin.set_fact:
+    _wazuh_agent_name: >-
+      {{ vpn_clients
+         | selectattr('ansible_host', 'equalto', ansible_host)
+         | map(attribute='name')
+         | first }}
+
+###########################################################################
+# Installation NUR wenn Agent NICHT installiert ist
+###########################################################################
+- block:
+    - name: Installiere wazuh-agent - wazuh_agent_pretask.yml
+      ansible.builtin.shell: >
+        wget https://packages.wazuh.com/4.x/apt/pool/main/w/wazuh-agent/wazuh-agent_4.14.3-1_amd64.deb &&
+        WAZUH_MANAGER='{{ _wazuh_manager_vpn_ip }}'
+        WAZUH_AGENT_NAME='{{ _wazuh_agent_name }}'
+        dpkg -i ./wazuh-agent_4.14.3-1_amd64.deb
+      args:
+        chdir: /tmp
+      changed_when: true
+
+    - name: Daemon reload - wazuh_agent_pretask.yml
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Aktiviere wazuh-agent - wazuh_agent_pretask.yml
+      ansible.builtin.systemd:
+        name: wazuh-agent
+        enabled: true
+
+    # Agent wird NICHT hier gestartet!
+    # Start erfolgt in wazuh_agent_task.yml NACH dem Config-Deploy
+  when: _wazuh_agent_check.rc != 0

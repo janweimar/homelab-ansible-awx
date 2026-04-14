@@ -1,0 +1,20 @@
+###########################################################################
+# 🧽 Fallback-Job und tmp nft_geoip-py immer löschen – Playbook erfolgreich durchgelaufen
+###########################################################################
+- name: 🧽 Fallback-Job löschen (Playbook erfolgreich beendet)
+  ansible.builtin.shell: |
+    if command -v atq >/dev/null 2>&1 && command -v atrm >/dev/null 2>&1; then
+      atq | awk '{print $1}' | xargs -r atrm
+    fi
+  args:
+    executable: /bin/bash
+  become: true
+  changed_when: false
+  ignore_errors: true
+
+###########################################################################
+# 🧾 Debug – Info zur Fallback-Bereinigung
+###########################################################################
+- name: 🧾 Debug – Fallback entfernt
+  ansible.builtin.debug:
+    msg: "✅ Playbook erfolgreich abgeschlossen – geplanter Fallback-Job (nft flush ruleset) wurde gelöscht."  

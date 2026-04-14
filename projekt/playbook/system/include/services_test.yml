@@ -1,0 +1,33 @@
+---
+###########################################################################
+# 🟢 Dienste starten
+# Nutzt die OS‑abhängigen Start‑Kommandos aus services[..].start[..]
+# Funktioniert mit String ("fail2ban") oder Liste (["fail2ban","nftables"])
+###########################################################################
+# tasks/test.yml
+- name: 🔍 Teste Dienst-Konfiguration
+  ansible.builtin.command: "{{ services[item].test[ansible_os_family] }}"
+  loop: >-
+    {{ (var_pack_name | list)
+       if var_pack_name is iterable and (var_pack_name is not string)
+       else [var_pack_name] }}
+  register: service_test
+  failed_when: service_test.rc != 0
+  changed_when: false
+  when:
+    - (var_pack_name | default([])) | length > 0
+    - services[item].test is defined
+
+- name: ✅ Test-Ergebnis
+  ansible.builtin.debug:
+    msg: |
+      {% for result in service_test.results | default([]) %}
+      {% if result.rc == 0 %}
+      ✓ {{ result.item }}: OK
+      {% else %}
+      ✗ {{ result.item }}: FEHLER
+      {{ result.stderr_lines | join('\n') }}
+      {% endif %}
+      {% endfor %}
+  when:
+    - service_test.results is defined

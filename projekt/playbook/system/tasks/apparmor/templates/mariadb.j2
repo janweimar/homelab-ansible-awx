@@ -1,0 +1,43 @@
+# AppArmor Profile für MariaDB
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/sbin/mariadbd {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  #include <abstractions/mysql>
+  
+  # Capabilities
+  capability dac_override,
+  capability setuid,
+  capability setgid,
+  capability sys_resource,
+  
+  # Netzwerk
+  network inet stream,
+  network inet6 stream,
+  
+  # MariaDB Binary
+  /usr/sbin/mariadbd mr,
+  
+  # Konfiguration
+  /etc/mysql/** r,
+  
+  # Data
+  /var/lib/mysql/** rwk,
+  
+  # Logs
+  /var/log/mysql/** w,
+  
+  # Runtime
+  /run/mysqld/** rw,
+  
+  # Temp
+  /tmp/** rw,
+  
+  # Proc
+  @{PROC}/sys/kernel/random/uuid r,
+}

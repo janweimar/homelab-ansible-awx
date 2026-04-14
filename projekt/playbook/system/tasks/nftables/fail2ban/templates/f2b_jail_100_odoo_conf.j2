@@ -1,0 +1,29 @@
+[odoo]
+enabled  = {{ odoo_enable }}
+filter   = odoo
+bantime  = {{ odoo_bantime }}
+findtime = {{ odoo_findtime }}
+maxretry = {{ odoo_maxretry }}
+port     = {{ odoo_ports }}
+action   = nftables_custom[name=ODOO, port="{{ odoo_ports }}"]
+logpath  = /var/log/syslog
+
+[odoo-syslog]
+enabled  = {{ odoo_enable }}
+filter   = odoo-syslog
+port     = http,https
+bantime  = 900
+maxretry = 4
+findtime = 900
+action   = nftables_custom[name=ODOO-SYSLOG, port="80,443"]
+logpath  = /var/log/syslog
+
+[odoo-404-syslog]
+enabled  = {{ odoo_enable }}
+filter   = odoo-404-syslog
+port     = http,https
+bantime  = 3600
+maxretry = 30
+findtime = 600
+action   = nftables_custom[name=ODOO-404, port="80,443"]
+logpath  = /var/log/syslog

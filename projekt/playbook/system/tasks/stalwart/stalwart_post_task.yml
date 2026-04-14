@@ -1,0 +1,154 @@
+---
+###########################################################################
+# stalwart_post_task.yml
+# Stalwart Mail Server — Post-Install (nach nginx)
+#
+# Startet den Bootstrap-Job im K3s Cluster.
+# Der Job konfiguriert alles intern per API:
+#   - Hostname, Settings
+#   - Domains + DKIM + DNS-Records
+#   - Groups, Lists, Accounts (aus CSVs)
+#
+# Läuft auch bei app_skip_install=true (CSV-Update)!
+###########################################################################
+
+# ============================================================
+# 0) Variablen + CSV lesen
+# ============================================================
+- name: 🔧 Setze Stalwart Variablen - stalwart_post_task.yml
+  ansible.builtin.set_fact:
+    _stalwart_hostname: "{{ urls[ansible_host].stalwart.hostname }}"
+    _stalwart_mail_domain: "{{ urls[ansible_host].stalwart.mail_domain }}"
+
+- name: 📋 CSV-Dateien lesen - stalwart_post_task.yml
+  ansible.builtin.set_fact:
+    _stalwart_csv_domains:  "{{ lookup('file', playbook_dir + '/playbook/system/tasks/stalwart/daten/domains.csv') }}"
+    _stalwart_csv_groups:   "{{ lookup('file', playbook_dir + '/playbook/system/tasks/stalwart/daten/groups.csv') }}"
+    _stalwart_csv_lists:    "{{ lookup('file', playbook_dir + '/playbook/system/tasks/stalwart/daten/lists.csv') }}"
+    _stalwart_csv_accounts: "{{ lookup('file', playbook_dir + '/playbook/system/tasks/stalwart/daten/accounts.csv') }}"
+
+- name: 📊 DEBUG - stalwart_post_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "🌐 Hostname:    {{ _stalwart_hostname }}"
+      - "📧 Mail-Domain: {{ _stalwart_mail_domain }}"
+
+# ============================================================
+# 1) Bootstrap-Job Manifest rendern
+# ============================================================
+- name: 📁 Manifests-Verzeichnis sicherstellen - stalwart_post_task.yml
+  ansible.builtin.file:
+    path: "/home/{{ kube_user }}/manifests"
+    state: directory
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0755"
+  when: _is_kubernetes | bool
+
+- name: 📝 Bootstrap-Job Manifest erstellen - stalwart_post_task.yml
+  ansible.builtin.template:
+    src: playbook/system/tasks/stalwart/templates/stalwart_bootstrap_job.yml.j2
+    dest: "/home/{{ kube_user }}/manifests/stalwart_bootstrap.yaml"
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0644"
+  when: _is_kubernetes | bool
+
+# ============================================================
+# 2) CSV ConfigMap aktualisieren + alten Job löschen
+# ============================================================
+- name: 🗑️ Alten Bootstrap-Job löschen - stalwart_post_task.yml
+  ansible.builtin.command: >
+    kubectl delete job {{ app_name }}-bootstrap
+    -n {{ app_name }} --ignore-not-found
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  changed_when: true
+  failed_when: false
+  when: _is_kubernetes | bool
+
+# ============================================================
+# 3) Bootstrap-Job starten
+# ============================================================
+- name: 🚀 Bootstrap-Job starten - stalwart_post_task.yml
+  ansible.builtin.command: >
+    kubectl apply -f /home/{{ kube_user }}/manifests/stalwart_bootstrap.yaml
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _bootstrap_apply
+  changed_when: true
+  when: _is_kubernetes | bool
+
+- name: 📊 DEBUG Bootstrap-Job gestartet - stalwart_post_task.yml
+  ansible.builtin.debug:
+    msg: "{{ _bootstrap_apply.stdout_lines | default([]) }}"
+  when: _is_kubernetes | bool
+
+# ============================================================
+# 4) Warten bis Job abgeschlossen
+# ============================================================
+- name: ⏳ Warte auf Bootstrap-Job (max 10min) - stalwart_post_task.yml
+  ansible.builtin.command: >
+    kubectl wait job/{{ app_name }}-bootstrap
+    -n {{ app_name }}
+    --for=condition=complete
+    --timeout=600s
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _bootstrap_wait
+  failed_when: false
+  changed_when: false
+  when: _is_kubernetes | bool
+
+- name: 📊 DEBUG Job-Status - stalwart_post_task.yml
+  ansible.builtin.debug:
+    msg: "{{ '✅ Bootstrap-Job abgeschlossen!' if _bootstrap_wait.rc | default(1) == 0 else '⚠️ Bootstrap-Job Timeout oder Fehler!' }}"
+  when: _is_kubernetes | bool
+
+# ============================================================
+# 5) Job-Logs ausgeben (enthält DNS-Records!)
+# ============================================================
+- name: 📋 Bootstrap-Job Logs - stalwart_post_task.yml
+  ansible.builtin.shell: >
+    kubectl logs -n {{ app_name }}
+    job/{{ app_name }}-bootstrap
+    --tail=200
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _bootstrap_logs
+  changed_when: false
+  failed_when: false
+  when: _is_kubernetes | bool
+
+- name: 📊 Bootstrap-Job Ausgabe - stalwart_post_task.yml
+  ansible.builtin.debug:
+    msg: "{{ _bootstrap_logs.stdout_lines | default(['Keine Logs verfügbar']) }}"
+  when: _is_kubernetes | bool
+
+# ============================================================
+# 6) Zusammenfassung
+# ============================================================
+- name: ✅ Stalwart Bootstrap abgeschlossen - stalwart_post_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "✅ Stalwart Mail Server bereit!"
+      - "=========================================="
+      - "🌐 Hostname:    {{ _stalwart_hostname }}"
+      - "📧 Mail-Domain: {{ _stalwart_mail_domain }}"
+      - "🔐 DKIM:        ✅ (Ed25519 + RSA)"
+      - "👤 Accounts:    aus accounts.csv"
+      - "👥 Groups:      aus groups.csv"
+      - "📬 Lists:       aus lists.csv"
+      - "------------------------------------------"
+      - "⚠️  DNS-Records aus den Job-Logs oben setzen!"
+      - "⚠️  Bitte CHANGE_ME Passwörter in accounts.csv ändern!"
+      - "=========================================="

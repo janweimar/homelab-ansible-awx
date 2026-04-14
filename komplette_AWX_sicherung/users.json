@@ -1,0 +1,43 @@
+[
+  {
+    "id": 1,
+    "type": "user",
+    "url": "/api/v2/users/1/",
+    "related": {
+      "teams": "/api/v2/users/1/teams/",
+      "organizations": "/api/v2/users/1/organizations/",
+      "admin_of_organizations": "/api/v2/users/1/admin_of_organizations/",
+      "projects": "/api/v2/users/1/projects/",
+      "credentials": "/api/v2/users/1/credentials/",
+      "roles": "/api/v2/users/1/roles/",
+      "activity_stream": "/api/v2/users/1/activity_stream/",
+      "access_list": "/api/v2/users/1/access_list/",
+      "tokens": "/api/v2/users/1/tokens/",
+      "authorized_tokens": "/api/v2/users/1/authorized_tokens/",
+      "personal_tokens": "/api/v2/users/1/personal_tokens/"
+    },
+    "summary_fields": {
+      "resource": {
+        "ansible_id": "c8667b5b-c941-43a9-9622-ff05a4a85d24",
+        "resource_type": "shared.user"
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": false
+      }
+    },
+    "created": "2026-03-08T00:25:56.608308Z",
+    "modified": "2026-04-13T20:17:06.073448Z",
+    "username": "admin",
+    "first_name": "max",
+    "last_name": "mustermann",
+    "email": "<email> ",
+    "is_superuser": true,
+    "is_system_auditor": false,
+    "password": "$encrypted$",
+    "ldap_dn": "",
+    "last_login": "2026-04-13T20:17:06.073448Z",
+    "external_account": null,
+    "auth": []
+  }
+]

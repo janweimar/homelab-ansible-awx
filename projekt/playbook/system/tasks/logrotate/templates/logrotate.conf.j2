@@ -1,0 +1,53 @@
+# /etc/logrotate.conf - Systemweite Konfiguration
+# Verwaltet durch Ansible - pb_inst_conf_logrotate.yml
+# Aenderungen werden beim naechsten Playbook-Lauf ueberschrieben!
+
+# Rotationsfrequenz
+{{ logrotate_frequency }}
+
+# Anzahl rotierter Dateien behalten
+rotate {{ logrotate_rotate }}
+
+# Fehlende Logdateien ignorieren
+missingok
+
+# Leere Logdateien nicht rotieren
+notifempty
+
+# Maximale Dateigroesse (Rotation unabhaengig von Frequenz)
+maxsize {{ logrotate_maxsize }}
+
+# Minimale Groesse vor Rotation
+minsize {{ logrotate_minsize }}
+
+# Maximales Alter in Tagen
+maxage {{ logrotate_maxage }}
+
+{% if logrotate_compress | bool %}
+# Rotierte Dateien komprimieren
+compress
+
+# Erst beim naechsten Durchlauf komprimieren
+delaycompress
+{% else %}
+# Komprimierung deaktiviert
+nocompress
+{% endif %}
+
+{% if logrotate_dateext | bool %}
+# Datum im Dateinamen statt Nummer
+dateext
+dateformat -%Y%m%d
+{% else %}
+# Nummerierung statt Datum
+nodateext
+{% endif %}
+
+# Neue Logdatei nach Rotation erstellen
+create
+
+# Logdateien nach der Rotation per Mail versenden (deaktiviert)
+nomail
+
+# App-spezifische Konfigurationen einbinden
+include /etc/logrotate.d

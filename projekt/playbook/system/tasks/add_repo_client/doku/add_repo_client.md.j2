@@ -1,0 +1,11 @@
+# REPOSITORY CLIENT - SYSTEM KONFIGURATION
+
+## 📦 DEPLOYED REPOSITORIES
+
+{% for repo in repos_to_add | default([]) %}
+- **{{ repo.name }}:** {{ repo.url }}
+{% endfor %}
+
+---
+
+**Status:** ✅ Repository-Client konfiguriert

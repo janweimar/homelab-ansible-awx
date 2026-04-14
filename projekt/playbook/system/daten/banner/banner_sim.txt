@@ -1,0 +1,9 @@
+###########################################################################
+#                                                                         #
+#   Simulation Server (OpenFOAM + OpenEMS)                                #
+#   PLATZHALTER_IP                                                        #
+#                                                                         #
+#   Unbefugter Zugriff ist verboten!                                      #
+#   Alle Verbindungen werden protokolliert.                               #
+#                                                                         #
+###########################################################################

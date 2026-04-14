@@ -1,0 +1,61 @@
+---
+###########################################################################
+# AppArmor Debug
+# Playbook-spezifische Debug-Ausgaben
+###########################################################################
+
+- name: "🔍 ========================================"
+  ansible.builtin.debug:
+    msg: "DEBUG - APPARMOR PLAYBOOK VARIABLEN"
+  when: allg_debug | default(false)
+
+- name: 🔍 Debug - var_pack_name
+  ansible.builtin.debug:
+    msg: "Hauptanwendung: {{ var_pack_name }}"
+  when: allg_debug | default(false)
+
+- name: 🔍 Debug - var_dependencies_list
+  ansible.builtin.debug:
+    msg: "Dependencies: {{ var_dependencies_list | default('keine') }}"
+  when: allg_debug | default(false)
+
+- name: 🔍 Debug - var_prerequisites
+  ansible.builtin.debug:
+    msg: "Prerequisites: {{ var_prerequisites | default('keine') }}"
+  when: allg_debug | default(false)
+
+- name: 🔍 Debug - var_inst_order
+  ansible.builtin.debug:
+    msg: "Installationsreihenfolge: {{ var_inst_order }} (0=erst Hauptanwendung, 1=erst Dependencies)"
+  when: allg_debug | default(false)
+
+- name: 🔍 Debug - unsupported_systems
+  ansible.builtin.debug:
+    msg: "Nicht unterstützte Systeme: {{ unsupported_systems }}"
+  when: allg_debug | default(false)
+
+- name: 🔍 Debug - AppArmor Paketliste
+  ansible.builtin.debug:
+    msg: "AppArmor Pakete für {{ ansible_distribution }} {{ ansible_distribution_major_version }}: {{ packages.apt.apparmor[ansible_distribution][ansible_distribution_major_version] | default('nicht definiert') }}"
+  when: 
+    - allg_debug | default(false)
+    - packages is defined
+    - packages.apt is defined
+    - packages.apt.apparmor is defined
+
+- name: 🔍 Debug - AppArmor Service-Befehle
+  ansible.builtin.debug:
+    msg: 
+      - "Start: {{ services.apparmor.start[ansible_os_family] | default('nicht definiert') }}"
+      - "Stop: {{ services.apparmor.stop[ansible_os_family] | default('nicht definiert') }}"
+      - "Enable: {{ services.apparmor.enable[ansible_os_family] | default('nicht definiert') }}"
+      - "Status: {{ services.apparmor.status[ansible_os_family] | default('nicht definiert') }}"
+  when: 
+    - allg_debug | default(false)
+    - services is defined
+    - services.apparmor is defined
+
+- name: "🔍 ========================================"
+  ansible.builtin.debug:
+    msg: "DEBUG - APPARMOR VARIABLEN ENDE"
+  when: allg_debug | default(false)

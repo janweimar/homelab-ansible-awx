@@ -1,0 +1,113 @@
+---
+###########################################################################
+# Containerd Konfiguration - containerd_install.yml
+# NUR Konfiguration! Installation erfolgt über das Hauptplaybook (install_allg).
+# Prüft ob Containerd installiert ist, konfiguriert vollständig für eigenständige Nutzung.
+# Kann von verschiedenen Playbooks eingebunden werden.
+###########################################################################
+
+# ============================================================
+# PRÜFUNG - Containerd installiert?
+# ============================================================
+- name: Prüfe ob containerd installiert ist - containerd_install.yml
+  ansible.builtin.package_facts:
+    manager: apt
+
+- name: Abbruch wenn containerd nicht installiert - containerd_install.yml
+  ansible.builtin.assert:
+    that:
+      - "'containerd' in ansible_facts.packages"
+      - "'runc' in ansible_facts.packages"
+    fail_msg: "Containerd ist nicht installiert! Installation muss über das Hauptplaybook (var_pack_name) erfolgen."
+    success_msg: "Containerd ist installiert - starte Konfiguration."
+
+# ============================================================
+# KONFIGURATION - config.toml
+# ============================================================
+- name: Containerd Konfigurationsverzeichnis anlegen - containerd_install.yml
+  ansible.builtin.file:
+    path: "{{ paths.containerd_paths[ansible_os_family] }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Containerd config.toml aus Template bereitstellen - containerd_install.yml
+  ansible.builtin.template:
+    src: templates/config_toml.j2
+    dest: "{{ paths.containerd_config[ansible_os_family] }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: containerd_config_changed
+
+- name: Containerd neu starten nach Config-Änderung - containerd_install.yml
+  ansible.builtin.service:
+    name: containerd
+    state: restarted
+  when: containerd_config_changed.changed
+
+# ============================================================
+# KONFIGURATION - crictl.yaml
+# ============================================================
+- name: Alte crictl.yaml entfernen - containerd_install.yml
+  ansible.builtin.file:
+    path: /etc/crictl.yaml
+    state: absent
+
+- name: crictl.yaml aus Template bereitstellen - containerd_install.yml
+  ansible.builtin.template:
+    src: templates/crictl_yml.j2
+    dest: /etc/crictl.yaml
+    owner: root
+    group: root
+    mode: "0644"
+
+# ============================================================
+# KONFIGURATION - Kernel-Module & sysctl (für CRI-Nutzung)
+# ============================================================
+- name: Kernel-Modul overlay laden - containerd_install.yml
+  ansible.builtin.command: "{{ command.modprobe_overlay[ansible_os_family] }}"
+  changed_when: true
+
+- name: Kernel-Modul br_netfilter laden - containerd_install.yml
+  ansible.builtin.command: "{{ command.modprobe_br_netfilter[ansible_os_family] }}"
+  changed_when: true
+
+- name: IP-Forwarding aktivieren - containerd_install.yml
+  ansible.builtin.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    state: present
+    sysctl_file: "{{ paths.sysctl_conf_path[ansible_os_family] }}"
+    reload: true
+
+# ============================================================
+# PAKET-HOLD - Containerd Version einfrieren
+# ============================================================
+- name: Containerd Paket-Hold setzen - containerd_install.yml
+  ansible.builtin.command: apt-mark hold containerd
+  changed_when: true
+  when: ansible_os_family == "Debian"
+
+# ============================================================
+# SERVICE - Containerd starten & aktivieren
+# ============================================================
+- name: Containerd Service starten und aktivieren - containerd_install.yml
+  ansible.builtin.service:
+    name: containerd
+    state: started
+    enabled: true
+
+# ============================================================
+# VALIDIERUNG
+# ============================================================
+- name: Containerd Version prüfen - containerd_install.yml
+  ansible.builtin.command: containerd --version
+  register: containerd_version
+  changed_when: false
+
+- name: Containerd Konfiguration erfolgreich - containerd_install.yml
+  ansible.builtin.debug:
+    msg:
+      - "Containerd: {{ containerd_version.stdout }}"

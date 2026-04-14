@@ -1,0 +1,192 @@
+---
+###########################################################################
+# 🤖 openclaw_task.yml
+# OpenClaw (Moltbot) — Nativ-Installation auf WSL/Ubuntu
+###########################################################################
+# Wird vom universellen pb_setup_app_deploy.yml aufgerufen.
+# Deploy-Typ: nativ (kein Docker, kein Kubernetes)
+#
+# OpenClaw = selbstgehosteter AI-Agent
+# Verbindet sich zu Remote-Ollama auf AI-Server
+# TUI-Modus (kein Messaging wie WhatsApp/Telegram)
+#
+# Port: 18789 (OpenClaw Gateway)
+# DB: keine (app_db_type=none)
+###########################################################################
+
+# ============================================================
+# 0) Variablen + DEBUG
+# ============================================================
+- name: 📊 DEBUG Eingangsvariablen - openclaw_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "🤖 OpenClaw Nativ-Installation"
+      - "=========================================="
+      - "app_name:        {{ app_name }}"
+      - "app_deploy_type: {{ app_deploy_type }}"
+      - "app_db_type:     {{ app_db_type | default('none') }}"
+      - "app_port:        {{ app_port | default('18789') }}"
+      - "=========================================="
+
+# ============================================================
+# 1) Abhängigkeiten installieren
+# ============================================================
+- name: 📦 Abhängigkeiten installieren - openclaw_task.yml
+  ansible.builtin.apt:
+    name:
+      - curl
+      - ca-certificates
+      - jq
+    state: present
+    update_cache: true
+
+# ============================================================
+# 2) Ollama CLI installieren (für ollama launch openclaw)
+# ============================================================
+- name: 🔍 Prüfe ob Ollama CLI installiert ist - openclaw_task.yml
+  ansible.builtin.command: ollama --version
+  register: _ollama_cli_check
+  failed_when: false
+  changed_when: false
+
+- name: 📦 Ollama CLI installieren - openclaw_task.yml
+  ansible.builtin.shell: curl -fsSL https://ollama.com/install.sh | sh
+  args:
+    creates: /usr/local/bin/ollama
+  when: _ollama_cli_check.rc != 0
+
+# ============================================================
+# 3) OpenClaw installieren
+# ============================================================
+- name: 🔍 Prüfe ob OpenClaw installiert ist - openclaw_task.yml
+  ansible.builtin.command: openclaw -v
+  register: _openclaw_check
+  failed_when: false
+  changed_when: false
+
+- name: 📦 OpenClaw installieren - openclaw_task.yml
+  ansible.builtin.shell: curl -fsSL https://openclaw.dev/install.sh | bash
+  when: _openclaw_check.rc != 0
+
+- name: 🔍 Ermittle OpenClaw Pfad - openclaw_task.yml
+  ansible.builtin.command: which openclaw
+  register: _openclaw_path
+  changed_when: false
+
+- name: 📊 DEBUG OpenClaw Version - openclaw_task.yml
+  ansible.builtin.command: openclaw -v
+  register: _openclaw_version
+  changed_when: false
+  failed_when: false
+
+- name: 📊 DEBUG Installation - openclaw_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ OpenClaw: {{ _openclaw_version.stdout | default('installiert') }}"
+      - "📍 Pfad: {{ _openclaw_path.stdout | default('unbekannt') }}"
+
+# ============================================================
+# 4) Konfigurations-Verzeichnis erstellen
+# ============================================================
+- name: 📁 OpenClaw Config-Verzeichnis sicherstellen - openclaw_task.yml
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/.config/openclaw"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+
+# ============================================================
+# 5) Konfiguration deployen (Remote-Ollama)
+# ============================================================
+- name: 📝 OpenClaw Konfiguration erstellen - openclaw_task.yml
+  ansible.builtin.template:
+    src: playbook/system/tasks/openclaw/templates/openclaw_config.json.j2
+    dest: "/home/{{ ansible_user }}/.config/openclaw/config.json"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0644"
+
+# ============================================================
+# 6) Systemd Service erstellen (Reboot-Sicherheit)
+# ============================================================
+- name: 🔧 Systemd Service erstellen - openclaw_task.yml
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/openclaw-gateway.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=OpenClaw Gateway Daemon
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      User={{ ansible_user }}
+      Environment=HOME=/home/{{ ansible_user }}
+      ExecStart={{ _openclaw_path.stdout }} gateway --headless
+      Restart=on-failure
+      RestartSec=10
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: 🔄 Systemd daemon-reload - openclaw_task.yml
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: 🚀 OpenClaw Gateway starten + aktivieren - openclaw_task.yml
+  ansible.builtin.systemd:
+    name: openclaw-gateway
+    state: started
+    enabled: true
+
+# ============================================================
+# 7) Health Check
+# ============================================================
+- name: ⏳ Warte auf Gateway Start - openclaw_task.yml
+  ansible.builtin.wait_for:
+    port: "{{ app_port | default('18789') }}"
+    host: 127.0.0.1
+    delay: 5
+    timeout: 30
+  failed_when: false
+  register: _gateway_wait
+
+- name: 🧪 Teste Gateway Erreichbarkeit - openclaw_task.yml
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ app_port | default('18789') }}/"
+    method: GET
+    status_code: [200, 404]
+    timeout: 10
+  register: _health_check
+  failed_when: false
+
+- name: 📊 DEBUG Health Check - openclaw_task.yml
+  ansible.builtin.debug:
+    msg: "{{ '✅ OpenClaw Gateway erreichbar (Port ' + (app_port | default('18789')) + ')' if _health_check.status | default(0) in [200, 404] else '⚠️ Gateway nicht erreichbar — prüfe mit: systemctl status openclaw-gateway' }}"
+
+# ============================================================
+# 8) domain_port setzen (für nginx falls gewünscht)
+# ============================================================
+- name: 🔌 Setze domain_port für nginx (nativ) - openclaw_task.yml
+  ansible.builtin.set_fact:
+    domain_port: "127.0.0.1/{{ app_port | default('18789') }}"
+  when: app_nginx_integration | default(false) | bool
+
+# ============================================================
+# 9) Zugangsinfo anzeigen
+# ============================================================
+- name: ✅ OpenClaw bereit - openclaw_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "✅ OpenClaw (Moltbot) läuft!"
+      - "=========================================="
+      - "🤖 TUI starten: openclaw"
+      - "🔌 Gateway:     http://127.0.0.1:{{ app_port | default('18789') }}/"
+      - "🧠 Ollama:      http://10.200.0.23:11434 (AI-Server via VPN)"
+      - "📋 Service:     systemctl status openclaw-gateway"
+      - "📋 Logs:        journalctl -u openclaw-gateway -f"
+      - "=========================================="

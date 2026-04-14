@@ -1,0 +1,72 @@
+# SSH-Konfiguration
+# Generiert durch Ansible Playbook: pb_conf_add_user_add_ssh_key_secure.yml
+# aus credentials: cred_sshd_config
+{# AWX Credential Type: {{ credential.name }} #}
+
+# Port und Netzwerk
+Port {{ ssh_port if ssh_port is defined and ssh_port | length > 0 else file_paths.server_port[ansible_default_ipv4.address] }}
+
+# Moderne, sichere Verschlüsselungsalgorithmen
+{% if ciphers -%}
+Ciphers {{ ciphers }}
+{% endif %}
+{% if macs -%}
+MACs {{ macs }}
+{% endif %}
+{% if kex_algorithms -%}
+KexAlgorithms {{ kex_algorithms }}
+{% endif %}
+
+# Logging
+{% if syslog_facility -%}
+SyslogFacility {{ syslog_facility }}
+{% endif %}
+LogLevel {{ log_level }}
+
+# Authentifizierung
+LoginGraceTime {{ login_grace_time }}
+PermitRootLogin {{ 'yes' if enable_root_login | bool else 'no' }}
+MaxAuthTries {{ max_auth_tries }}
+MaxSessions {{ max_sessions }}
+{% if permit_empty_passwords is defined -%}
+PermitEmptyPasswords {{ 'yes' if permit_empty_passwords | bool else 'no' }}
+{%- endif %}
+
+{% if allow_users_ssh is defined and allow_users_ssh | length > 0 -%}
+AuthorizedKeysFile {% for user in allow_users_ssh %}/home/{{ user }}/.ssh/authorized_keys{% if not loop.last %} {% endif %}{% endfor %}
+{% endif %}
+
+PubkeyAuthentication yes
+
+# Passwort-Authentifizierung
+PasswordAuthentication {{ 'yes' if enable_password_auth | bool else 'no' }}
+KbdInteractiveAuthentication {{ 'yes' if enable_password_auth | bool else 'no' }}
+
+# PAM
+UsePAM {{ 'yes' if use_pam | bool else 'no' }}
+
+# Sicherheits-Optionen
+X11Forwarding {{ 'yes' if x11_forwarding | bool else 'no' }}
+PrintMotd {{ 'yes' if print_motd | bool else 'no' }}
+ClientAliveInterval {{ client_alive_interval }}
+ClientAliveCountMax 2
+TCPKeepAlive {{ 'yes' if tcp_keepalive | bool else 'no' }}
+
+{% if banner_bool | bool and not (print_motd | default(false) | bool) -%}
+Banner {{ paths.ssh.banner[ansible_os_family] }}/{{ file_paths.banner[ansible_default_ipv4.address] | basename }}
+{%- endif %}
+
+# Locale
+AcceptEnv LANG LC_*
+
+# SFTP Subsystem
+Subsystem sftp /usr/lib/openssh/sftp-server
+
+{% if allow_users_ssh -%}
+AllowUsers {{ allow_users_ssh | join(' ') }}
+{%- endif %}
+
+# Zusätzliche Konfiguration
+{% if additional_config -%}
+{{ additional_config }}
+{%- endif %}

@@ -1,0 +1,10 @@
+###############################################################
+# 📦 Basis-Pakete Hauptprogramm Deinstallieren (alle Systeme)
+###############################################################
+- name: "Deinstalliere {{ var_pack_name }} auf {{ ansible_os_family }} -deinstall_allg.yml"
+  ansible.builtin.package:
+    name: "{{ packages[var_pack_name][ansible_os_family] }}"
+    state: absent
+  environment: >-
+    {{ {'DEBIAN_FRONTEND': 'noninteractive'}
+       if ansible_os_family == 'Debian' else {} }}

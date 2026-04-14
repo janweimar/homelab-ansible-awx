@@ -1,0 +1,61 @@
+# K3s CLUSTER - SYSTEM KONFIGURATION
+
+## 🧊 Status
+
+- **Status:** {{ allg_status }}
+- **Host:** {{ ansible_host }}
+- **OS:** {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
+- **K3s:** {{ k3s_stack.k3s_version }}
+- **Kubernetes:** v{{ k3s_stack.kubernetes_version }}
+
+---
+
+## 📋 Komponenten
+
+| Komponente | Version |
+|------------|---------|
+| K3s | {{ k3s_stack.k3s_version }} |
+| Containerd | {{ k3s_stack.containerd }} |
+| Flannel | {{ k3s_stack.flannel }} |
+| CoreDNS | {{ k3s_stack.coredns }} |
+| Metrics-Server | {{ k3s_stack.metrics_server }} |
+
+---
+
+## 🚫 Deaktivierte Komponenten
+
+{% for item in k3s_stack.disable %}
+- {{ item }}
+{% endfor %}
+
+---
+
+## 🔧 Wichtige Pfade
+
+| Pfad | Beschreibung |
+|------|-------------|
+| `/etc/rancher/k3s/k3s.yaml` | kubeconfig (original) |
+| `/home/{{ kube_user }}/.kube/config` | kubeconfig (kopiert) |
+| `/var/lib/rancher/k3s/` | K3s Daten + Storage |
+| `/usr/local/bin/k3s` | K3s Binary |
+| `/usr/local/bin/kubectl` | kubectl Symlink → k3s |
+
+---
+
+## 🛠️ Wichtige Befehle
+
+```bash
+# Als kube User
+sudo -u {{ kube_user }} kubectl get pods --all-namespaces
+sudo -u {{ kube_user }} kubectl get nodes -o wide
+sudo -u {{ kube_user }} helm list --all-namespaces
+
+# K3s Service
+systemctl status k3s
+journalctl -u k3s -n 50
+```
+
+---
+
+**Zeitstempel:** {{ ansible_date_time.iso8601 | default('n/a') }}
+**Status:** ✅ K3s Cluster konfiguriert

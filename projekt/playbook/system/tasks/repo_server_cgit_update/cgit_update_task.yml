@@ -1,0 +1,143 @@
+---
+###########################################################################
+# 🔄 cgit Update Task
+# Datei: cgit_update_task.yml
+# Zweck: Bestehende bare Git-Repos unter /srv/git/ aktualisieren
+#        Nur Repos mit Aenderungen werden gefetcht (ls-remote Vergleich)
+###########################################################################
+
+# =========================================================================
+# 1. Prüfe ob /srv/git existiert
+# =========================================================================
+- name: Prüfe ob /srv/git existiert - cgit_update_task.yml
+  ansible.builtin.stat:
+    path: /srv/git
+  register: srv_git_dir
+
+- name: Abbruch wenn /srv/git nicht existiert - cgit_update_task.yml
+  ansible.builtin.fail:
+    msg: "/srv/git existiert nicht! Bitte zuerst pb_conf_cgit_publishing_server.yml ausfuehren."
+  when: not srv_git_dir.stat.exists
+
+# =========================================================================
+# 2. Vorhandene Repos ermitteln
+# =========================================================================
+- name: Vorhandene Repos ermitteln - cgit_update_task.yml
+  ansible.builtin.command: ls -1 /srv/git
+  register: git_existing_repos
+  changed_when: false
+  failed_when: false
+
+- name: Setze Repo-Liste - cgit_update_task.yml
+  ansible.builtin.set_fact:
+    git_repo_list: "{{ git_existing_repos.stdout_lines | default([]) | select('match', '.*\\.git$') | list }}"
+
+- name: Zeige gefundene Repos - cgit_update_task.yml
+  ansible.builtin.debug:
+    msg: "Gefundene Repos: {{ git_repo_list | length }}"
+
+# =========================================================================
+# 3. Remote HEAD vs. lokal vergleichen (schnell, nur 1 Request pro Repo)
+# =========================================================================
+- name: Vergleiche Remote vs. Lokal HEAD - cgit_update_task.yml
+  ansible.builtin.shell: |
+    LOCAL_HEAD=$(git -C /srv/git/{{ item }} rev-parse HEAD 2>/dev/null || echo "NONE")
+    REMOTE_HEAD=$(git -C /srv/git/{{ item }} ls-remote origin HEAD 2>/dev/null | awk '{print $1}' || echo "FEHLER")
+    if [ "$LOCAL_HEAD" = "$REMOTE_HEAD" ]; then
+      echo "AKTUELL"
+    else
+      echo "VERALTET"
+    fi
+  loop: "{{ git_repo_list }}"
+  register: head_check_results
+  changed_when: false
+  failed_when: false
+  loop_control:
+    label: "{{ item }}"
+
+# =========================================================================
+# 4. Liste der Repos mit Aenderungen erstellen
+# =========================================================================
+- name: Erstelle Liste der veralteten Repos - cgit_update_task.yml
+  ansible.builtin.set_fact:
+    repos_to_update: "{{ head_check_results.results | default([]) | selectattr('stdout', 'equalto', 'VERALTET') | map(attribute='item') | list }}"
+    repos_aktuell: "{{ head_check_results.results | default([]) | selectattr('stdout', 'equalto', 'AKTUELL') | map(attribute='item') | list }}"
+    repos_fehler: "{{ head_check_results.results | default([]) | rejectattr('stdout', 'in', ['AKTUELL', 'VERALTET']) | map(attribute='item') | list }}"
+
+- name: Zeige Update-Bedarf - cgit_update_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "═══════════════════════════════════════════"
+      - "📋 PRE-CHECK ERGEBNIS"
+      - "═══════════════════════════════════════════"
+      - "Repos gesamt: {{ git_repo_list | length }}"
+      - "Bereits aktuell: {{ repos_aktuell | length }}"
+      - "Updates verfuegbar: {{ repos_to_update | length }}"
+      - "Fehler bei Pruefung: {{ repos_fehler | length }}"
+      - "═══════════════════════════════════════════"
+
+# =========================================================================
+# 5. Nur veraltete Repos fetchen
+# =========================================================================
+- name: Aktualisiere Repos mit Aenderungen (git fetch) - cgit_update_task.yml
+  ansible.builtin.command:
+    cmd: git fetch --all --prune
+    chdir: "/srv/git/{{ item }}"
+  loop: "{{ repos_to_update }}"
+  register: git_fetch_results
+  ignore_errors: yes
+  changed_when: true
+  loop_control:
+    label: "{{ item }}"
+  when: repos_to_update | length > 0
+
+- name: Zeige fehlgeschlagene Fetches - cgit_update_task.yml
+  ansible.builtin.debug:
+    msg: "❌ Fetch fehlgeschlagen fuer {{ item.item }}: {{ item.stderr }}"
+  loop: "{{ git_fetch_results.results | default([]) }}"
+  when:
+    - git_fetch_results.results is defined
+    - item.rc is defined
+    - item.rc != 0
+  loop_control:
+    label: "{{ item.item | default('n/a') }}"
+
+- name: Kein Update noetig - cgit_update_task.yml
+  ansible.builtin.debug:
+    msg: "✅ Alle Repos sind bereits aktuell - kein Fetch noetig!"
+  when: repos_to_update | length == 0
+
+# =========================================================================
+# 6. Berechtigungen setzen (nur wenn Updates durchgefuehrt)
+# =========================================================================
+- name: Berechtigungen setzen - cgit_update_task.yml
+  ansible.builtin.file:
+    path: /srv/git
+    owner: www-data
+    group: www-data
+    recurse: yes
+    mode: "2775"
+  when: repos_to_update | length > 0
+
+# =========================================================================
+# 7. Zusammenfassung
+# =========================================================================
+- name: Erstelle Update-Report - cgit_update_task.yml
+  ansible.builtin.set_fact:
+    cgit_update_total: "{{ git_repo_list | length }}"
+    cgit_update_aktuell: "{{ repos_aktuell | length }}"
+    cgit_update_updated: "{{ repos_to_update | length }}"
+    cgit_update_fetch_failed: "{{ git_fetch_results.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | list | length if git_fetch_results.results is defined else 0 }}"
+
+- name: Zeige Update-Report - cgit_update_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "═══════════════════════════════════════════"
+      - "📊 CGIT UPDATE REPORT"
+      - "═══════════════════════════════════════════"
+      - "Repos gesamt: {{ cgit_update_total }}"
+      - "Bereits aktuell: {{ cgit_update_aktuell }}"
+      - "Aktualisiert: {{ cgit_update_updated }}"
+      - "Fetch Fehler: {{ cgit_update_fetch_failed }}"
+      - "═══════════════════════════════════════════"
+      - "{{ '✅ Keine Updates noetig!' if (cgit_update_updated | int == 0) else '✅ ' + cgit_update_updated + ' Repos aktualisiert!' if (cgit_update_fetch_failed | int == 0) else '⚠️ Es gab Fehler - siehe oben!' }}"

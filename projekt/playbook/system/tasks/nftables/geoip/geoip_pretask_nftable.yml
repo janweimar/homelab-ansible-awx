@@ -1,0 +1,92 @@
+###########################################################################
+# 🧰 Playbook-spezifischer pre_task alles was speziel zu diesem Playbook gehört
+###########################################################################
+- name: 🧩 Variablen für Playbook vereinheitlichen
+  ansible.builtin.set_fact:
+    fire_geo_main_status: "{{ allg_status | default('deaktiviert') }}"
+    fire_vpn_enabled: "{{ vpn_enabled | default(false) }}"
+
+- block:
+    ###########################################################################
+    # 🧩 Eingangsvariablen aus allen AWX-Credentials
+    ###########################################################################
+    - block:
+        - name: 🧩 Variablen für GeoIP vorbereiten
+          ansible.builtin.set_fact:
+            fire_geoip_source_dir: "{{ paths.geoip_source_dir[ansible_os_family] }}"
+            fire_geoip_db_path: "{{ paths.geoip_db_path[ansible_os_family] }}"
+            fire_geo_chain_name: "geo_chain"
+            allow_http: "{{ allow_http | default(false) }}"
+            allow_https: "{{ allow_https | default(false) }}"
+
+        - name: 🧩 Variablen für Playbook vereinheitlichen
+          ansible.builtin.set_fact:
+            fire_geo_mode: "{{ geo_mode | default('block') }}"
+            fire_geo_countries: "{{ geo_countries | default('') }}"
+            fire_geoip_location_file: "{{ fire_geoip_source_dir }}/location.csv"
+            fire_geo_rollback_timer: "{{ rollback_timeout | default(4) }}"
+
+    ###########################################################################
+    # ✅ Pflichtvariablen prüfen
+    ###########################################################################
+    - name: Status Prüfen -> allg_status (muss gesetzt sein)
+      ansible.builtin.assert:
+        that:
+          - allg_status is defined
+        fail_msg: |
+          ❌ Abbruch: Pflichtvariablen 'allg_status' fehlen!
+          🔎 Variablen müssen über AWX-Credentials übergeben werden.
+          ➜ Erwartet:
+              allg_status: aktiviert|deaktiviert|deinstalliert
+        success_msg: "✅ Basisvariablen vorhanden."
+
+    ###########################################################################
+    # 🌐 Trusted-IP-Datei laden
+    ###########################################################################
+    - name: 🔄 Importieren und ausführen tasks/nftables/trusted_nftable.yml
+      ansible.builtin.include_tasks: "{{ task_paths.trusted_nftable }}"
+      
+    ###########################################################################
+    # 🌍 Geo-Failsafe Chainng – nur bei aktiviertem Geo-Failsafe Chains
+    ###########################################################################
+    - block:
+        - name: 🌍 Modus und Länderangaben prüfen
+          ansible.builtin.assert:
+            that:
+              - geo_mode is defined
+              - geo_mode | trim | length > 0
+              - geo_countries is defined
+              - geo_countries | trim | length > 0
+            fail_msg: |
+              ❌ Abbruch: Geo-Failsafe Chains ist 'aktiviert', aber 'geo_mode' oder 'geo_countries' fehlen!
+              ➜ Bitte beide Variablen im AWX Credential definieren.
+              Beispiel:
+                geo_mode: allow
+                geo_countries: "DE,AT,CH"
+            success_msg: "✅ Geo-Failsafe Chainblen korrekt gesetzt."
+
+        - name: 🧩 Eingangsvariablen aus allen AWX credentials
+          ansible.builtin.debug:
+            msg:
+              - "🌍 GeoIP Status (AWX-credential):                      {{ allg_status | default('nicht gesetzt') }}"
+              - "📦 GeoIP Modus (AWX-credential):                       {{ geo_mode | default('nicht gesetzt') }}"
+              - "🌐 GeoIP Länderauswahl (AWX-credential):               {{ geo_countries | default('keine') }}"
+              - "⏳ Firewall-Rollback Timer (AWX-credential):            {{ rollback_timeout | default('nicht gesetzt') }}"
+              - "🔢 Priorität der GeoIP-Chain (AWX-credential):        -200"
+
+        - name: 🛠️ Debug-Ausgabe GeoIP Systemvariablen
+          ansible.builtin.debug:
+            msg:
+              - "🔍 GeoIP System - Informationen"
+              - "------------------------------------------------------------------------"
+              - "📂 Source Dir:                              {{ fire_geoip_source_dir }}"
+              - "📂 DB Path:                                 {{ fire_geoip_db_path }}"
+              - "📄 Location File:                           {{ fire_geoip_location_file }}"
+              - "🔗 Table Name:                              geo_tab"
+              - "🔗 Chain Name:                              geo_chain"
+              - "📄 trusted IP's:                            daten/failsafe_ips.yml"
+              - "🌐 Ländererkennung des install Rechners:    {{ fire_geo_awx_country }}"
+              - "🧱 Trusted IPv4-Adressen:                  {{ in_os_networks_v4 }}"
+              - "🧱 Trusted IPv6-Adressen:                  {{ in_os_networks_v6 }}"
+              - "🌐 Allow HTTP:                              {{ allow_http }}"
+              - "🌐 Allow HTTPS:                             {{ allow_https }}"

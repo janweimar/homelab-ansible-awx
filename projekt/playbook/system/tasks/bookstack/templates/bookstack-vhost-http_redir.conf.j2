@@ -1,0 +1,20 @@
+# =============================================================================
+# nginx vHost fuer BookStack Dokumentation
+# Domain: {{ server_urls.bookstack.domain }}
+# HTTP -> HTTPS Redirect
+# =============================================================================
+
+server {
+    listen 80;
+    server_name {{ server_urls.bookstack.domain }};
+
+    # Certbot Challenge
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    # Redirect zu HTTPS
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}

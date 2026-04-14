@@ -1,0 +1,104 @@
+###########################################################################
+# BookStack Installation - Uebersicht
+###########################################################################
+# Erstellt: {{ ansible_date_time.iso8601 }}
+# Host: {{ ansible_hostname }}
+# OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+###########################################################################
+
+BookStack wurde erfolgreich installiert!
+
+INSTALLATION:
+   Verzeichnis: {{ paths.bookstack_base[ansible_os_family] }}
+   Docker Compose: {{ paths.bookstack_base[ansible_os_family] }}/docker-compose.yml
+   Credentials: {{ paths.bookstack_base[ansible_os_family] }}/.credentials
+
+ZUGRIFF:
+   URL: {{ server_urls.bookstack.url }}
+   Port: {{ server_urls.bookstack.port }}
+{% if bookstack_nginx_integration | bool %}
+   nginx: {{ 'https' if server_ssl | bool else 'http' }}://{{ server_urls.bookstack.domain }}
+{% endif %}
+
+STANDARD-LOGIN:
+   E-Mail: admin@admin.com
+   Passwort: password
+   WICHTIG: Passwort nach erstem Login aendern!
+
+DOCKER BEFEHLE:
+   Status pruefen:
+     cd {{ paths.bookstack_base[ansible_os_family] }}
+     {{ command.docker_compose_ps[ansible_os_family] }}
+
+   Container starten:
+     cd {{ paths.bookstack_base[ansible_os_family] }}
+     {{ command.docker_compose_up[ansible_os_family] }}
+
+   Container stoppen:
+     cd {{ paths.bookstack_base[ansible_os_family] }}
+     {{ command.docker_compose_down[ansible_os_family] }}
+
+   Logs anschauen:
+     cd {{ paths.bookstack_base[ansible_os_family] }}
+     {{ command.docker_compose_logs[ansible_os_family] }}
+
+DATENBANK:
+   Typ: MariaDB 11.2
+   Container: bookstack_db
+   Datenbank: bookstack
+   User: bookstack
+   Passwort: Siehe .credentials Datei
+
+VERZEICHNISSE:
+   Uploads: {{ paths.bookstack_data[ansible_os_family] }}
+   Storage: {{ paths.bookstack_storage[ansible_os_family] }}
+   Datenbank: {{ paths.bookstack_db[ansible_os_family] }}
+   Backups: {{ paths.bookstack_backup[ansible_os_family] }}
+
+BACKUP & RESTORE:
+   Ansible Backup erstellen:
+     ansible-playbook pb_inst_bookstack.yml -e "restore_db=true"
+
+   Backup-Verzeichnis:
+     {{ paths.bookstack_backup[ansible_os_family] }}
+
+   Manuelles Backup:
+     cd {{ paths.bookstack_base[ansible_os_family] }}
+     tar -czf bookstack-backup-$(date +%Y%m%d).tar.gz data/ storage/ db/ .credentials docker-compose.yml
+
+   Manuelles Restore:
+     cd {{ paths.bookstack_base[ansible_os_family] }}
+     {{ command.docker_compose_down[ansible_os_family] }}
+     tar -xzf bookstack-backup-YYYYMMDD.tar.gz
+     {{ command.docker_compose_up[ansible_os_family] }}
+
+{% if bookstack_nginx_integration | bool %}
+NGINX:
+   Konfiguration: {{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.bookstack.domain }}.conf
+   Logs: {{ paths.nginx_log_dir[ansible_os_family] }}/{{ server_urls.bookstack.domain }}_*.log
+{% if server_ssl | bool %}
+   SSL Zertifikat: /etc/letsencrypt/live/{{ server_urls.bookstack.domain }}/
+{% endif %}
+{% endif %}
+
+SICHERHEIT:
+   - Admin-Passwort sofort aendern!
+   - DB-Passwort in .credentials ist verschluesselt
+   - Container laufen im Bridge-Netzwerk (isoliert)
+{% if bookstack_nginx_integration | bool %}
+{% if nginx_modsecurity | bool %}
+   - ModSecurity aktiviert (OWASP CRS)
+{% endif %}
+{% if server_ssl | bool %}
+   - HTTPS mit Let's Encrypt
+   - HSTS aktiviert
+{% endif %}
+{% endif %}
+
+DOKUMENTATION:
+   BookStack Docs: https://www.bookstackapp.com/docs/
+   Docker Image: https://hub.docker.com/r/solidnerd/bookstack
+
+###########################################################################
+# Ende der Installationsuebersicht
+###########################################################################

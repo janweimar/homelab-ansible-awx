@@ -1,0 +1,42 @@
+# =============================================================================
+# nginx vHost fuer BookStack Dokumentation
+# Domain: {{ server_urls.bookstack.domain }}
+# HTTP Reverse Proxy
+# =============================================================================
+
+server {
+    listen 80;
+    server_name {{ server_urls.bookstack.domain }};
+
+    # Groessere Uploads erlauben (fuer Dokumente/Bilder in BookStack)
+    client_max_body_size 50M;
+
+    # Logs
+    access_log {{ paths.nginx_log_dir[ansible_os_family] }}/{{ server_urls.bookstack.domain }}_access.log;
+    error_log {{ paths.nginx_log_dir[ansible_os_family] }}/{{ server_urls.bookstack.domain }}_error.log;
+
+{% if nginx_modsecurity | bool %}
+    # ModSecurity
+    modsecurity on;
+    modsecurity_rules_file {{ paths.modsecurity_conf[ansible_os_family] }};
+{% endif %}
+
+    location / {
+        proxy_pass http://127.0.0.1:{{ server_urls.bookstack.port }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket Support (fuer BookStack Live-Updates)
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Timeouts fuer grosse Uploads
+        proxy_connect_timeout 600;
+        proxy_send_timeout 600;
+        proxy_read_timeout 600;
+        send_timeout 600;
+    }
+}

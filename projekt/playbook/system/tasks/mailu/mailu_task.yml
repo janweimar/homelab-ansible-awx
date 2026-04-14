@@ -1,0 +1,115 @@
+---
+###########################################################################
+# mailu_task.yml
+# Mailu Mail-Server — Docker-Compose Deployment
+# Öffentlich: Port 25 (SMTP), 587 (Submission), 993 (IMAPS)
+# VPN-only:   Admin-GUI über nginx Reverse Proxy (app_port)
+###########################################################################
+
+# ============================================================
+# 1) Alte Container stoppen + Dateien löschen
+# ============================================================
+- name: Mailu alte Container stoppen - mailu_task.yml
+  ansible.builtin.command:
+    cmd: docker compose down --remove-orphans
+    chdir: /opt/mailu
+  changed_when: true
+  failed_when: false
+
+- name: Mailu alte Konfigurationsdateien löschen - mailu_task.yml
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /opt/mailu/docker-compose.yml
+    - /opt/mailu/mailu.env
+
+# ============================================================
+# 2) Verzeichnisse anlegen
+# ============================================================
+- name: Mailu Verzeichnisse anlegen - mailu_task.yml
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /opt/mailu
+    - /opt/mailu/data
+    - /opt/mailu/dkim
+    - /opt/mailu/filter
+    - /opt/mailu/mail
+    - /opt/mailu/overrides
+    - /opt/mailu/overrides/nginx
+    - /opt/mailu/overrides/dovecot
+    - /opt/mailu/overrides/postfix
+    - /opt/mailu/overrides/rspamd
+    - /opt/mailu/redis
+
+# ============================================================
+# 3) Mailu Umgebungsdatei deployen
+# ============================================================
+- name: Mailu .env deployen - mailu_task.yml
+  ansible.builtin.template:
+    src: playbook/system/tasks/mailu/templates/mailu.env.j2
+    dest: /opt/mailu/mailu.env
+    owner: root
+    group: root
+    mode: "0640"
+
+# ============================================================
+# 4) docker-compose.yml deployen
+# ============================================================
+- name: Mailu docker-compose.yml deployen - mailu_task.yml
+  ansible.builtin.template:
+    src: playbook/system/tasks/mailu/templates/docker-compose.yml.j2
+    dest: /opt/mailu/docker-compose.yml
+    owner: root
+    group: root
+    mode: "0644"
+
+# ============================================================
+# 5) Docker sicherstellen
+# ============================================================
+- name: Stelle sicher dass Docker läuft - mailu_task.yml
+  ansible.builtin.systemd:
+    name: docker
+    state: restarted
+    enabled: true
+
+# ============================================================
+# 6) Container starten
+# ============================================================
+- name: Mailu Container starten - mailu_task.yml
+  ansible.builtin.command:
+    cmd: docker compose up -d
+    chdir: /opt/mailu
+  changed_when: true
+
+# ============================================================
+# 7) Warten bis Admin-UI erreichbar
+# ============================================================
+- name: Warte bis Mailu Admin-UI bereit ist - mailu_task.yml
+  ansible.builtin.uri:
+    url: "http://localhost:{{ app_port | default('8080') }}/admin"
+    status_code: [200, 302]
+  register: mailu_health
+  retries: 30
+  delay: 10
+  until: mailu_health.status in [200, 302]
+  failed_when: false
+
+# ============================================================
+# 8) domain_port setzen (für nginx Reverse Proxy)
+# ============================================================
+- name: Setze domain_port für nginx - mailu_task.yml
+  ansible.builtin.set_fact:
+    domain_port: "127.0.0.1/{{ app_port | default('8080') }}"
+  when: app_nginx_integration | default(false) | bool
+
+# ============================================================
+# 9) Port-Tests + Status
+# ============================================================
+- name: 🔌 Port-Tests - mailu_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.port_test }}"

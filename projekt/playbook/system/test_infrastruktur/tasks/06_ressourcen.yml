@@ -1,0 +1,160 @@
+---
+###########################################################################
+# 📊 Modul 06 — Systemressourcen & Performance
+# =========================================================================
+# Zweck  : CPU, RAM, Swap, Festplatten-I/O und Speichernutzung
+# Liest  : free, df, iostat, /proc/loadavg, ps
+# Schreibt in: ressourcen_results
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+# =========================================================================
+# CPU & Speicher
+# =========================================================================
+
+- name: "06 | CPU-Auslastung erfassen"
+  ansible.builtin.command: top -bn1
+  register: reg_top
+  changed_when: false
+  failed_when: false
+
+- name: "06 | Load Average erfassen"
+  ansible.builtin.command: cat /proc/loadavg
+  register: reg_loadavg
+  changed_when: false
+  failed_when: false
+
+- name: "06 | Speichernutzung erfassen"
+  ansible.builtin.command: free -h
+  register: reg_memory
+  changed_when: false
+  failed_when: false
+
+- name: "06 | Speicher in MB erfassen (für Berechnungen)"
+  ansible.builtin.command: free -m
+  register: reg_memory_mb
+  changed_when: false
+  failed_when: false
+
+- name: "06 | Swap-Nutzung ermitteln"
+  ansible.builtin.shell: free -m | awk '/Swap/ {print $3, $2}'
+  register: reg_swap
+  changed_when: false
+  failed_when: false
+
+- name: "06 | Top-Prozesse nach RAM-Verbrauch"
+  ansible.builtin.shell: ps aux --sort=-%mem | head -11
+  register: reg_top_ram
+  changed_when: false
+  failed_when: false
+
+- name: "06 | Top-Prozesse nach CPU-Verbrauch"
+  ansible.builtin.shell: ps aux --sort=-%cpu | head -11
+  register: reg_top_cpu
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Festplatten
+# =========================================================================
+
+- name: "06 | Festplattenbelegung erfassen"
+  ansible.builtin.command: df -h
+  register: reg_disk
+  changed_when: false
+  failed_when: false
+
+- name: "06 | Festplattenbelegung in % für Berechnungen"
+  ansible.builtin.shell: df -h | awk 'NR>1 {gsub(/%/,""); print $5, $6}'
+  register: reg_disk_percent
+  changed_when: false
+  failed_when: false
+
+- name: "06 | Volle Dateisysteme prüfen (>85%)"
+  ansible.builtin.shell: df -h | awk 'NR>1 {gsub(/%/,"",$5); if($5+0 > 85) print $5"% "$6}'
+  register: reg_disk_voll
+  changed_when: false
+  failed_when: false
+
+- name: "06 | I/O-Statistiken erfassen"
+  ansible.builtin.command: iostat -dx 1 1
+  register: reg_iostat
+  changed_when: false
+  failed_when: false
+
+- name: "06 | Größte Verzeichnisse unter /var ermitteln"
+  ansible.builtin.shell: du -sh /var/* 2>/dev/null | sort -rh | head -10
+  register: reg_var_groesse
+  changed_when: false
+  failed_when: false
+
+- name: "06 | Inode-Verbrauch prüfen"
+  ansible.builtin.command: df -i
+  register: reg_inodes
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ergebnisse in Variable speichern
+# =========================================================================
+
+- name: "06 | RAM-Auslastung berechnen"
+  ansible.builtin.shell: free -m | awk '/Mem/ {printf "%.0f", $3/$2*100}'
+  register: reg_ram_percent
+  changed_when: false
+  failed_when: false
+
+- name: "06 | Ergebnisse in ressourcen_results speichern"
+  ansible.builtin.set_fact:
+    ressourcen_results:
+      status: >-
+        {{
+          'FEHLER' if reg_disk_voll.stdout_lines | length > 0
+          else 'WARNUNG' if (reg_ram_percent.stdout | int) > 85
+          else 'OK'
+        }}
+      zusammenfassung:
+        ok: "{{ 0 if reg_disk_voll.stdout_lines | length > 0 or (reg_ram_percent.stdout | int) > 85 else 1 }}"
+        warnungen: "{{ 1 if (reg_ram_percent.stdout | int) > 85 and reg_disk_voll.stdout_lines | length == 0 else 0 }}"
+        fehler: "{{ reg_disk_voll.stdout_lines | length }}"
+      details:
+        - name: "RAM-Auslastung"
+          status: >-
+            {{
+              'FEHLER' if (reg_ram_percent.stdout | int) > 90
+              else 'WARNUNG' if (reg_ram_percent.stdout | int) > 80
+              else 'OK'
+            }}
+          wert: "{{ reg_ram_percent.stdout }}% belegt"
+          hinweis: "{{ 'RAM-Auslastung kritisch!' if (reg_ram_percent.stdout | int) > 90 else '' }}"
+
+        - name: "Swap-Nutzung"
+          status: "{{ 'WARNUNG' if (reg_swap.stdout.split()[0] | int) > 0 else 'OK' }}"
+          wert: "{{ reg_swap.stdout | default('0 0') }} MB (genutzt/gesamt)"
+          hinweis: "{{ 'Swap wird genutzt — RAM möglicherweise knapp' if (reg_swap.stdout.split()[0] | default(0) | int) > 0 else '' }}"
+
+        - name: "Load Average"
+          status: "OK"
+          wert: "{{ reg_loadavg.stdout }}"
+          hinweis: ""
+
+        - name: "Volle Dateisysteme (>85%)"
+          status: "{{ 'FEHLER' if reg_disk_voll.stdout_lines | length > 0 else 'OK' }}"
+          wert: "{{ reg_disk_voll.stdout_lines | length }} Dateisysteme über 85%"
+          hinweis: "{{ 'Volle Dateisysteme: ' + reg_disk_voll.stdout if reg_disk_voll.stdout_lines | length > 0 else '' }}"
+
+        - name: "Festplattenbelegung"
+          status: "OK"
+          wert: "Übersicht vorhanden"
+          hinweis: ""
+
+      memory: "{{ reg_memory.stdout_lines | default([]) }}"
+      disk: "{{ reg_disk.stdout_lines | default([]) }}"
+      top_ram: "{{ reg_top_ram.stdout_lines | default([]) }}"
+      top_cpu: "{{ reg_top_cpu.stdout_lines | default([]) }}"
+      iostat: "{{ reg_iostat.stdout_lines | default([]) }}"
+      var_groesse: "{{ reg_var_groesse.stdout_lines | default([]) }}"
+
+- name: "06 | ✅ Ressourcen-Analyse abgeschlossen"
+  ansible.builtin.debug:
+    msg: "Ressourcen erfasst — RAM: {{ reg_ram_percent.stdout }}%, Disk: {{ reg_disk_voll.stdout_lines | length }} voll — Status: {{ ressourcen_results.status }}"

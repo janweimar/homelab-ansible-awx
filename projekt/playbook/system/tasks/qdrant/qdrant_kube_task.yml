@@ -1,0 +1,206 @@
+---
+###########################################################################
+# 🔍 qdrant_kube_task.yml
+# Qdrant Vektor-Datenbank auf K3s — für RAG / semantische Suche
+###########################################################################
+# Wird vom universellen pb_setup_app_deploy.yml aufgerufen.
+# nginx wird dort gehandelt — hier nur Kubernetes-Deployment.
+#
+# Qdrant API: Port 6333 (HTTP) + Port 6334 (gRPC)
+# DB: Qdrant ist selbst die DB — kein separater DB-Pod nötig
+# PVC: Vektor-Daten persistent
+#
+# Nutzt wiederverwendbare Common Tasks:
+#   - kube_app_cleanup:     Namespace + Ressourcen aufräumen
+#   - kube_app_wait_ready:  Warten bis alle Pods Ready
+###########################################################################
+
+# ============================================================
+# 0) Variablen + DEBUG
+# ============================================================
+- name: 🔧 Setze Qdrant Variablen - qdrant_kube_task.yml
+  ansible.builtin.set_fact:
+    _qdrant_storage_size: "20Gi"
+
+- name: 📊 DEBUG Eingangsvariablen - qdrant_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "🔍 Qdrant Kubernetes Deployment"
+      - "=========================================="
+      - "app_name:        {{ app_name }}"
+      - "app_deploy_type: {{ app_deploy_type }}"
+      - "app_db_type:     {{ app_db_type | default('none') }}"
+      - "app_port:        {{ app_port | default('6333') }}"
+      - "kube_user:       {{ kube_user }}"
+      - "Storage:         {{ _qdrant_storage_size }}"
+      - "=========================================="
+
+# ============================================================
+# 1) Aufräumen — alte Installation entfernen
+# ============================================================
+- name: 🧹 Alte Installation aufräumen - qdrant_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_cleanup }}"
+
+# ============================================================
+# 2) Qdrant deployen (kein DB-Deploy — Qdrant IST die DB)
+# ============================================================
+- name: 📁 Namespace erstellen - qdrant_kube_task.yml
+  ansible.builtin.command: kubectl create namespace {{ app_name }}
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _ns_ensure
+  failed_when:
+    - _ns_ensure.rc != 0
+    - "'already exists' not in _ns_ensure.stderr"
+  changed_when: "'created' in _ns_ensure.stdout"
+
+- name: 📁 Manifests-Verzeichnis sicherstellen - qdrant_kube_task.yml
+  ansible.builtin.file:
+    path: "/home/{{ kube_user }}/manifests"
+    state: directory
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0755"
+
+- name: 📝 Qdrant Manifest erstellen - qdrant_kube_task.yml
+  ansible.builtin.template:
+    src: playbook/system/tasks/qdrant/templates/qdrant_kube_manifests.yml.j2
+    dest: "/home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml"
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0644"
+
+- name: 📊 DEBUG Manifest erstellt - qdrant_kube_task.yml
+  ansible.builtin.debug:
+    msg: "📝 Manifest: /home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml"
+
+- name: 🚀 Qdrant deployen - qdrant_kube_task.yml
+  ansible.builtin.command: kubectl apply -f /home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _deploy_result
+  changed_when: "'created' in _deploy_result.stdout or 'configured' in _deploy_result.stdout"
+
+- name: 📊 DEBUG Deploy Ergebnis - qdrant_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ Qdrant Manifest applied"
+      - "{{ _deploy_result.stdout_lines | default([]) }}"
+
+# ============================================================
+# 3) Warten bis Pod Ready
+# ============================================================
+- name: ⏳ Warte auf alle Pods - qdrant_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_wait_ready }}"
+  vars:
+    _app_pod_label: "{{ app_name }}"
+    _expected_ready: 1
+
+# ============================================================
+# 4) Health Check
+# ============================================================
+- name: 🔍 Ermittle Qdrant Pod-Name - qdrant_kube_task.yml
+  ansible.builtin.shell: >
+    kubectl get pods -n {{ app_name }}
+    -l app={{ app_name }}
+    -o jsonpath='{.items[0].metadata.name}'
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _qdrant_pod
+  changed_when: false
+
+- name: 🧪 Teste Qdrant Health - qdrant_kube_task.yml
+  ansible.builtin.shell: >
+    kubectl exec -n {{ app_name }} {{ _qdrant_pod.stdout }} --
+    curl -s -o /dev/null -w '%{http_code}'
+    http://localhost:6333/healthz
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _health_check
+  changed_when: false
+  failed_when: false
+
+- name: 📊 DEBUG Health Check - qdrant_kube_task.yml
+  ansible.builtin.debug:
+    msg: "{{ '✅ Qdrant Health OK (HTTP ' + _health_check.stdout | default('?') + ')' if _health_check.stdout | default('') == '200' else '⚠️ Qdrant Health Check fehlgeschlagen — HTTP ' + _health_check.stdout | default('?') }}"
+
+# ============================================================
+# 4b) Verbindungstest: Open WebUI → Qdrant
+# ============================================================
+- name: 🔍 Prüfe ob Open WebUI Pod läuft - qdrant_kube_task.yml
+  ansible.builtin.shell: >
+    kubectl get pods -n open-webui
+    -l app=open-webui
+    -o jsonpath='{.items[0].metadata.name}'
+    2>/dev/null
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _webui_pod_check
+  changed_when: false
+  failed_when: false
+
+- block:
+    - name: 🧪 Teste Qdrant Verbindung aus Open WebUI Pod - qdrant_kube_task.yml
+      ansible.builtin.shell: >
+        kubectl exec -n open-webui {{ _webui_pod_check.stdout }} --
+        curl -s -o /dev/null -w '%{http_code}'
+        http://qdrant-service.qdrant.svc.cluster.local:6333/healthz
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      register: _qdrant_from_webui
+      changed_when: false
+      failed_when: false
+
+    - name: 📊 DEBUG Open WebUI → Qdrant Verbindung - qdrant_kube_task.yml
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "🔌 Verbindungstest: Open WebUI → Qdrant"
+          - "=========================================="
+          - "Open WebUI Pod: {{ _webui_pod_check.stdout }}"
+          - "Qdrant DNS: qdrant-service.qdrant.svc.cluster.local:6333"
+          - "HTTP Status: {{ _qdrant_from_webui.stdout | default('?') }}"
+          - "Ergebnis: {{ '✅ Verbindung OK!' if _qdrant_from_webui.stdout | default('') == '200' else '❌ Qdrant nicht erreichbar aus Open WebUI!' }}"
+          - "=========================================="
+
+  when: _webui_pod_check.stdout | default('') | length > 0
+
+- name: ⚠️ Open WebUI nicht deployed - qdrant_kube_task.yml
+  ansible.builtin.debug:
+    msg: "⚠️ Open WebUI Pod nicht gefunden — Verbindungstest übersprungen. Qdrant ist bereit, Open WebUI kann später verbunden werden."
+  when: _webui_pod_check.stdout | default('') | length == 0
+
+# ============================================================
+# 5) domain_port setzen (Common Task — K3s/Minikube/K8s)
+# ============================================================
+- name: 🔌 Setze domain_port für nginx - qdrant_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_set_domain_port }}"
+
+# ============================================================
+# 6) Zugangsinfo anzeigen
+# ============================================================
+- name: ✅ Qdrant bereit - qdrant_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "✅ Qdrant Vektor-DB läuft!"
+      - "=========================================="
+      - "🔍 Health: {{ '✅ OK' if _health_check.stdout | default('') == '200' else '⚠️ Prüfen!' }}"
+      - "💾 Storage: {{ _qdrant_storage_size }}"
+      - "🔌 Cluster-intern: http://qdrant-service.qdrant.svc.cluster.local:6333"
+      - "📡 gRPC: qdrant-service.qdrant.svc.cluster.local:6334"
+      - "🌐 Open WebUI: {{ '✅ verbunden' if (_qdrant_from_webui.stdout | default('')) == '200' else ('⚠️ nicht deployed' if (_webui_pod_check.stdout | default('')) | length == 0 else '❌ nicht erreichbar') }}"
+      - "=========================================="

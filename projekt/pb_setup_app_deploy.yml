@@ -1,0 +1,437 @@
+---
+###########################################################################
+# 🚀 pb_setup_app_deploy.yml
+# Universelles App-Deployment — Docker / Kubernetes / Nativ
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Unterstützte Systeme: Debian
+#
+# Credentials:
+#   <serv_nr>_<serv_name>__machine_max:               SSH-Zugangsdaten (machine credential)
+#   0000_global_smtp_admin_mail:                      Admin-Mail + SMTP
+#   0000_global_doku_log:                             AWX API für Dokumentation
+#   0000_global_status_update:                        allg_status + update_before_install
+#   <serv_nr>_<serv_name>__app_deploy:                Universelles App-Deploy Credential
+#     - app_name:                                     Anwendung (directus, bookstack, etc.)
+#     - app_deploy_type:                              docker_v27 / k3s_v1_34 / k8s_v1_34 / minikube_v1_38 / podman_v5 / nativ
+#     - app_db_type:                                  mariadb / postgresql / mysql / none
+#     - app_db_password:                              Datenbank Passwort (Secret)
+#     - app_admin_email:                              Admin E-Mail
+#     - app_admin_password:                           Admin Passwort (Secret)
+#     - app_secret_key:                               Secret Key für JWT (Secret)
+#     - app_port:                                     Port (z.B. 8055)
+#     - app_nginx_integration:                        nginx als Reverse Proxy
+#     - app_bez:                                       Bezeichnung/Umgebung (playground, test, produktiv)
+#     - app_ssl:                                       SSL / Let's Encrypt (bool)
+#     - app_modsecurity:                               ModSecurity WAF (bool)
+#     - app_vpn_only:                                  Nur über VPN erreichbar (bool)
+#     - app_ha_install:                                High Availability (bool)
+#     - isolation_app:                                 DNS-Isolation, kein Internet (bool)
+#     - app_skip_install:                              Installation überspringen, nur Konfiguration (bool)
+#
+# Ablauf:
+#   1. app_deploy_cleanup:     Block loeschen + Manifest-Cleanup (IMMER)
+#   2. Installation/Skip + Konfiguration
+#   3. app_deploy_state_write: Block schreiben + Manifest sicherstellen (aktiviert/deaktiviert)
+#
+# State-Section:
+#   Dynamisch: [app_deploy-<app_name>] pro App in server_state.fact
+###########################################################################
+
+- name: pb_setup_app_deploy.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+    - playbooks_paths.yml
+
+  vars:
+    var_pack_name: []
+    var_dependencies_list: []
+    var_prerequisites: []
+    var_inst_order: 0
+    var_sonder_start: []
+    var_sonder_autostart: []
+
+    unsupported_systems:
+      - RedHat
+      - Suse
+      - Archlinux
+      - FreeBSD
+
+    kube_user: "kube"
+    app_deploy_type: "docker_v27"
+    k3s_stack_auswahl: "k3s_v1_34"
+    minikube_stack_auswahl: "minikube_v1_38"
+    kube_stack_auswahl: "k8s_v1_34"
+
+    templates_paths_pb: ""
+    pb_doku_template: ""
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden
+    ###########################################################################
+    - block:
+        - name: Lade alle Variablen-Dateien aus var_list.yml - pb_setup_app_deploy.yml
+          include_vars:
+            file: "{{ item }}"
+          loop: "{{ var_files }}"
+
+    ###########################################################################
+    # Validierung
+    ###########################################################################
+    - name: ❌ Abbruch wenn app_name fehlt - pb_setup_app_deploy.yml
+      ansible.builtin.assert:
+        that:
+          - app_name is defined
+          - app_name | length > 0
+        fail_msg: "app_name nicht definiert! Bitte Credential a_cred_typ_pb_app_deploy am JT hinzufügen."
+        success_msg: "✅ App: {{ app_name }} | Deploy: {{ app_deploy_type | default('docker') }}"
+
+    - name: ❌ Abbruch wenn Pflichtfelder fehlen - pb_setup_app_deploy.yml
+      ansible.builtin.assert:
+        that:
+          - app_ssl is defined
+          - app_modsecurity is defined
+          - app_vpn_only is defined
+          - app_ha_install is defined
+          - isolation_app is defined
+          - app_skip_install is defined
+        fail_msg: >
+          Pflichtfelder fehlen im Credential! Bitte awx_patch_choices_dmaxgo.sh
+          laufen lassen um fehlende Felder hinzuzufügen.
+        success_msg: "✅ Alle Pflichtfelder vorhanden"
+
+    ###########################################################################
+    # Deploy-Typ ableiten
+    ###########################################################################
+    - name: 🔧 Leite Basis-Deploy-Typ ab - pb_setup_app_deploy.yml
+      ansible.builtin.set_fact:
+        _deploy_type_base: >-
+          {% if (app_deploy_type | default('docker_v27')).startswith('k3s_') %}k3s{%
+          elif (app_deploy_type | default('docker_v27')).startswith('minikube_') %}minikube{%
+          elif (app_deploy_type | default('docker_v27')).startswith('k8s_') %}k8s{%
+          elif (app_deploy_type | default('docker_v27')).startswith('docker_') %}docker{%
+          elif (app_deploy_type | default('docker_v27')).startswith('podman_') %}podman{%
+          else %}{{ app_deploy_type | default('docker_v27') }}{% endif %}
+
+    - name: 🔧 Setze Stack-Auswahl aus Deploy-Typ - pb_setup_app_deploy.yml
+      ansible.builtin.set_fact:
+        k3s_stack_auswahl: "{{ app_deploy_type }}"
+      when:
+        - _deploy_type_base == 'k3s'
+        - "'_v' in app_deploy_type"
+
+    - name: 🔧 Setze Minikube-Auswahl aus Deploy-Typ - pb_setup_app_deploy.yml
+      ansible.builtin.set_fact:
+        minikube_stack_auswahl: "{{ app_deploy_type }}"
+      when:
+        - _deploy_type_base == 'minikube'
+        - "'_v' in app_deploy_type"
+
+    - name: 🔧 Setze k8s-Auswahl aus Deploy-Typ - pb_setup_app_deploy.yml
+      ansible.builtin.set_fact:
+        kube_stack_auswahl: "{{ app_deploy_type }}"
+      when:
+        - _deploy_type_base == 'k8s'
+        - "'_v' in app_deploy_type"
+
+    - name: 🔧 Setze Docker-Auswahl aus Deploy-Typ - pb_setup_app_deploy.yml
+      ansible.builtin.set_fact:
+        docker_stack_auswahl: "{{ app_deploy_type }}"
+      when:
+        - _deploy_type_base == 'docker'
+        - "'_v' in app_deploy_type"
+
+    - name: 🔧 Setze Podman-Auswahl aus Deploy-Typ - pb_setup_app_deploy.yml
+      ansible.builtin.set_fact:
+        podman_stack_auswahl: "{{ app_deploy_type }}"
+      when:
+        - _deploy_type_base == 'podman'
+        - "'_v' in app_deploy_type"
+
+    ###########################################################################
+    # Task-Pfade dynamisch setzen
+    ###########################################################################
+    - name: 🔧 Setze dynamische Pfade - pb_setup_app_deploy.yml
+      ansible.builtin.set_fact:
+        templates_paths_pb: "{{ app_name | replace('-', '_') }}"
+        pb_doku_template: "{{ app_name | replace('-', '_') }}_doku"
+        _is_kubernetes: "{{ _deploy_type_base in ['minikube', 'k3s', 'k8s'] }}"
+        _task_key: "{{ app_name | replace('-', '_') + '_kube_task' if _deploy_type_base in ['minikube', 'k3s', 'k8s'] else app_name | replace('-', '_') + '_task' }}"
+        _stop_key: "{{ app_name | replace('-', '_') + '_stop' }}"
+        _deinstall_key: "{{ app_name | replace('-', '_') + '_deinstall' }}"
+        _app_base_name: "{{ app_name }}"
+
+    ###########################################################################
+    # app_bez: Bezeichnung/Umgebung an app_name anhängen
+    ###########################################################################
+    - name: 🔧 Setze effektiven App-Namen mit Bezeichnung - pb_setup_app_deploy.yml
+      ansible.builtin.set_fact:
+        app_name: "{{ app_name }}-{{ app_bez | replace('_', '-') | lower }}"
+      when: app_bez | default('') | length > 0
+
+    - name: 🔧 Erweitere app_resources für effektiven Namen - pb_setup_app_deploy.yml
+      ansible.builtin.set_fact:
+        app_resources: "{{ app_resources | combine({app_name: app_resources[_app_base_name], app_name + '-db': app_resources[_app_base_name + '-db'] | default({})}) }}"
+      when: app_bez | default('') | length > 0
+
+    - name: 📊 DEBUG App-Konfiguration - pb_setup_app_deploy.yml
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "🚀 App Deployment"
+          - "=========================================="
+          - "App:          {{ app_name }}{{ ' (Basis: ' + _app_base_name + ')' if _app_base_name != app_name else '' }}"
+          - "Deploy-Typ:   {{ app_deploy_type | default('docker') }} (Basis: {{ _deploy_type_base }})"
+          - "Kubernetes:   {{ _is_kubernetes }}"
+          - "DB:           {{ app_db_type | default('none') }}"
+          - "Port:         {{ app_port | default('nicht gesetzt') }}"
+          - "nginx:        {{ app_nginx_integration | default(false) }}"
+          - "SSL:          {{ app_ssl | bool }}"
+          - "ModSecurity:  {{ app_modsecurity | bool }}"
+          - "VPN-only:     {{ app_vpn_only | bool }}"
+          - "HA:           {{ app_ha_install | bool }}"
+          - "Isolation:    {{ isolation_app | default(false) | bool }}"
+          - "No-Update:    {{ app_no_update | default(false) | bool }}"
+          - "Skip-Install: {{ app_skip_install | default(false) | bool }}"
+          - "Domain:       {{ urls[ansible_host][app_name].domain | default('nicht konfiguriert') }}"
+          - "Task-Key:     {{ _task_key }}"
+          - "=========================================="
+
+    ###########################################################################
+    # Hook: Pre-Start
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start - pb_setup_app_deploy.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck & Prerequisites
+    ###########################################################################
+    - name: 🔄 Importiere Systemcheck - pb_setup_app_deploy.yml
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - block:
+        - name: 🔄 Importiere Paketmanager-Lock prüfen - pb_setup_app_deploy.yml
+          ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+        - name: 🔄 Importiere Debug ausgabe bei Playbook start - pb_setup_app_deploy.yml
+          ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+  tasks:
+    ###########################################################################
+    # Hook: Pre-Install
+    ###########################################################################
+    - name: 🔧 Hook Pre-Install - pb_setup_app_deploy.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+    ###########################################################################
+    # IMMER: Cleanup (Block loeschen + Manifest-Cleanup)
+    ###########################################################################
+    - name: 🧹 App-Deploy Cleanup - pb_setup_app_deploy.yml
+      ansible.builtin.include_tasks: "{{ task_paths.app_deploy_cleanup }}"
+
+    ###########################################################################
+    # AKTIVIERT: Installation + Konfiguration
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Skip-Install Prüfung
+        ###########################################################################
+        - name: 🔍 Skip-Install Prüfung - pb_setup_app_deploy.yml
+          ansible.builtin.include_tasks: "{{ task_paths.skip_install_check }}"
+          when: app_skip_install | default(false) | bool
+
+        - name: 🔧 Setze _app_skip_active=false - pb_setup_app_deploy.yml
+          ansible.builtin.set_fact:
+            _app_skip_active: false
+          when: not (app_skip_install | default(false) | bool)
+
+        ###########################################################################
+        # K3s: kube User + ACL
+        ###########################################################################
+        - block:
+            - name: 🔍 Prüfe ob kube User existiert - pb_setup_app_deploy.yml
+              ansible.builtin.command: id {{ kube_user }}
+              register: _kube_user_check
+              failed_when: false
+              changed_when: false
+
+            - name: 👤 Erstelle kube User - pb_setup_app_deploy.yml
+              ansible.builtin.user:
+                name: "{{ kube_user }}"
+                shell: /bin/bash
+                create_home: true
+                system: false
+              when: _kube_user_check.rc != 0
+
+            - name: 📦 ACL Paket installieren - pb_setup_app_deploy.yml
+              ansible.builtin.apt:
+                name: acl
+                state: present
+                update_cache: false
+
+            - name: 📂 Ensure .kube Verzeichnis existiert - pb_setup_app_deploy.yml
+              ansible.builtin.file:
+                path: "/home/{{ kube_user }}/.kube"
+                state: directory
+                owner: "{{ kube_user }}"
+                group: "{{ kube_user }}"
+                mode: "0700"
+
+          when:
+            - _is_kubernetes | bool
+            - not (_app_skip_active | default(false) | bool)
+
+        ###########################################################################
+        # K3s installieren
+        ###########################################################################
+        - block:
+            - name: 🔍 Prüfe ob K3s bereits läuft - pb_setup_app_deploy.yml
+              ansible.builtin.command: systemctl is-active k3s
+              register: _k3s_check
+              failed_when: false
+              changed_when: false
+
+            - name: 🧊 K3s installieren - pb_setup_app_deploy.yml
+              ansible.builtin.include_tasks: "{{ task_paths.k3s_task }}"
+              when: _k3s_check.stdout | default('') != 'active'
+
+          when:
+            - _deploy_type_base == 'k3s'
+            - not (_app_skip_active | default(false) | bool)
+
+        ###########################################################################
+        # Docker installieren
+        ###########################################################################
+        - block:
+            - name: 🔍 Prüfe ob Docker bereits läuft - pb_setup_app_deploy.yml
+              ansible.builtin.command: systemctl is-active docker
+              register: _docker_check
+              failed_when: false
+              changed_when: false
+
+            - block:
+                - name: 🐳 Docker Pakete installieren ({{ docker_stack_auswahl | default('docker') }}) - pb_setup_app_deploy.yml
+                  ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+                  vars:
+                    var_pack_name: []
+                    var_dependencies_list:
+                      - "{{ docker_stack_auswahl | default('docker') }}"
+                    var_inst_order: 0
+
+                - name: 🐳 Docker konfigurieren - pb_setup_app_deploy.yml
+                  ansible.builtin.include_tasks: "{{ task_paths.docker_install }}"
+
+              when: _docker_check.stdout | default('') != 'active'
+
+          when:
+            - _deploy_type_base == 'docker'
+            - not (_app_skip_active | default(false) | bool)
+
+        ###########################################################################
+        # Minikube installieren
+        ###########################################################################
+        - block:
+            - name: 🔍 Prüfe ob Minikube bereits läuft - pb_setup_app_deploy.yml
+              ansible.builtin.command: minikube status --format='{{ "{{" }}.Host{{ "}}" }}'
+              become_user: "{{ kube_user }}"
+              environment:
+                HOME: "/home/{{ kube_user }}"
+              register: _minikube_check
+              failed_when: false
+              changed_when: false
+
+            - name: 📦 Minikube installieren - pb_setup_app_deploy.yml
+              ansible.builtin.include_tasks: "{{ task_paths.minikube_task }}"
+              when: _minikube_check.stdout | default('') != 'Running'
+
+          when:
+            - _deploy_type_base == 'minikube'
+            - not (_app_skip_active | default(false) | bool)
+
+        ###########################################################################
+        # nginx installieren
+        ###########################################################################
+        - block:
+            - name: 🧹 Lösche alte nginx.conf (dpkg Fix) - pb_setup_app_deploy.yml
+              ansible.builtin.file:
+                path: /etc/nginx/nginx.conf
+                state: absent
+              failed_when: false
+
+            - name: 🔄 nginx installieren - pb_setup_app_deploy.yml
+              ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+              vars:
+                var_pack_name: []
+                var_dependencies_list:
+                  - nginx_reverse_proxy
+                var_inst_order: 0
+
+          when:
+            - app_nginx_integration | default(false) | bool
+            - not (_app_skip_active | default(false) | bool)
+
+        ###########################################################################
+        # App deployen
+        ###########################################################################
+        - name: 🚀 {{ app_name }} deployen ({{ _deploy_type_base }}) - pb_setup_app_deploy.yml
+          ansible.builtin.include_tasks: "{{ task_paths[_task_key] }}"
+          when: not (_app_skip_active | default(false) | bool)
+
+        ###########################################################################
+        # nginx vHost einrichten
+        ###########################################################################
+        - name: 🌐 nginx vHost einrichten - pb_setup_app_deploy.yml
+          ansible.builtin.include_tasks: "{{ task_paths.nginx_app_vhost }}"
+          when:
+            - app_nginx_integration | default(false) | bool
+            - (urls[ansible_host][_app_base_name | default(app_name)].domain | default('') | length > 0) or (app_vpn_only | default(false) | bool)
+
+        ###########################################################################
+        # App-spezifischer Post-Install (nach nginx)
+        ###########################################################################
+        - name: 📂 App Post-Install Task - pb_setup_app_deploy.yml
+          ansible.builtin.include_tasks: "{{ task_paths[_app_base_name | replace('-', '_') + '_post_task'] }}"
+          when: task_paths[_app_base_name | replace('-', '_') + '_post_task'] is defined
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # DEAKTIVIERT: Stoppen
+    ###########################################################################
+    - block:
+        - name: ⏸️ {{ app_name }} stoppen - pb_setup_app_deploy.yml
+          ansible.builtin.include_tasks: "{{ task_paths[_stop_key] }}"
+
+      when: allg_status == "deaktiviert"
+
+    ###########################################################################
+    # DEINSTALLIERT: Entfernen
+    ###########################################################################
+    - block:
+        - name: 🗑️ {{ app_name }} deinstallieren - pb_setup_app_deploy.yml
+          ansible.builtin.include_tasks: "{{ task_paths[_deinstall_key] }}"
+
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # State Write + Manifest sicherstellen (nur aktiviert + deaktiviert)
+    ###########################################################################
+    - name: 📝 State Write + Manifest sicherstellen - pb_setup_app_deploy.yml
+      ansible.builtin.include_tasks: "{{ task_paths.app_deploy_state_write }}"
+      when: allg_status in ['aktiviert', 'deaktiviert']
+
+    ###########################################################################
+    # Hook: end (Block in Facts schreiben — nur aktiviert + deaktiviert)
+    ###########################################################################
+    - name: 🔧 Hook Post-Install - pb_setup_app_deploy.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"
+      when: allg_status in ['aktiviert', 'deaktiviert']

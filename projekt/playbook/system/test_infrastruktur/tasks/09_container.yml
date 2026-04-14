@@ -1,0 +1,188 @@
+---
+###########################################################################
+# 🐳 Modul 09 — Container-Infrastruktur
+# =========================================================================
+# Zweck  : Docker, Containerd, Images, Volumes und Container-Logs
+# Liest  : docker, containerd, ctr
+# Schreibt in: container_results
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+# =========================================================================
+# Docker prüfen
+# =========================================================================
+
+- name: "09 | Docker installiert prüfen"
+  ansible.builtin.command: dpkg -s docker-ce
+  register: reg_docker
+  changed_when: false
+  failed_when: false
+
+- name: "09 | Docker Service Status"
+  ansible.builtin.command: systemctl is-active docker
+  register: reg_docker_status
+  changed_when: false
+  failed_when: false
+
+- name: "09 | Docker Version ermitteln"
+  ansible.builtin.command: docker --version
+  register: reg_docker_version
+  changed_when: false
+  failed_when: false
+  when: reg_docker.rc == 0
+
+- name: "09 | Docker Socket prüfen"
+  ansible.builtin.stat:
+    path: /var/run/docker.sock
+  register: reg_docker_socket
+
+- name: "09 | Alle Container (laufend + gestoppt) erfassen"
+  ansible.builtin.shell: >-
+    docker ps -a --format "table {% raw %}{{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Ports}}{% endraw %}"
+  register: reg_docker_container
+  changed_when: false
+  failed_when: false
+  when: reg_docker.rc == 0
+
+- name: "09 | Laufende Container zählen"
+  ansible.builtin.shell: docker ps -q | wc -l
+  register: reg_docker_running
+  changed_when: false
+  failed_when: false
+  when: reg_docker.rc == 0
+
+- name: "09 | Gestoppte Container zählen"
+  ansible.builtin.shell: docker ps -a -q | wc -l
+  register: reg_docker_alle
+  changed_when: false
+  failed_when: false
+  when: reg_docker.rc == 0
+
+- name: "09 | Fehlgeschlagene Container erfassen"
+  ansible.builtin.shell: >-
+    docker ps -a --filter "status=exited" --format "{% raw %}{{.Names}}: {{.Status}}{% endraw %}"
+  register: reg_docker_exited
+  changed_when: false
+  failed_when: false
+  when: reg_docker.rc == 0
+
+- name: "09 | Docker Images erfassen"
+  ansible.builtin.shell: >-
+    docker images --format "table {% raw %}{{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}{% endraw %}"
+  register: reg_docker_images
+  changed_when: false
+  failed_when: false
+  when: reg_docker.rc == 0
+
+- name: "09 | Ungenutzte Images ermitteln (dangling)"
+  ansible.builtin.shell: docker images -f dangling=true -q | wc -l
+  register: reg_docker_dangling
+  changed_when: false
+  failed_when: false
+  when: reg_docker.rc == 0
+
+- name: "09 | Docker Volumes erfassen"
+  ansible.builtin.command: docker volume ls
+  register: reg_docker_volumes
+  changed_when: false
+  failed_when: false
+  when: reg_docker.rc == 0
+
+- name: "09 | Docker Netzwerke erfassen"
+  ansible.builtin.command: docker network ls
+  register: reg_docker_networks
+  changed_when: false
+  failed_when: false
+  when: reg_docker.rc == 0
+
+- name: "09 | Docker Disk-Nutzung"
+  ansible.builtin.command: docker system df
+  register: reg_docker_df
+  changed_when: false
+  failed_when: false
+  when: reg_docker.rc == 0
+
+# =========================================================================
+# Containerd prüfen
+# =========================================================================
+
+- name: "09 | Containerd installiert prüfen"
+  ansible.builtin.command: dpkg -s containerd.io
+  register: reg_containerd
+  changed_when: false
+  failed_when: false
+
+- name: "09 | Containerd Service Status"
+  ansible.builtin.command: systemctl is-active containerd
+  register: reg_containerd_status
+  changed_when: false
+  failed_when: false
+
+- name: "09 | Containerd Socket prüfen"
+  ansible.builtin.stat:
+    path: /run/containerd/containerd.sock
+  register: reg_containerd_socket
+
+# =========================================================================
+# Ergebnisse in Variable speichern
+# =========================================================================
+
+- name: "09 | Ergebnisse in container_results speichern"
+  ansible.builtin.set_fact:
+    container_results:
+      status: >-
+        {{
+          'FEHLER' if reg_docker.rc == 0 and reg_docker_status.stdout != 'active'
+          else 'WARNUNG' if reg_docker.rc == 0 and (reg_docker_exited.stdout_lines | default([]) | length) > 0
+          else 'OK' if reg_docker.rc == 0
+          else 'INFO'
+        }}
+      zusammenfassung:
+        ok: "{{ reg_docker_running.stdout | default(0) | int }}"
+        warnungen: "{{ reg_docker_exited.stdout_lines | default([]) | length }}"
+        fehler: "{{ 0 if reg_docker_status.stdout | default('') == 'active' else 1 if reg_docker.rc == 0 else 0 }}"
+      details:
+        - name: "Docker installiert"
+          status: "{{ 'OK' if reg_docker.rc == 0 else 'INFO' }}"
+          wert: "{{ reg_docker_version.stdout | default('nicht installiert') }}"
+          hinweis: ""
+
+        - name: "Docker Service"
+          status: "{{ 'OK' if reg_docker_status.stdout | default('') == 'active' else 'FEHLER' if reg_docker.rc == 0 else 'INFO' }}"
+          wert: "{{ reg_docker_status.stdout | default('nicht installiert') }}"
+          hinweis: "{{ 'Docker Daemon nicht aktiv!' if reg_docker.rc == 0 and reg_docker_status.stdout != 'active' else '' }}"
+
+        - name: "Docker Socket"
+          status: "{{ 'OK' if reg_docker_socket.stat.exists else 'FEHLER' if reg_docker.rc == 0 else 'INFO' }}"
+          wert: "{{ 'vorhanden' if reg_docker_socket.stat.exists else 'fehlt' }}"
+          hinweis: "{{ 'Docker Socket fehlt!' if reg_docker.rc == 0 and not reg_docker_socket.stat.exists else '' }}"
+
+        - name: "Laufende Container"
+          status: "OK"
+          wert: "{{ reg_docker_running.stdout | default(0) | trim }} Container laufen"
+          hinweis: ""
+
+        - name: "Gestoppte/fehlgeschlagene Container"
+          status: "{{ 'WARNUNG' if reg_docker_exited.stdout_lines | default([]) | length > 0 else 'OK' }}"
+          wert: "{{ reg_docker_exited.stdout_lines | default([]) | length }} gestoppte Container"
+          hinweis: "{{ 'Gestoppte Container vorhanden — beabsichtigt?' if reg_docker_exited.stdout_lines | default([]) | length > 0 else '' }}"
+
+        - name: "Ungenutzte Images (dangling)"
+          status: "{{ 'WARNUNG' if (reg_docker_dangling.stdout | default(0) | int) > 0 else 'OK' }}"
+          wert: "{{ reg_docker_dangling.stdout | default(0) | trim }} ungenutzte Images"
+          hinweis: "{{ 'Ungenutzte Images vorhanden — Speicher freigeben möglich' if (reg_docker_dangling.stdout | default(0) | int) > 0 else '' }}"
+
+        - name: "Containerd installiert"
+          status: "{{ 'OK' if reg_containerd.rc == 0 else 'INFO' }}"
+          wert: "{{ 'installiert, Status: ' + reg_containerd_status.stdout | default('unbekannt') if reg_containerd.rc == 0 else 'nicht installiert' }}"
+          hinweis: ""
+
+      container_liste: "{{ reg_docker_container.stdout_lines | default([]) }}"
+      images: "{{ reg_docker_images.stdout_lines | default([]) }}"
+      volumes: "{{ reg_docker_volumes.stdout_lines | default([]) }}"
+      netzwerke: "{{ reg_docker_networks.stdout_lines | default([]) }}"
+      disk_nutzung: "{{ reg_docker_df.stdout_lines | default([]) }}"
+
+- name: "09 | ✅ Container-Analyse abgeschlossen"
+  ansible.builtin.debug:
+    msg: "Container geprüft — Docker: {{ 'installiert' if reg_docker.rc == 0 else 'nicht installiert' }}, {{ reg_docker_running.stdout | default(0) | trim }} laufend — Status: {{ container_results.status }}"

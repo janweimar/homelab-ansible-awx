@@ -1,0 +1,42 @@
+---
+###########################################################################
+# 🧱 localhost_conf_git_remove.yml
+# 🧩 Stabil für Batch-Löschvorgänge
+# 🎯 Wird lokal auf dem Client ausgeführt
+###########################################################################
+
+- name: localhost_conf_git_remove.yml
+  hosts: localhost
+  connection: local
+  become: true
+  gather_facts: false
+
+  vars:
+    # current_delete_batch wird via -e übergeben
+    git_base_path: "/srv/git"
+
+  tasks:
+    ###########################################################################
+    # 🧪 Sicherheits-Check
+    ###########################################################################
+    - name: FAIL – Kein Batch übergeben - localhost_conf_git_remove.yml
+      ansible.builtin.fail:
+        msg: "current_delete_batch ist leer oder nicht definiert – Abbruch"
+      when: current_delete_batch is not defined or current_delete_batch | length == 0
+
+    ###########################################################################
+    # 🗑️ Repos löschen
+    ###########################################################################
+    - name: GIT – Repos aus Batch löschen - localhost_conf_git_remove.yml
+      ansible.builtin.file:
+        path: "{{ git_base_path }}/{{ item }}"
+        state: absent
+      loop: "{{ current_delete_batch }}"
+
+    ###########################################################################
+    # 🧾 Abschluss-Debug
+    ###########################################################################
+    - name: DEBUG – Gelöschte Repos - localhost_conf_git_remove.yml
+      ansible.builtin.debug:
+        msg: "Batch-Löschung erfolgreich: {{ current_delete_batch }}"
+      when: current_delete_batch | length > 0

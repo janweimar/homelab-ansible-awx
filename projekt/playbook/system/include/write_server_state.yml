@@ -1,0 +1,45 @@
+---
+###########################################################################
+# write_server_state.yml — Server-State Section schreiben
+###########################################################################
+# Eine einzige Datei: /etc/ansible/facts.d/server_state.fact
+# Format: INI mit Sections z.B. [firewall], [vpn], [wazuh_manager]
+#
+# Lesen: ansible_local.server_state.<section>.<variable>
+# z.B.:  ansible_local.server_state.vpn.allg_status
+#
+# WICHTIG: Section wurde bereits in hook_pre_start.yml geloescht.
+# Hier wird nur noch die neue Section angehaengt.
+###########################################################################
+
+- name: Erstelle /etc/ansible/facts.d Verzeichnis - write_server_state.yml
+  ansible.builtin.file:
+    path: /etc/ansible/facts.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Baue neue Section als INI-Block - write_server_state.yml
+  ansible.builtin.set_fact:
+    _state_new_section: |
+      [{{ _state_section }}]
+      {% for var in _state_var_list | default([]) %}
+      {% if var in vars %}
+      {{ var }}={{ vars[var] }}
+      {% endif %}
+      {% endfor %}
+
+- name: Haenge neue Section an server_state.fact an - write_server_state.yml
+  ansible.builtin.blockinfile:
+    path: /etc/ansible/facts.d/server_state.fact
+    block: "{{ _state_new_section }}"
+    marker: ""
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Lade ansible_local Facts neu - write_server_state.yml
+  ansible.builtin.setup:
+    filter: ansible_local

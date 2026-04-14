@@ -1,0 +1,15 @@
+---
+###########################################################################
+# Debug-Ausgabe fuer K3s Playbook
+###########################################################################
+
+- name: "📋 Debug: K3s Variablen - k3s_debug.yml"
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "K3s Konfiguration"
+      - "=========================================="
+      - "allg_status:          {{ allg_status }}"
+      - "kube_user:            {{ kube_user | default('nicht gesetzt') }}"
+      - "k3s_stack_auswahl:    {{ k3s_stack_auswahl | default('nicht gesetzt') }}"
+      - "=========================================="

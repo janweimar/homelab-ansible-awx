@@ -1,0 +1,34 @@
+# AppArmor Profile für CGit
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/lib/cgit/cgit.cgi {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  
+  # Capabilities
+  capability dac_override,
+  capability dac_read_search,
+  
+  # CGit Binary
+  /usr/lib/cgit/cgit.cgi mr,
+  
+  # Konfiguration
+  /etc/cgitrc r,
+  
+  # Git Repositories
+  /srv/git/** r,
+  /var/git/** r,
+  
+  # Git Binary
+  /usr/bin/git rix,
+  
+  # Temp
+  /tmp/** rw,
+  
+  # CGit Cache
+  /var/cache/cgit/** rw,
+}

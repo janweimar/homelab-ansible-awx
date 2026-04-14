@@ -1,0 +1,68 @@
+---
+# ============================================================
+# WIREGUARD SERVER - MAIN TASK
+# ============================================================
+# Konfiguriert WireGuard Server
+# Private Key: wg_private_key (AWX Credential)
+# Public Keys: vpn_clients[].public_key (vpn.yml)
+# ============================================================
+
+# --------------------------------------------------------
+# Server Private Key deployen (aus AWX Credential)
+# --------------------------------------------------------
+- name: WG Server – Server Private Key speichern - wireguard_server_task.yml
+  ansible.builtin.copy:
+    content: "{{ wg_private_key }}"
+    dest: /etc/wireguard/server_private.key
+    owner: root
+    group: root
+    mode: "0600"
+
+# --------------------------------------------------------
+# IP Forwarding aktivieren
+# --------------------------------------------------------
+- name: WG Server – IP Forwarding aktivieren (sysctl) - wireguard_server_task.yml
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    state: present
+    reload: yes
+
+- name: WG Server – IPv6 Forwarding aktivieren (sysctl) - wireguard_server_task.yml
+  ansible.posix.sysctl:
+    name: net.ipv6.conf.all.forwarding
+    value: '1'
+    state: present
+    reload: yes
+
+# --------------------------------------------------------
+# WireGuard Server Konfiguration
+# --------------------------------------------------------
+- name: WG Server – wg0.conf erstellen - wireguard_server_task.yml
+  ansible.builtin.template:
+    src: templates/wg0-server.conf.j2
+    dest: /etc/wireguard/wg0.conf
+    owner: root
+    group: root
+    mode: "0600"
+  register: wg_conf_result
+
+# --------------------------------------------------------
+# nftables Firewall-Regeln
+# --------------------------------------------------------
+- name: WG Server – nftables WireGuard Regeln erstellen - wireguard_server_task.yml
+  ansible.builtin.template:
+    src: templates/wg-nftables.conf.j2
+    dest: /etc/nftables.d/30-wireguard.nft
+    owner: root
+    group: root
+    mode: "0644"
+  register: wg_nft_result
+
+- name: WG Server – WireGuard neustarten (bei Änderung) - wireguard_server_task.yml
+  ansible.builtin.shell: "{{ services.wireguard.restart[ansible_os_family] }}"
+  when: wg_conf_result.changed | default(false)
+
+- name: WG Server – nftables neu laden (bei Änderung) - wireguard_server_task.yml
+  ansible.builtin.shell: "{{ services.nftables.reload[ansible_os_family] }}"
+  when: wg_nft_result.changed | default(false)

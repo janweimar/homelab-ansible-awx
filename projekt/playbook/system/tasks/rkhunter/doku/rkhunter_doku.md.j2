@@ -1,0 +1,13 @@
+# RKHUNTER - SYSTEM KONFIGURATION
+
+## 🛡️ ROOTKIT HUNTER
+
+- **Status:** {{ allg_status }}
+- **OS-Family:** {{ ansible_facts.os_family }}
+- **Mail-Empfaenger:** {{ admin_email | default('nicht gesetzt') }}
+- **Taeglicher Check:** 03:00 Uhr (Cron)
+- **Logfile:** /var/log/rkhunter.log
+
+---
+
+**Status:** ✅ rkhunter konfiguriert

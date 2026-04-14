@@ -1,0 +1,36 @@
+---
+###########################################################################
+# 🔬 OpenFOAM Pre-Task
+# Datei: openfoam_pretask.yml
+# Zweck: Vorbereitungen vor der OpenFOAM-Installation
+###########################################################################
+
+# ============================================================
+# Installationsmodus prüfen (nativ oder Docker)
+# ============================================================
+- name: 🔄 Installationsmodus setzen - openfoam_pretask.yml
+  ansible.builtin.set_fact:
+    openfoam_install_mode: "{{ install_mode | default('nativ') }}"
+
+- name: 🧩 Debug – OpenFOAM Konfiguration
+  ansible.builtin.debug:
+    msg:
+      - "🔬 OpenFOAM Installation"
+      - "Modus: {{ openfoam_install_mode }}"
+      - "Status: {{ allg_status }}"
+
+# ============================================================
+# Native: OpenFOAM APT-Repository hinzufügen
+# ============================================================
+- block:
+    - name: 📦 OpenFOAM Repository Key hinzufügen - openfoam_pretask.yml
+      ansible.builtin.apt_key:
+        url: https://dl.openfoam.com/add-debian-repo.sh
+        state: present
+
+    # TODO: OpenFOAM Repository hinzufügen
+    # https://develop.openfoam.com/Development/openfoam/-/wikis/precompiled/debian
+
+  when:
+    - openfoam_install_mode == "nativ"
+    - ansible_os_family == "Debian"

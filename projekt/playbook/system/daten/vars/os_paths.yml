@@ -1,0 +1,312 @@
+###########################################################################
+# 📂 OS-abhängige Pfade
+###########################################################################
+
+paths:
+  reboot_required:
+    Debian: /var/run/reboot-required
+    RedHat: /var/run/reboot-required # falls vorhanden, sonst leer
+    Suse: /var/run/reboot-required
+    Archlinux: /var/run/reboot-required
+    FreeBSD: /var/run/reboot-required
+
+  geoip_source_dir:
+    Debian: /etc/nftables/geoip_src
+    RedHat: /etc/nftables/geoip_src
+    Suse: /etc/nftables/geoip_src
+    Archlinux: /etc/nftables/geoip_src
+    FreeBSD: /usr/local/etc/nftables/geoip_src
+
+  geoip_db_path:
+    Debian: /etc/nftables
+    RedHat: /etc/nftables
+    Suse: /etc/nftables
+    Archlinux: /etc/nftables
+    FreeBSD: /usr/local/etc/nftables
+
+  nftables_conf:
+    Debian: /etc/nftables.conf
+    RedHat: /etc/nftables.conf
+    Suse: /etc/nftables.conf
+    Archlinux: /etc/nftables.conf
+    FreeBSD: /usr/local/etc/nftables.conf
+
+  nftables_d_dir:
+    Debian: /etc/nftables.d
+    RedHat: /etc/nftables.d
+    Suse: /etc/nftables.d
+    Archlinux: /etc/nftables.d
+    FreeBSD: /usr/local/etc/nftables.d
+
+  # nftables geoip - temporäre Dateien
+  tmp_nft_geoip_script:
+    Debian: /tmp/nft_geoip.py
+    RedHat: /tmp/nft_geoip.py
+    Suse: /tmp/nft_geoip.py
+    Archlinux: /tmp/nft_geoip.py
+    FreeBSD: /tmp/nft_geoip.py
+
+  audit_rules:
+    Debian: /etc/audit/rules.d/audit.rules
+    RedHat: /etc/audit/rules.d/audit.rules
+    Suse: /etc/audit/rules.d/audit.rules
+    Archlinux: /etc/audit/rules.d/audit.rules
+    FreeBSD: []
+
+  apparmor_paths:
+    Debian:
+      main_conf: "/etc/apparmor/"
+      profiles: "/etc/apparmor.d/"
+      profiles_local: "/etc/apparmor.d/local/"
+      profiles_disable: "/etc/apparmor.d/disable/"
+      tunables: "/etc/apparmor.d/tunables/"
+      tunables_home: "/etc/apparmor.d/tunables/home.d/"
+      cache: "/etc/apparmor.d/cache/"
+      state: "/var/lib/apparmor/"
+      logs: "/var/log/apparmor/"
+      parser: "/usr/sbin/apparmor_parser"
+      bin_status: "/usr/bin/aa-status"
+      bin_enforce: "/usr/bin/aa-enforce"
+      bin_complain: "/usr/bin/aa-complain"
+
+    RedHat: [] # kein AppArmor
+
+    Suse:
+      main_conf: "/etc/apparmor/"
+      profiles: "/etc/apparmor.d/"
+      profiles_local: "/etc/apparmor.d/local/"
+      profiles_disable: "/etc/apparmor.d/disable/"
+      tunables: "/etc/apparmor.d/tunables/"
+      tunables_home: "/etc/apparmor.d/tunables/home.d/"
+      cache: "/etc/apparmor/cache/" # SUSE nutzt anderen Cache-Pfad
+      state: "/var/lib/apparmor/"
+      logs: "/var/log/apparmor/"
+      subdomain_conf: "/etc/apparmor/subdomain.conf"
+      subdomain_d: "/etc/apparmor/subdomain.d/"
+      parser: "/usr/sbin/apparmor_parser"
+      bin_status: "/usr/sbin/aa-status" # SUSE nutzt /usr/sbin
+      bin_enforce: "/usr/sbin/aa-enforce"
+      bin_complain: "/usr/sbin/aa-complain"
+
+    Archlinux:
+      main_conf: "/etc/apparmor/"
+      profiles: "/etc/apparmor.d/"
+      profiles_local: "/etc/apparmor.d/local/"
+      profiles_disable: "/etc/apparmor.d/disable/"
+      tunables: "/etc/apparmor.d/tunables/"
+      tunables_home: "/etc/apparmor.d/tunables/home.d/"
+      cache: "/etc/apparmor/cache/"
+      state: "/var/lib/apparmor/"
+      logs: "/var/log/apparmor/"
+      parser: "/usr/bin/apparmor_parser"
+      bin_status: "/usr/bin/aa-status"
+      bin_enforce: "/usr/bin/aa-enforce"
+      bin_complain: "/usr/bin/aa-complain"
+
+    FreeBSD:
+      main_conf: "/usr/local/etc/apparmor/"
+      profiles: "/usr/local/etc/apparmor.d/"
+      state: "/usr/local/var/lib/apparmor/"
+      logs: "/usr/local/var/log/apparmor/"
+      parser: "/usr/local/sbin/apparmor_parser"
+      bin_status: "/usr/local/bin/aa-status"
+      bin_enforce: "/usr/local/bin/aa-enforce"
+      bin_complain: "/usr/local/bin/aa-complain"
+
+  swap_paths_fstab:
+    Debian: /etc/fstab
+    RedHat: /etc/fstab
+    Suse: /etc/fstab
+    Archlinux: /etc/fstab
+    FreeBSD: /etc/fstab
+
+  sysctl_conf_path:
+    Debian: /etc/sysctl.d/kubernetes.conf
+    RedHat: /etc/sysctl.d/kubernetes.conf
+    Suse: /etc/sysctl.d/kubernetes.conf
+    Archlinux: /etc/sysctl.d/kubernetes.conf
+    FreeBSD: /etc/sysctl.conf
+
+  sysctl_system:
+    Debian: "sysctl --system"
+    RedHat: "sysctl --system"
+    Suse: "sysctl --system"
+    Archlinux: "sysctl --system"
+    FreeBSD: "sysctl -w net.inet.ip.forwarding=1"
+
+  docker_conf_dir:
+    Debian: /etc/docker
+    RedHat: /etc/docker
+    Suse: /etc/docker
+    Archlinux: /etc/docker
+
+  docker_daemon_json:
+    Debian: /etc/docker/daemon.json
+    RedHat: /etc/docker/daemon.json
+    Suse: /etc/docker/daemon.json
+    Archlinux: /etc/docker/daemon.json
+
+  containerd_config:
+    Debian: "/etc/containerd/config.toml"
+    RedHat: "/etc/containerd/config.toml"
+    Suse: "/etc/containerd/config.toml"
+    Archlinux: "/etc/containerd/config.toml"
+
+  containerd_paths:
+    Debian: "/etc/containerd"
+    RedHat: "/etc/containerd"
+    Suse: "/etc/containerd"
+    Archlinux: "/etc/containerd"
+
+  repo_paths:
+    Debian: "/etc/apt/sources.list.d/*"
+    RedHat: "/etc/yum.repos.d/*"
+    Suse: "/etc/zypp/repos.d/*"
+    Archlinux: "/etc/pacman.d/*"
+    FreeBSD: "/etc/pkg/*"
+
+  bookstack_base:
+    Debian: /opt/bookstack
+
+  bookstack_data:
+    Debian: /opt/bookstack/data
+
+  bookstack_storage:
+    Debian: /opt/bookstack/storage
+
+  bookstack_db:
+    Debian: /opt/bookstack/db
+
+  bookstack_backup:
+    Debian: /opt/bookstack/backup
+
+  # AWX Execution Environment
+  awx_ee_build_dir:
+    Debian: /opt/awx-ee/build
+    RedHat: /opt/awx-ee/build
+
+  modsecurity_base:
+    Debian: /etc/modsecurity
+
+  modsecurity_conf:
+    Debian: /etc/modsecurity/modsecurity.conf
+
+  modsecurity_tmp:
+    Debian: /tmp
+
+  modsecurity_data:
+    Debian: /tmp
+
+  modsecurity_crs_rules_src:
+    Debian: /usr/share/modsecurity-crs/rules
+
+  owasp_crs:
+    Debian: /etc/nginx/owasp-crs
+
+  nginx_conf:
+    Debian: /etc/nginx/nginx.conf
+
+  nginx_conf_dir:
+    Debian: /etc/nginx
+
+  nginx_sites_enabled:
+    Debian: /etc/nginx/sites-enabled
+
+  nginx_log_dir:
+    Debian: /var/log/nginx
+
+  nginx_pid:
+    Debian: /var/run/nginx.pid
+
+  webroot:
+    Debian: /var/www/html
+
+  letsencrypt_live:
+    Debian: /etc/letsencrypt/live
+
+  logrotate_nginx:
+    Debian: /etc/logrotate.d/nginx-domain-logs
+
+  # repo_server - aptly
+  aptly_base:
+    Debian: /srv/aptly
+    RedHat: /srv/aptly
+
+  aptly_config:
+    Debian: /etc/aptly.conf
+    RedHat: /etc/aptly.conf
+
+  aptly_public_key:
+    Debian: /var/www/html/aptly_repo.key
+    RedHat: /var/www/html/aptly_repo.key
+
+  aptly_keyrings:
+    Debian: /etc/apt/keyrings
+    RedHat: /etc/apt/keyrings
+
+  aptly_gpg_home:
+    Debian: /root/.gnupg
+    RedHat: /root/.gnupg
+
+  # repo_server - git/cgit
+  git_base:
+    Debian: /srv/git
+    RedHat: /srv/git
+
+  cgit_config:
+    Debian: /etc/cgitrc
+    RedHat: /etc/cgitrc
+
+  # helm deployment - backup
+  helm_backup_base:
+    Debian: /mnt/helm-backups
+    RedHat: /mnt/helm-backups
+
+  # repo_server - helm chart cache
+  helm_charts_base:
+    Debian: /var/www/helm
+    RedHat: /var/www/helm
+
+  # repo_server - docker registry
+  registry_base:
+    Debian: /srv/registry
+    RedHat: /srv/registry
+
+  # ssh - Sicherheits-Konfiguration
+  ssh:
+    config:
+      Debian: /etc/ssh/sshd_config
+      RedHat: /etc/ssh/sshd_config
+      Suse: /etc/ssh/sshd_config
+      Archlinux: /etc/ssh/sshd_config
+      FreeBSD: /etc/ssh/sshd_config
+    sudoers_d:
+      Debian: /etc/sudoers.d
+      RedHat: /etc/sudoers.d
+      Suse: /etc/sudoers.d
+      Archlinux: /etc/sudoers.d
+      FreeBSD: /usr/local/etc/sudoers.d
+    apt_protect:
+      Debian: /etc/apt/apt.conf.d/90preserve-ssh
+      RedHat: /etc/yum/yum.conf.d/90preserve-ssh
+      Suse: /etc/zypp/zypper.conf.d/90preserve-ssh
+    backup_dir:
+      Debian: /etc/ssh/backup
+      RedHat: /etc/ssh/backup
+      Suse: /etc/ssh/backup
+      Archlinux: /etc/ssh/backup
+      FreeBSD: /etc/ssh/backup
+    banner:
+      Debian: /etc/ssh/banner
+    cloud_init_d:
+      Debian: /etc/cloud/cloud.cfg.d
+      RedHat: /etc/cloud/cloud.cfg.d
+      Suse: /etc/cloud/cloud.cfg.d
+      Archlinux: /etc/cloud/cloud.cfg.d
+      FreeBSD: /usr/local/etc/cloud/cloud.cfg.d
+    sshd_config_d:
+      Debian: /etc/ssh/sshd_config.d
+      RedHat: /etc/ssh/sshd_config.d
+      Suse: /etc/ssh/sshd_config.d
+      Archlinux: /etc/ssh/sshd_config.d
+      FreeBSD: /etc/ssh/sshd_config.d

@@ -1,0 +1,251 @@
+---
+# ============================================================
+# Repo Server Task - repo_server_task.yml
+# - aptly (Debian Repository)
+# - cgit (Git Web Interface)
+# Domain/Port aus os_urls.yml (server_urls.repo_server_apt.domain)
+# ============================================================
+
+# ============================================================
+# 1) Basis-Verzeichnisse anlegen (Daten bleiben!)
+# ============================================================
+- block:
+    - name: Repo-Verzeichnis fuer aptly anlegen - repo_server_task.yml
+      ansible.builtin.file:
+        path: "{{ paths.aptly_base[ansible_os_family] }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      when: install_aptly | bool
+
+    - name: Git Root-Verzeichnis anlegen - repo_server_task.yml
+      ansible.builtin.file:
+        path: "{{ paths.git_base[ansible_os_family] }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      when: install_cgit | bool
+
+    - name: Helm Binary installieren - repo_server_task.yml
+      ansible.builtin.apt:
+        name: helm
+        state: present
+      environment: { DEBIAN_FRONTEND: noninteractive }
+      when:
+        - install_helm | default(false) | bool
+        - ansible_os_family == "Debian"
+
+    - name: Helm Chart Cache Verzeichnis anlegen - repo_server_task.yml
+      ansible.builtin.file:
+        path: "{{ paths.helm_charts_base[ansible_os_family] }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      when: install_helm | default(false) | bool
+
+# ============================================================
+# 2) aptly Konfiguration
+# ============================================================
+- block:
+    - name: aptly.conf aus Template kopieren - repo_server_task.yml
+      ansible.builtin.template:
+        src: "{{ nginx_paths[ansible_host].repo_server.aptly_conf }}"
+        dest: "{{ paths.aptly_config[ansible_os_family] }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: APTLY - Public Key exportieren - repo_server_task.yml
+      ansible.builtin.shell: |
+        gpg --armor --export {{ aptly_publish_defaults.gpg_apt_key_id }} > {{ paths.aptly_public_key[ansible_os_family] }}
+      args:
+        creates: "{{ paths.aptly_public_key[ansible_os_family] }}"
+      environment:
+        GNUPGHOME: "{{ paths.aptly_gpg_home[ansible_os_family] }}"
+
+    - name: APTLY - Public Key Berechtigungen setzen - repo_server_task.yml
+      ansible.builtin.file:
+        path: "{{ paths.aptly_public_key[ansible_os_family] }}"
+        mode: "0644"
+        owner: www-data
+        group: www-data
+  when: install_aptly | bool
+
+- block:
+    - name: APTLY - Konfiguration entfernen (deaktiviert) - repo_server_task.yml
+      ansible.builtin.file:
+        path: "{{ paths.aptly_config[ansible_os_family] }}"
+        state: absent
+
+    - name: APTLY - Public Key entfernen (deaktiviert) - repo_server_task.yml
+      ansible.builtin.file:
+        path: "{{ paths.aptly_public_key[ansible_os_family] }}"
+        state: absent
+  when: not (install_aptly | bool)
+
+# ============================================================
+# 3) cgit Konfiguration
+# ============================================================
+- block:
+    - name: cgitrc aus Template kopieren - repo_server_task.yml
+      ansible.builtin.template:
+        src: "{{ nginx_paths[ansible_host].repo_server.cgitrc }}"
+        dest: "{{ paths.cgit_config[ansible_os_family] }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: fcgiwrap.socket starten und aktivieren - repo_server_task.yml
+      ansible.builtin.systemd:
+        name: fcgiwrap.socket
+        state: started
+        enabled: true
+  when: install_cgit | bool
+
+- block:
+    - name: cgitrc entfernen (deaktiviert) - repo_server_task.yml
+      ansible.builtin.file:
+        path: "{{ paths.cgit_config[ansible_os_family] }}"
+        state: absent
+
+    - name: fcgiwrap.socket stoppen und deaktivieren - repo_server_task.yml
+      ansible.builtin.systemd:
+        name: fcgiwrap.socket
+        state: stopped
+        enabled: false
+      ignore_errors: true
+  when: not (install_cgit | bool)
+
+# ============================================================
+# 4) nginx fuer aptly/cgit (Domain aus server_urls)
+# ============================================================
+- block:
+    - name: nginx vHost fuer repo_server konfigurieren - repo_server_task.yml
+      ansible.builtin.include_tasks: "{{ task_paths.nginx_configure }}"
+      vars:
+        domain_port: "{{ server_urls.repo_server_apt.domain }}/80"
+        domain_port_ssl: "{{ server_urls.repo_server_apt.domain }}/80"
+        admin_email: "{{ urls[ansible_host].admin_email }}"
+        nginx_ssl: "{{ server_ssl }}"
+        nginx_modsecurity: "{{ nginx_modsecurity }}"
+
+    # ============================================================
+    # NGINX - Default-Seiten loeschen + vHosts selbst deployen
+    # ============================================================
+    - name: nginx Default-Seiten loeschen - repo_server_task.yml
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/default"
+        - "{{ paths.nginx_conf_dir[ansible_os_family] }}/sites-available/default"
+        - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/default.conf"
+      ignore_errors: true
+
+    # --- HTTP-Modus (server_ssl: false) -> nur Port 80 ---
+    - name: HTTP vHost deployen - repo_server_task.yml
+      ansible.builtin.template:
+        src: "{{ nginx_paths[ansible_host].repo_server[80].vHost_80 }}"
+        dest: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.repo_server_apt.domain }}.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      when: not (server_ssl | bool)
+
+    # --- HTTPS-Modus (server_ssl: true) -> Port 80 Redirect + Port 443 ---
+    - block:
+        - name: HTTPS Redirect vHost deployen (Port 80) - repo_server_task.yml
+          ansible.builtin.template:
+            src: "{{ nginx_paths[ansible_host].repo_server[443].vHost_80 }}"
+            dest: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.repo_server_apt.domain }}.conf"
+            owner: root
+            group: root
+            mode: "0644"
+
+        - name: HTTPS vHost deployen (Port 443) - repo_server_task.yml
+          ansible.builtin.template:
+            src: "{{ nginx_paths[ansible_host].repo_server[443].vHost_443 }}"
+            dest: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.repo_server_apt.domain }}_ssl.conf"
+            owner: root
+            group: root
+            mode: "0644"
+      when: server_ssl | bool
+
+    - name: Teste nginx Konfiguration nach vHost Deploy - repo_server_task.yml
+      ansible.builtin.command: "{{ command.nginx_test[ansible_os_family] }}"
+      changed_when: false
+
+    - name: Restart nginx nach vHost Deploy - repo_server_task.yml
+      ansible.builtin.command: "{{ command.nginx_restart[ansible_os_family] }}"
+      changed_when: true
+
+  when: install_aptly | bool or install_cgit | bool or install_helm | default(false) | bool
+
+- block:
+    - name: repo_server nginx Config entfernen (alle deaktiviert) - repo_server_task.yml
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.repo_server_apt.domain }}.conf"
+        - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.repo_server_apt.domain }}_ssl.conf"
+      register: repo_server_removed
+
+    - name: nginx restart (repo_server entfernt) - repo_server_task.yml
+      ansible.builtin.command: "{{ command.nginx_restart[ansible_os_family] }}"
+      changed_when: true
+      when: repo_server_removed.changed
+  when:
+    - not (install_aptly | bool)
+    - not (install_cgit | bool)
+    - not (install_helm | default(false) | bool)
+
+# ============================================================
+# 5) Rechte & Sicherheit
+# ============================================================
+- block:
+    - name: Aptly-Verzeichnis Rechte setzen - repo_server_task.yml
+      ansible.builtin.file:
+        path: "{{ paths.aptly_base[ansible_os_family] }}"
+        owner: root
+        group: root
+        mode: "0755"
+        recurse: true
+      when: install_aptly | bool
+
+    - name: Git Root-Verzeichnis Rechte setzen - repo_server_task.yml
+      ansible.builtin.file:
+        path: "{{ paths.git_base[ansible_os_family] }}"
+        owner: root
+        group: root
+        mode: "0755"
+        recurse: true
+      when: install_cgit | bool
+
+    - name: Helm Chart Cache Rechte setzen - repo_server_task.yml
+      ansible.builtin.file:
+        path: "{{ paths.helm_charts_base[ansible_os_family] }}"
+        owner: root
+        group: root
+        mode: "0755"
+        recurse: true
+      when: install_helm | default(false) | bool
+
+# ============================================================
+# 6) Status-Meldungen
+# ============================================================
+- name: Repo Server Status - repo_server_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "Repo Server Konfiguration abgeschlossen:"
+      - "   aptly: {{ 'aktiviert' if (install_aptly | bool) else 'deaktiviert' }}"
+      - "   cgit:  {{ 'aktiviert' if (install_cgit | bool) else 'deaktiviert' }}"
+      - "   helm:  {{ 'aktiviert' if (install_helm | default(false) | bool) else 'deaktiviert' }}"
+      - ""
+      - "URLs:"
+      - "   aptly: {{ server_urls.repo_server_apt.url }}"
+      - "   cgit:  {{ server_urls.repo_server_cgit.url }}"
+      - "   helm:  https://{{ server_urls.repo_server_apt.domain }}/helm/"

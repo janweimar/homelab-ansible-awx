@@ -1,0 +1,1197 @@
+###########################################################################
+# Audit-Regeln - OS-spezifisch
+###########################################################################
+
+rules:
+  audit:
+    # BEISPIEL-REGELN (für andere Server)
+    example:
+      Debian:
+        ###################################################################
+        # BEISPIEL: Vollständige Audit-Regeln für verschiedene Szenarien
+        # Diese Regeln können kopiert und an spezifische Server angepasst werden
+        ###################################################################
+
+        # 1. IDENTITÄTS-MANAGEMENT
+        - "-w /etc/passwd -p wa -k identity"
+        - "-w /etc/group -p wa -k identity"
+        - "-w /etc/shadow -p wa -k identity"
+        - "-w /etc/gshadow -p wa -k identity"
+
+        # 2. PRIVILEGIEN & BERECHTIGUNGEN
+        - "-w /etc/sudoers -p wa -k scope"
+        - "-w /etc/sudoers.d/ -p wa -k scope"
+
+        # 3. AUTHENTIFIZIERUNG & LOGIN
+        - "-w /var/log/auth.log -p wa -k auth"
+        - "-w /etc/pam.d/ -p wa -k pam"
+        - "-w /etc/security/ -p wa -k pam"
+
+        # 4. SSH-KONFIGURATION
+        - "-w /etc/ssh/sshd_config -p wa -k sshd"
+        - "-w /etc/ssh/sshd_config.d/ -p wa -k sshd"
+
+        # 5. SYSTEM-ZEIT-ÄNDERUNGEN
+        - "-a always,exit -F arch=b64 -S adjtimex -S settimeofday -S clock_settime -k time-change"
+        - "-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -S clock_settime -k time-change"
+
+        # 6. KERNEL-MODULE (Rootkit-Erkennung)
+        - "-a always,exit -F arch=b64 -S init_module -S delete_module -k modules"
+        - "-a always,exit -F arch=b32 -S init_module -S delete_module -k modules"
+
+        # 7. NETZWERK-KONFIGURATION
+        - "-w /etc/hosts -p wa -k network"
+        - "-w /etc/hostname -p wa -k network"
+        - "-w /etc/network/ -p wa -k network"
+        - "-a always,exit -F arch=b64 -S sethostname -S setdomainname -k network"
+        - "-a always,exit -F arch=b32 -S sethostname -S setdomainname -k network"
+
+        # 8. FIREWALL (nftables)
+        - "-w /etc/nftables.conf -p wa -k firewall"
+        - "-w /etc/nftables.d/ -p wa -k firewall"
+
+        # 9. FAIL2BAN
+        - "-w /etc/fail2ban/jail.conf -p wa -k fail2ban"
+        - "-w /etc/fail2ban/jail.d/ -p wa -k fail2ban"
+        - "-w /etc/fail2ban/filter.d/ -p wa -k fail2ban"
+
+        # 10. APPARMOR
+        - "-w /etc/apparmor/ -p wa -k apparmor"
+        - "-w /etc/apparmor.d/ -p wa -k apparmor"
+
+        # 11. NGINX
+        - "-w /etc/nginx/nginx.conf -p wa -k nginx"
+        - "-w /etc/nginx/sites-enabled/ -p wa -k nginx"
+        - "-w /etc/nginx/sites-available/ -p wa -k nginx"
+
+        # 12. DOCKER
+        - "-w /etc/docker/daemon.json -p wa -k docker"
+        - "-w /usr/bin/docker -p x -k docker"
+
+        # 13. CONTAINERD
+        - "-w /etc/containerd/config.toml -p wa -k containerd"
+
+        # 14. KUBERNETES
+        - "-w /etc/kubernetes/ -p wa -k k8s"
+        - "-w /var/lib/kubelet/ -p wa -k k8s"
+
+        # 15. DATENBANKEN
+        - "-w /etc/mysql/ -p wa -k database"
+        - "-w /etc/mariadb/ -p wa -k database"
+        - "-w /etc/postgresql/ -p wa -k database"
+
+        # 16. SSL/TLS ZERTIFIKATE
+        - "-w /etc/letsencrypt/ -p wa -k ssl"
+        - "-w /etc/ssl/certs/ -p wa -k ssl"
+        - "-w /etc/ssl/private/ -p wa -k ssl"
+
+        # 17. GIT/CGIT
+        - "-w /srv/git/ -p wa -k git-repos"
+        - "-w /etc/cgitrc -p wa -k cgit"
+
+        # 18. APTLY
+        - "-w /etc/aptly.conf -p wa -k aptly"
+        - "-w /srv/aptly/ -p wa -k aptly"
+
+        # 19. CRON JOBS
+        - "-w /etc/cron.d/ -p wa -k cron"
+        - "-w /etc/cron.daily/ -p wa -k cron"
+        - "-w /etc/cron.hourly/ -p wa -k cron"
+        - "-w /etc/cron.monthly/ -p wa -k cron"
+        - "-w /etc/cron.weekly/ -p wa -k cron"
+        - "-w /var/spool/cron/crontabs/ -p wa -k cron"
+
+        # 20. SYSTEMD SERVICES
+        - "-w /etc/systemd/system/ -p wa -k systemd"
+        - "-w /lib/systemd/system/ -p wa -k systemd"
+
+        # 21. AUDIT SELBST
+        - "-w /etc/audit/ -p wa -k audit-config"
+        - "-w /var/log/audit/ -p wa -k audit-log"
+
+        # 22. FILE DELETION EVENTS
+        - "-a always,exit -F arch=b64 -S unlink -S unlinkat -S rename -S renameat -k delete"
+        - "-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -k delete"
+
+        # 23. PRIVILEGIERTE BEFEHLE
+        - "-a always,exit -F path=/usr/bin/sudo -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"
+        - "-a always,exit -F path=/usr/bin/su -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"
+
+    ##########################################################################
+    # MAIL SERVER (<ip_mail_server>)
+    # Dienste: postfix, dovecot, nginx, fail2ban, msmtp
+    ##########################################################################
+    <ip_mail_server>:
+      Debian:
+        # 1. IDENTITÄTS-MANAGEMENT
+        - "-w /etc/passwd -p wa -k identity"
+        - "-w /etc/group -p wa -k identity"
+        - "-w /etc/shadow -p wa -k identity"
+        - "-w /etc/gshadow -p wa -k identity"
+
+        # 2. PRIVILEGIEN & BERECHTIGUNGEN
+        - "-w /etc/sudoers -p wa -k scope"
+        - "-w /etc/sudoers.d/ -p wa -k scope"
+
+        # 3. AUTHENTIFIZIERUNG & LOGIN
+        - "-w /var/log/auth.log -p wa -k auth"
+        - "-w /etc/pam.d/ -p wa -k pam"
+        - "-w /etc/security/ -p wa -k pam"
+
+        # 4. SSH-KONFIGURATION
+        - "-w /etc/ssh/sshd_config -p wa -k sshd"
+        - "-w /etc/ssh/sshd_config.d/ -p wa -k sshd"
+
+        # 5. SYSTEM-ZEIT-ÄNDERUNGEN
+        - "-a always,exit -F arch=b64 -S adjtimex -S settimeofday -S clock_settime -k time-change"
+        - "-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -S clock_settime -k time-change"
+
+        # 6. KERNEL-MODULE (Rootkit-Erkennung)
+        - "-a always,exit -F arch=b64 -S init_module -S delete_module -k modules"
+        - "-a always,exit -F arch=b32 -S init_module -S delete_module -k modules"
+
+        # 7. NETZWERK-KONFIGURATION
+        - "-w /etc/hosts -p wa -k network"
+        - "-w /etc/hostname -p wa -k network"
+        - "-w /etc/network/ -p wa -k network"
+        - "-a always,exit -F arch=b64 -S sethostname -S setdomainname -k network"
+        - "-a always,exit -F arch=b32 -S sethostname -S setdomainname -k network"
+
+        # 8. FIREWALL (nftables)
+        - "-w /etc/nftables.conf -p wa -k firewall"
+        - "-w /etc/nftables.d/ -p wa -k firewall"
+
+        # 9. FAIL2BAN
+        - "-w /etc/fail2ban/jail.conf -p wa -k fail2ban"
+        - "-w /etc/fail2ban/jail.d/ -p wa -k fail2ban"
+        - "-w /etc/fail2ban/filter.d/ -p wa -k fail2ban"
+
+        # 10. APPARMOR
+        - "-w /etc/apparmor/ -p wa -k apparmor"
+        - "-w /etc/apparmor.d/ -p wa -k apparmor"
+
+        # 11. NGINX (Reverse Proxy)
+        - "-w /etc/nginx/nginx.conf -p wa -k nginx"
+        - "-w /etc/nginx/sites-enabled/ -p wa -k nginx"
+        - "-w /etc/nginx/sites-available/ -p wa -k nginx"
+
+        # 12. POSTFIX - Mail Transfer Agent
+        - "-w /etc/postfix/main.cf -p wa -k postfix"
+        - "-w /etc/postfix/master.cf -p wa -k postfix"
+        - "-w /etc/postfix/ -p wa -k postfix"
+
+        # 13. DOVECOT - IMAP/POP3 Server
+        - "-w /etc/dovecot/dovecot.conf -p wa -k dovecot"
+        - "-w /etc/dovecot/conf.d/ -p wa -k dovecot"
+
+        # 14. MSMTP
+        - "-w /etc/msmtprc -p wa -k smtp"
+
+        # 15. SSL/TLS ZERTIFIKATE
+        - "-w /etc/letsencrypt/ -p wa -k ssl"
+        - "-w /etc/ssl/certs/ -p wa -k ssl"
+        - "-w /etc/ssl/private/ -p wa -k ssl"
+
+        # 16. LOGROTATE
+        - "-w /etc/logrotate.conf -p wa -k logrotate"
+        - "-w /etc/logrotate.d/ -p wa -k logrotate"
+
+        # 17. CRON JOBS
+        - "-w /etc/cron.d/ -p wa -k cron"
+        - "-w /etc/cron.daily/ -p wa -k cron"
+        - "-w /etc/cron.hourly/ -p wa -k cron"
+        - "-w /etc/cron.monthly/ -p wa -k cron"
+        - "-w /etc/cron.weekly/ -p wa -k cron"
+        - "-w /var/spool/cron/crontabs/ -p wa -k cron"
+
+        # 18. SYSTEMD SERVICES
+        - "-w /etc/systemd/system/ -p wa -k systemd"
+        - "-w /lib/systemd/system/ -p wa -k systemd"
+
+        # 19. AUDIT SELBST
+        - "-w /etc/audit/ -p wa -k audit-config"
+        - "-w /var/log/audit/ -p wa -k audit-log"
+
+        # 20. FILE DELETION EVENTS
+        - "-a always,exit -F arch=b64 -S unlink -S unlinkat -S rename -S renameat -k delete"
+        - "-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -k delete"
+
+        # 21. PRIVILEGIERTE BEFEHLE
+        - "-a always,exit -F path=/usr/bin/sudo -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"
+        - "-a always,exit -F path=/usr/bin/su -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"
+
+    ##########################################################################
+    # AI SERVER (<ip_ai_server>)
+    # Dienste: ollama, open-webui, qdrant, nginx, docker
+    ##########################################################################
+    <ip_ai_server>:
+      Debian:
+        # 1. IDENTITÄTS-MANAGEMENT
+        - "-w /etc/passwd -p wa -k identity"
+        - "-w /etc/group -p wa -k identity"
+        - "-w /etc/shadow -p wa -k identity"
+        - "-w /etc/gshadow -p wa -k identity"
+
+        # 2. PRIVILEGIEN & BERECHTIGUNGEN
+        - "-w /etc/sudoers -p wa -k scope"
+        - "-w /etc/sudoers.d/ -p wa -k scope"
+
+        # 3. AUTHENTIFIZIERUNG & LOGIN
+        - "-w /var/log/auth.log -p wa -k auth"
+        - "-w /etc/pam.d/ -p wa -k pam"
+        - "-w /etc/security/ -p wa -k pam"
+
+        # 4. SSH-KONFIGURATION
+        - "-w /etc/ssh/sshd_config -p wa -k sshd"
+        - "-w /etc/ssh/sshd_config.d/ -p wa -k sshd"
+
+        # 5. SYSTEM-ZEIT-ÄNDERUNGEN
+        - "-a always,exit -F arch=b64 -S adjtimex -S settimeofday -S clock_settime -k time-change"
+        - "-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -S clock_settime -k time-change"
+
+        # 6. KERNEL-MODULE (Rootkit-Erkennung)
+        - "-a always,exit -F arch=b64 -S init_module -S delete_module -k modules"
+        - "-a always,exit -F arch=b32 -S init_module -S delete_module -k modules"
+
+        # 7. NETZWERK-KONFIGURATION
+        - "-w /etc/hosts -p wa -k network"
+        - "-w /etc/hostname -p wa -k network"
+        - "-w /etc/network/ -p wa -k network"
+        - "-a always,exit -F arch=b64 -S sethostname -S setdomainname -k network"
+        - "-a always,exit -F arch=b32 -S sethostname -S setdomainname -k network"
+
+        # 8. FIREWALL (nftables)
+        - "-w /etc/nftables.conf -p wa -k firewall"
+        - "-w /etc/nftables.d/ -p wa -k firewall"
+
+        # 9. FAIL2BAN
+        - "-w /etc/fail2ban/jail.conf -p wa -k fail2ban"
+        - "-w /etc/fail2ban/jail.d/ -p wa -k fail2ban"
+        - "-w /etc/fail2ban/filter.d/ -p wa -k fail2ban"
+
+        # 10. APPARMOR
+        - "-w /etc/apparmor/ -p wa -k apparmor"
+        - "-w /etc/apparmor.d/ -p wa -k apparmor"
+
+        # 11. NGINX (Reverse Proxy)
+        - "-w /etc/nginx/nginx.conf -p wa -k nginx"
+        - "-w /etc/nginx/sites-enabled/ -p wa -k nginx"
+        - "-w /etc/nginx/sites-available/ -p wa -k nginx"
+
+        # 12. DOCKER
+        - "-w /etc/docker/daemon.json -p wa -k docker"
+        - "-w /usr/bin/docker -p x -k docker"
+
+        # 13. OLLAMA - KI-Inferenz-Server
+        - "-w /etc/ollama/ -p wa -k ollama"
+        - "-w /usr/lib/systemd/system/ollama.service -p wa -k ollama"
+        - "-w /var/log/ollama/ -p wa -k ollama"
+
+        # 14. OPEN-WEBUI - Web-Oberfläche für Ollama
+        - "-w /etc/open-webui/ -p wa -k open-webui"
+        - "-w /usr/lib/systemd/system/open-webui.service -p wa -k open-webui"
+
+        # 15. QDRANT - Vektordatenbank
+        - "-w /etc/qdrant/ -p wa -k qdrant"
+        - "-w /usr/lib/systemd/system/qdrant.service -p wa -k qdrant"
+        - "-w /var/lib/qdrant/ -p wa -k qdrant"
+
+        # 16. MSMTP
+        - "-w /etc/msmtprc -p wa -k smtp"
+
+        # 17. SSL/TLS ZERTIFIKATE
+        - "-w /etc/letsencrypt/ -p wa -k ssl"
+        - "-w /etc/ssl/certs/ -p wa -k ssl"
+        - "-w /etc/ssl/private/ -p wa -k ssl"
+
+        # 18. LOGROTATE
+        - "-w /etc/logrotate.conf -p wa -k logrotate"
+        - "-w /etc/logrotate.d/ -p wa -k logrotate"
+
+        # 19. CRON JOBS
+        - "-w /etc/cron.d/ -p wa -k cron"
+        - "-w /etc/cron.daily/ -p wa -k cron"
+        - "-w /etc/cron.hourly/ -p wa -k cron"
+        - "-w /etc/cron.monthly/ -p wa -k cron"
+        - "-w /etc/cron.weekly/ -p wa -k cron"
+        - "-w /var/spool/cron/crontabs/ -p wa -k cron"
+
+        # 20. SYSTEMD SERVICES
+        - "-w /etc/systemd/system/ -p wa -k systemd"
+        - "-w /lib/systemd/system/ -p wa -k systemd"
+
+        # 21. AUDIT SELBST
+        - "-w /etc/audit/ -p wa -k audit-config"
+        - "-w /var/log/audit/ -p wa -k audit-log"
+
+        # 22. FILE DELETION EVENTS
+        - "-a always,exit -F arch=b64 -S unlink -S unlinkat -S rename -S renameat -k delete"
+        - "-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -k delete"
+
+        # 23. PRIVILEGIERTE BEFEHLE
+        - "-a always,exit -F path=/usr/bin/sudo -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"
+        - "-a always,exit -F path=/usr/bin/su -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"
+
+    ##########################################################################
+    # ODOO SERVER (<ip_odoo_server>)
+    # Dienste: odoo, postgresql, nginx, docker
+    ##########################################################################
+    <ip_odoo_server>:
+      Debian:
+        # 1. IDENTITÄTS-MANAGEMENT
+        - "-w /etc/passwd -p wa -k identity"
+        - "-w /etc/group -p wa -k identity"
+        - "-w /etc/shadow -p wa -k identity"
+        - "-w /etc/gshadow -p wa -k identity"
+
+        # 2. PRIVILEGIEN & BERECHTIGUNGEN
+        - "-w /etc/sudoers -p wa -k scope"
+        - "-w /etc/sudoers.d/ -p wa -k scope"
+
+        # 3. AUTHENTIFIZIERUNG & LOGIN
+        - "-w /var/log/auth.log -p wa -k auth"
+        - "-w /etc/pam.d/ -p wa -k pam"
+        - "-w /etc/security/ -p wa -k pam"
+
+        # 4. SSH-KONFIGURATION
+        - "-w /etc/ssh/sshd_config -p wa -k sshd"
+        - "-w /etc/ssh/sshd_config.d/ -p wa -k sshd"
+
+        # 5. SYSTEM-ZEIT-ÄNDERUNGEN
+        - "-a always,exit -F arch=b64 -S adjtimex -S settimeofday -S clock_settime -k time-change"
+        - "-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -S clock_settime -k time-change"
+
+        # 6. KERNEL-MODULE (Rootkit-Erkennung)
+        - "-a always,exit -F arch=b64 -S init_module -S delete_module -k modules"
+        - "-a always,exit -F arch=b32 -S init_module -S delete_module -k modules"
+
+        # 7. NETZWERK-KONFIGURATION
+        - "-w /etc/hosts -p wa -k network"
+        - "-w /etc/hostname -p wa -k network"
+        - "-w /etc/network/ -p wa -k network"
+        - "-a always,exit -F arch=b64 -S sethostname -S setdomainname -k network"
+        - "-a always,exit -F arch=b32 -S sethostname -S setdomainname -k network"
+
+        # 8. FIREWALL (nftables)
+        - "-w /etc/nftables.conf -p wa -k firewall"
+        - "-w /etc/nftables.d/ -p wa -k firewall"
+
+        # 9. FAIL2BAN
+        - "-w /etc/fail2ban/jail.conf -p wa -k fail2ban"
+        - "-w /etc/fail2ban/jail.d/ -p wa -k fail2ban"
+        - "-w /etc/fail2ban/filter.d/ -p wa -k fail2ban"
+
+        # 10. APPARMOR
+        - "-w /etc/apparmor/ -p wa -k apparmor"
+        - "-w /etc/apparmor.d/ -p wa -k apparmor"
+
+        # 11. NGINX (Reverse Proxy)
+        - "-w /etc/nginx/nginx.conf -p wa -k nginx"
+        - "-w /etc/nginx/sites-enabled/ -p wa -k nginx"
+        - "-w /etc/nginx/sites-available/ -p wa -k nginx"
+
+        # 12. ODOO - ERP-System
+        - "-w /etc/odoo/ -p wa -k odoo"
+        - "-w /var/log/odoo/ -p wa -k odoo"
+        - "-w /usr/lib/systemd/system/odoo.service -p wa -k odoo"
+
+        # 13. POSTGRESQL - Datenbank für Odoo
+        - "-w /etc/postgresql/ -p wa -k postgresql"
+        - "-w /var/lib/postgresql/ -p wa -k postgresql"
+        - "-w /usr/lib/systemd/system/postgresql.service -p wa -k postgresql"
+
+        # 14. DOCKER
+        - "-w /etc/docker/daemon.json -p wa -k docker"
+        - "-w /usr/bin/docker -p x -k docker"
+
+        # 15. MSMTP
+        - "-w /etc/msmtprc -p wa -k smtp"
+
+        # 16. SSL/TLS ZERTIFIKATE
+        - "-w /etc/letsencrypt/ -p wa -k ssl"
+        - "-w /etc/ssl/certs/ -p wa -k ssl"
+        - "-w /etc/ssl/private/ -p wa -k ssl"
+
+        # 17. LOGROTATE
+        - "-w /etc/logrotate.conf -p wa -k logrotate"
+        - "-w /etc/logrotate.d/ -p wa -k logrotate"
+
+        # 18. CRON JOBS
+        - "-w /etc/cron.d/ -p wa -k cron"
+        - "-w /etc/cron.daily/ -p wa -k cron"
+        - "-w /etc/cron.hourly/ -p wa -k cron"
+        - "-w /etc/cron.monthly/ -p wa -k cron"
+        - "-w /etc/cron.weekly/ -p wa -k cron"
+        - "-w /var/spool/cron/crontabs/ -p wa -k cron"
+
+        # 19. SYSTEMD SERVICES
+        - "-w /etc/systemd/system/ -p wa -k systemd"
+        - "-w /lib/systemd/system/ -p wa -k systemd"
+
+        # 20. AUDIT SELBST
+        - "-w /etc/audit/ -p wa -k audit-config"
+        - "-w /var/log/audit/ -p wa -k audit-log"
+
+        # 21. FILE DELETION EVENTS
+        - "-a always,exit -F arch=b64 -S unlink -S unlinkat -S rename -S renameat -k delete"
+        - "-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -k delete"
+
+        # 22. PRIVILEGIERTE BEFEHLE
+        - "-a always,exit -F path=/usr/bin/sudo -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"
+        - "-a always,exit -F path=/usr/bin/su -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"
+
+    ##########################################################################
+    # AWX SERVER (<ip_awx_server>)
+    # Dienste: awx (k3s/containerd), nginx, docker registry
+    ##########################################################################
+    <ip_awx_server>:
+      Debian:
+        # 1. IDENTITÄTS-MANAGEMENT
+        - "-w /etc/passwd -p wa -k identity"
+        - "-w /etc/group -p wa -k identity"
+        - "-w /etc/shadow -p wa -k identity"
+        - "-w /etc/gshadow -p wa -k identity"
+
+        # 2. PRIVILEGIEN & BERECHTIGUNGEN
+        - "-w /etc/sudoers -p wa -k scope"
+        - "-w /etc/sudoers.d/ -p wa -k scope"
+
+        # 3. AUTHENTIFIZIERUNG & LOGIN
+        - "-w /var/log/auth.log -p wa -k auth"
+        - "-w /etc/pam.d/ -p wa -k pam"
+        - "-w /etc/security/ -p wa -k pam"
+
+        # 4. SSH-KONFIGURATION
+        - "-w /etc/ssh/sshd_config -p wa -k sshd"
+        - "-w /etc/ssh/sshd_config.d/ -p wa -k sshd"
+
+        # 5. SYSTEM-ZEIT-ÄNDERUNGEN
+        - "-a always,exit -F arch=b64 -S adjtimex -S settimeofday -S clock_settime -k time-change"
+        - "-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -S clock_settime -k time-change"
+
+        # 6. KERNEL-MODULE (Rootkit-Erkennung)
+        - "-a always,exit -F arch=b64 -S init_module -S delete_module -k modules"
+        - "-a always,exit -F arch=b32 -S init_module -S delete_module -k modules"
+
+        # 7. NETZWERK-KONFIGURATION
+        - "-w /etc/hosts -p wa -k network"
+        - "-w /etc/hostname -p wa -k network"
+        - "-w /etc/network/ -p wa -k network"
+        - "-a always,exit -F arch=b64 -S sethostname -S setdomainname -k network"
+        - "-a always,exit -F arch=b32 -S sethostname -S setdomainname -k network"
+
+        # 8. FIREWALL (nftables)
+        - "-w /etc/nftables.conf -p wa -k firewall"
+        - "-w /etc/nftables.d/ -p wa -k firewall"
+
+        # 9. FAIL2BAN
+        - "-w /etc/fail2ban/jail.conf -p wa -k fail2ban"
+        - "-w /etc/fail2ban/jail.d/ -p wa -k fail2ban"
+        - "-w /etc/fail2ban/filter.d/ -p wa -k fail2ban"
+
+        # 10. APPARMOR
+        - "-w /etc/apparmor/ -p wa -k apparmor"
+        - "-w /etc/apparmor.d/ -p wa -k apparmor"
+
+        # 11. NGINX (Reverse Proxy)
+        - "-w /etc/nginx/nginx.conf -p wa -k nginx"
+        - "-w /etc/nginx/sites-enabled/ -p wa -k nginx"
+        - "-w /etc/nginx/sites-available/ -p wa -k nginx"
+
+        # 12. CONTAINERD - Container-Runtime für AWX
+        - "-w /etc/containerd/config.toml -p wa -k containerd"
+        - "-w /usr/bin/containerd -p x -k containerd"
+
+        # 13. AWX - Ansible Automation Platform
+        - "-w /etc/awx/ -p wa -k awx"
+        - "-w /var/lib/awx/ -p wa -k awx"
+        - "-w /usr/lib/systemd/system/awx.service -p wa -k awx"
+
+        # 14. KUBERNETES (k3s) - AWX Deployment
+        - "-w /etc/kubernetes/ -p wa -k k8s"
+        - "-w /var/lib/kubelet/ -p wa -k k8s"
+        - "-w /etc/rancher/ -p wa -k k3s"
+        - "-w /var/lib/rancher/ -p wa -k k3s"
+
+        # 15. DOCKER REGISTRY
+        - "-w /etc/docker/daemon.json -p wa -k docker"
+        - "-w /usr/bin/docker -p x -k docker"
+        - "-w /opt/awx-ee/ -p wa -k awx-ee"
+
+        # 16. MSMTP
+        - "-w /etc/msmtprc -p wa -k smtp"
+
+        # 17. SSL/TLS ZERTIFIKATE
+        - "-w /etc/letsencrypt/ -p wa -k ssl"
+        - "-w /etc/ssl/certs/ -p wa -k ssl"
+        - "-w /etc/ssl/private/ -p wa -k ssl"
+
+        # 18. LOGROTATE
+        - "-w /etc/logrotate.conf -p wa -k logrotate"
+        - "-w /etc/logrotate.d/ -p wa -k logrotate"
+
+        # 19. CRON JOBS
+        - "-w /etc/cron.d/ -p wa -k cron"
+        - "-w /etc/cron.daily/ -p wa -k cron"
+        - "-w /etc/cron.hourly/ -p wa -k cron"
+        - "-w /etc/cron.monthly/ -p wa -k cron"
+        - "-w /etc/cron.weekly/ -p wa -k cron"
+        - "-w /var/spool/cron/crontabs/ -p wa -k cron"
+
+        # 20. SYSTEMD SERVICES
+        - "-w /etc/systemd/system/ -p wa -k systemd"
+        - "-w /lib/systemd/system/ -p wa -k systemd"
+
+        # 21. AUDIT SELBST
+        - "-w /etc/audit/ -p wa -k audit-config"
+        - "-w /var/log/audit/ -p wa -k audit-log"
+
+        # 22. FILE DELETION EVENTS
+        - "-a always,exit -F arch=b64 -S unlink -S unlinkat -S rename -S renameat -k delete"
+        - "-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -k delete"
+
+        # 23. PRIVILEGIERTE BEFEHLE
+        - "-a always,exit -F path=/usr/bin/sudo -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"
+        - "-a always,exit -F path=/usr/bin/su -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"
+
+    # REPOSITORY SERVER (<ip_repo_server>) - VOLLSTÄNDIG
+    <ip_repo_server>:
+      Debian:
+        ###################################################################
+        # 1. IDENTITÄTS-MANAGEMENT (Basis-System)
+        ###################################################################
+
+        # Überwacht Änderungen an User-Accounts
+        - "-w /etc/passwd -p wa -k identity"
+
+        # Überwacht Änderungen an Gruppen
+        - "-w /etc/group -p wa -k identity"
+
+        # Überwacht Änderungen an User-Passwörtern
+        - "-w /etc/shadow -p wa -k identity"
+
+        # Überwacht Änderungen an Gruppen-Passwörtern
+        - "-w /etc/gshadow -p wa -k identity"
+
+        ###################################################################
+        # 2. PRIVILEGIEN & BERECHTIGUNGEN
+        ###################################################################
+
+        # Überwacht Änderungen an Sudo-Konfiguration
+        - "-w /etc/sudoers -p wa -k scope"
+
+        # Überwacht Änderungen im sudoers.d Verzeichnis
+        - "-w /etc/sudoers.d/ -p wa -k scope"
+
+        ###################################################################
+        # 3. AUTHENTIFIZIERUNG & LOGIN
+        ###################################################################
+
+        # Überwacht Login-Events
+        - "-w /var/log/auth.log -p wa -k auth"
+
+        # Überwacht PAM-Konfiguration
+        - "-w /etc/pam.d/ -p wa -k pam"
+
+        # Überwacht Security-Konfiguration
+        - "-w /etc/security/ -p wa -k pam"
+
+        ###################################################################
+        # 4. SSH-KONFIGURATION
+        ###################################################################
+
+        # Überwacht SSH-Hauptkonfiguration
+        - "-w /etc/ssh/sshd_config -p wa -k sshd"
+
+        # Überwacht SSH-Konfigurationsverzeichnis
+        - "-w /etc/ssh/sshd_config.d/ -p wa -k sshd"
+
+        ###################################################################
+        # 5. SYSTEM-ZEIT-ÄNDERUNGEN
+        ###################################################################
+
+        # Überwacht Zeit-Änderungen (64-bit)
+        - "-a always,exit -F arch=b64 -S adjtimex -S settimeofday -S clock_settime -k time-change"
+
+        # Überwacht Zeit-Änderungen (32-bit)
+        - "-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -S clock_settime -k time-change"
+
+        ###################################################################
+        # 6. KERNEL-MODULE (Rootkit-Erkennung)
+        ###################################################################
+
+        # Überwacht Laden/Entfernen von Kernel-Modulen (64-bit)
+        - "-a always,exit -F arch=b64 -S init_module -S delete_module -k modules"
+
+        # Überwacht Laden/Entfernen von Kernel-Modulen (32-bit)
+        - "-a always,exit -F arch=b32 -S init_module -S delete_module -k modules"
+
+        ###################################################################
+        # 7. NETZWERK-KONFIGURATION
+        ###################################################################
+
+        # Überwacht Hosts-Datei
+        - "-w /etc/hosts -p wa -k network"
+
+        # Überwacht Hostname
+        - "-w /etc/hostname -p wa -k network"
+
+        # Überwacht Netzwerk-Konfiguration
+        - "-w /etc/network/ -p wa -k network"
+
+        # Überwacht Hostname-Änderungen (64-bit)
+        - "-a always,exit -F arch=b64 -S sethostname -S setdomainname -k network"
+
+        # Überwacht Hostname-Änderungen (32-bit)
+        - "-a always,exit -F arch=b32 -S sethostname -S setdomainname -k network"
+
+        ###################################################################
+        # 8. FIREWALL (nftables)
+        ###################################################################
+
+        # Überwacht nftables Hauptkonfiguration
+        - "-w /etc/nftables.conf -p wa -k firewall"
+
+        # Überwacht nftables Konfigurationsverzeichnis
+        - "-w /etc/nftables.d/ -p wa -k firewall"
+
+        ###################################################################
+        # 9. FAIL2BAN
+        ###################################################################
+
+        # Überwacht fail2ban Hauptkonfiguration
+        - "-w /etc/fail2ban/jail.conf -p wa -k fail2ban"
+
+        # Überwacht fail2ban Jail-Konfigurationen
+        - "-w /etc/fail2ban/jail.d/ -p wa -k fail2ban"
+
+        # Überwacht fail2ban Filter
+        - "-w /etc/fail2ban/filter.d/ -p wa -k fail2ban"
+
+        ###################################################################
+        # 10. APPARMOR
+        ###################################################################
+
+        # Überwacht AppArmor Hauptverzeichnis
+        - "-w /etc/apparmor/ -p wa -k apparmor"
+
+        # Überwacht AppArmor Profile
+        - "-w /etc/apparmor.d/ -p wa -k apparmor"
+
+        ###################################################################
+        # 11. NGINX  (Reverse Proxy)
+        ###################################################################
+
+        # Überwacht Nginx Hauptkonfiguration
+        - "-w /etc/nginx/nginx.conf -p wa -k nginx"
+
+        # Überwacht aktivierte Sites
+        - "-w /etc/nginx/sites-enabled/ -p wa -k nginx"
+
+        # Überwacht verfügbare Sites
+        - "-w /etc/nginx/sites-available/ -p wa -k nginx"
+
+        ###################################################################
+        # 12. CONTAINERD - für AWX Execution Environment
+        ###################################################################
+
+        # Überwacht Containerd Konfiguration
+        - "-w /etc/containerd/config.toml -p wa -k containerd"
+
+        ###################################################################
+        # 13. DATENBANKEN - für Bookstack (Phase 5)
+        ###################################################################
+
+        # Überwacht MySQL Konfiguration
+        - "-w /etc/mysql/ -p wa -k database"
+
+        # Überwacht MariaDB Konfiguration
+        - "-w /etc/mariadb/ -p wa -k database"
+
+        # Überwacht PostgreSQL Konfiguration (falls verwendet)
+        - "-w /etc/postgresql/ -p wa -k database"
+
+        ###################################################################
+        # 14. BOOKSTACK - Dokumentationsplattform (Phase 5)
+        ###################################################################
+
+        # Überwacht Bookstack Installation
+        - "-w /var/www/bookstack/ -p wa -k bookstack"
+
+        # Überwacht Bookstack Config
+        - "-w /var/www/bookstack/.env -p wa -k bookstack"
+
+        # Überwacht Bookstack Storage
+        - "-w /var/www/bookstack/storage/ -p wa -k bookstack"
+
+        ###################################################################
+        # 15. LOGROTATE - Log-Management (Phase 5.5)
+        ###################################################################
+
+        # Überwacht Logrotate Hauptkonfiguration
+        - "-w /etc/logrotate.conf -p wa -k logrotate"
+
+        # Überwacht Logrotate Service-Configs
+        - "-w /etc/logrotate.d/ -p wa -k logrotate"
+
+        ###################################################################
+        # 16. SMTP (Postfix/msmtp) - E-Mail Benachrichtigungen (Phase 5.5)
+        ###################################################################
+
+        # Überwacht Postfix Konfiguration
+        - "-w /etc/postfix/ -p wa -k smtp"
+
+        # Überwacht msmtp Konfiguration (Alternative)
+        - "-w /etc/msmtprc -p wa -k smtp"
+
+        ###################################################################
+        # 17. SSL/TLS ZERTIFIKATE
+        ###################################################################
+
+        # Überwacht Let's Encrypt Zertifikate
+        - "-w /etc/letsencrypt/ -p wa -k ssl"
+
+        # Überwacht SSL Zertifikate
+        - "-w /etc/ssl/certs/ -p wa -k ssl"
+
+        # Überwacht Private Keys
+        - "-w /etc/ssl/private/ -p wa -k ssl"
+
+        ###################################################################
+        # 18. CGIT - Git Repository Web Interface
+        ###################################################################
+
+        # Überwacht Git Repositories
+        - "-w /srv/git/ -p wa -k git-repos"
+
+        # Überwacht cgit Konfiguration
+        - "-w /etc/cgitrc -p wa -k cgit"
+
+        ###################################################################
+        # 19. APTLY - Package Repository
+        ###################################################################
+
+        # Überwacht aptly Konfiguration
+        - "-w /etc/aptly.conf -p wa -k aptly"
+
+        # Überwacht aptly Repository-Daten
+        - "-w /srv/aptly/ -p wa -k aptly"
+
+        ###################################################################
+        # 20. CRON JOBS
+        ###################################################################
+
+        # Überwacht cron.d Verzeichnis
+        - "-w /etc/cron.d/ -p wa -k cron"
+
+        # Überwacht tägliche Cron Jobs
+        - "-w /etc/cron.daily/ -p wa -k cron"
+
+        # Überwacht stündliche Cron Jobs
+        - "-w /etc/cron.hourly/ -p wa -k cron"
+
+        # Überwacht monatliche Cron Jobs
+        - "-w /etc/cron.monthly/ -p wa -k cron"
+
+        # Überwacht wöchentliche Cron Jobs
+        - "-w /etc/cron.weekly/ -p wa -k cron"
+
+        # Überwacht User Crontabs
+        - "-w /var/spool/cron/crontabs/ -p wa -k cron"
+
+        ###################################################################
+        # 21. SYSTEMD SERVICES
+        ###################################################################
+
+        # Überwacht System-Services
+        - "-w /etc/systemd/system/ -p wa -k systemd"
+
+        # Überwacht Standard-Services
+        - "-w /lib/systemd/system/ -p wa -k systemd"
+
+        ###################################################################
+        # 22. AUDIT SELBST
+        ###################################################################
+
+        # Überwacht Audit-Konfiguration
+        - "-w /etc/audit/ -p wa -k audit-config"
+
+        # Überwacht Audit-Logs
+        - "-w /var/log/audit/ -p wa -k audit-log"
+
+        ###################################################################
+        # 23. FILE DELETION EVENTS
+        ###################################################################
+
+        # Überwacht Datei-Löschungen (64-bit)
+        - "-a always,exit -F arch=b64 -S unlink -S unlinkat -S rename -S renameat -k delete"
+
+        # Überwacht Datei-Löschungen (32-bit)
+        - "-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -k delete"
+        - "-a always,exit -F path=/usr/bin/cp -F perm=x -F auid>=1000 -F auid!=4294967295 -k file-copy"
+        - "-a always,exit -F path=/usr/bin/rsync -F perm=x -F auid>=1000 -F auid!=4294967295 -k file-copy"
+        - "-a always,exit -F path=/usr/bin/scp -F perm=x -F auid>=1000 -F auid!=4294967295 -k file-copy"
+
+        ###################################################################
+        # 24. PRIVILEGIERTE BEFEHLE
+        ###################################################################
+
+        # Überwacht sudo-Ausführungen
+        - "-a always,exit -F path=/usr/bin/sudo -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"
+
+        # Überwacht su-Ausführungen
+        - "-a always,exit -F path=/usr/bin/su -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"
+
+    <ip_vpn_server>:
+      Debian:
+        ###################################################################
+        # 1. IDENTITÄTS-MANAGEMENT (Basis-System)
+        ###################################################################
+
+        # Überwacht Änderungen an User-Accounts
+        - "-w /etc/passwd -p wa -k identity"
+
+        # Überwacht Änderungen an Gruppen
+        - "-w /etc/group -p wa -k identity"
+
+        # Überwacht Änderungen an User-Passwörtern
+        - "-w /etc/shadow -p wa -k identity"
+
+        # Überwacht Änderungen an Gruppen-Passwörtern
+        - "-w /etc/gshadow -p wa -k identity"
+
+        ###################################################################
+        # 2. PRIVILEGIEN & BERECHTIGUNGEN
+        ###################################################################
+
+        # Überwacht Änderungen an Sudo-Konfiguration
+        - "-w /etc/sudoers -p wa -k scope"
+
+        # Überwacht Änderungen im sudoers.d Verzeichnis
+        - "-w /etc/sudoers.d/ -p wa -k scope"
+
+        ###################################################################
+        # 3. AUTHENTIFIZIERUNG & LOGIN
+        ###################################################################
+
+        # Überwacht Login-Events
+        - "-w /var/log/auth.log -p wa -k auth"
+
+        # Überwacht PAM-Konfiguration
+        - "-w /etc/pam.d/ -p wa -k pam"
+
+        # Überwacht Security-Konfiguration
+        - "-w /etc/security/ -p wa -k pam"
+
+        ###################################################################
+        # 4. SSH-KONFIGURATION
+        ###################################################################
+
+        # Überwacht SSH-Hauptkonfiguration
+        - "-w /etc/ssh/sshd_config -p wa -k sshd"
+
+        # Überwacht SSH-Konfigurationsverzeichnis
+        - "-w /etc/ssh/sshd_config.d/ -p wa -k sshd"
+
+        ###################################################################
+        # 5. SYSTEM-ZEIT-ÄNDERUNGEN
+        ###################################################################
+
+        # Überwacht Zeit-Änderungen (64-bit)
+        - "-a always,exit -F arch=b64 -S adjtimex -S settimeofday -S clock_settime -k time-change"
+
+        # Überwacht Zeit-Änderungen (32-bit)
+        - "-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -S clock_settime -k time-change"
+
+        ###################################################################
+        # 6. KERNEL-MODULE (Rootkit-Erkennung)
+        ###################################################################
+
+        # Überwacht Laden/Entfernen von Kernel-Modulen (64-bit)
+        - "-a always,exit -F arch=b64 -S init_module -S delete_module -k modules"
+
+        # Überwacht Laden/Entfernen von Kernel-Modulen (32-bit)
+        - "-a always,exit -F arch=b32 -S init_module -S delete_module -k modules"
+
+        ###################################################################
+        # 7. NETZWERK-KONFIGURATION
+        ###################################################################
+
+        # Überwacht Hosts-Datei
+        - "-w /etc/hosts -p wa -k network"
+
+        # Überwacht Hostname
+        - "-w /etc/hostname -p wa -k network"
+
+        # Überwacht Netzwerk-Konfiguration
+        - "-w /etc/network/ -p wa -k network"
+
+        # Überwacht Hostname-Änderungen (64-bit)
+        - "-a always,exit -F arch=b64 -S sethostname -S setdomainname -k network"
+
+        # Überwacht Hostname-Änderungen (32-bit)
+        - "-a always,exit -F arch=b32 -S sethostname -S setdomainname -k network"
+
+        ###################################################################
+        # 8. FIREWALL (nftables)
+        ###################################################################
+
+        # Überwacht nftables Hauptkonfiguration
+        - "-w /etc/nftables.conf -p wa -k firewall"
+
+        # Überwacht nftables Konfigurationsverzeichnis
+        - "-w /etc/nftables.d/ -p wa -k firewall"
+
+        ###################################################################
+        # 9. FAIL2BAN
+        ###################################################################
+
+        # Überwacht fail2ban Hauptkonfiguration
+        - "-w /etc/fail2ban/jail.conf -p wa -k fail2ban"
+
+        # Überwacht fail2ban Jail-Konfigurationen
+        - "-w /etc/fail2ban/jail.d/ -p wa -k fail2ban"
+
+        # Überwacht fail2ban Filter
+        - "-w /etc/fail2ban/filter.d/ -p wa -k fail2ban"
+
+        ###################################################################
+        # 10. APPARMOR
+        ###################################################################
+
+        # Überwacht AppArmor Hauptverzeichnis
+        - "-w /etc/apparmor/ -p wa -k apparmor"
+
+        # Überwacht AppArmor Profile
+        - "-w /etc/apparmor.d/ -p wa -k apparmor"
+
+        ###################################################################
+        # 12. CONTAINERD - für AWX Execution Environment
+        ###################################################################
+
+        # Überwacht Containerd Konfiguration
+        - "-w /etc/containerd/config.toml -p wa -k containerd"
+
+        ###################################################################
+        # 13. DATENBANKEN
+        ###################################################################
+
+        # Überwacht MySQL Konfiguration
+        - "-w /etc/mysql/ -p wa -k database"
+
+        # Überwacht MariaDB Konfiguration
+        - "-w /etc/mariadb/ -p wa -k database"
+
+        # Überwacht PostgreSQL Konfiguration (falls verwendet)
+        - "-w /etc/postgresql/ -p wa -k database"
+
+        ###################################################################
+        # 15. LOGROTATE - Log-Management (Phase 5.5)
+        ###################################################################
+
+        # Überwacht Logrotate Hauptkonfiguration
+        - "-w /etc/logrotate.conf -p wa -k logrotate"
+
+        # Überwacht Logrotate Service-Configs
+        - "-w /etc/logrotate.d/ -p wa -k logrotate"
+
+        ###################################################################
+        # 16. SMTP (Postfix/msmtp) - E-Mail Benachrichtigungen (Phase 5.5)
+        ###################################################################
+
+        # Überwacht Postfix Konfiguration
+        - "-w /etc/postfix/ -p wa -k smtp"
+
+        # Überwacht msmtp Konfiguration (Alternative)
+        - "-w /etc/msmtprc -p wa -k smtp"
+
+        ###################################################################
+        # 17. SSL/TLS ZERTIFIKATE
+        ###################################################################
+
+        # Überwacht Let's Encrypt Zertifikate
+        - "-w /etc/letsencrypt/ -p wa -k ssl"
+
+        # Überwacht SSL Zertifikate
+        - "-w /etc/ssl/certs/ -p wa -k ssl"
+
+        # Überwacht Private Keys
+        - "-w /etc/ssl/private/ -p wa -k ssl"
+
+        ###################################################################
+        # 20. CRON JOBS
+        ###################################################################
+
+        # Überwacht cron.d Verzeichnis
+        - "-w /etc/cron.d/ -p wa -k cron"
+
+        # Überwacht tägliche Cron Jobs
+        - "-w /etc/cron.daily/ -p wa -k cron"
+
+        # Überwacht stündliche Cron Jobs
+        - "-w /etc/cron.hourly/ -p wa -k cron"
+
+        # Überwacht monatliche Cron Jobs
+        - "-w /etc/cron.monthly/ -p wa -k cron"
+
+        # Überwacht wöchentliche Cron Jobs
+        - "-w /etc/cron.weekly/ -p wa -k cron"
+
+        # Überwacht User Crontabs
+        - "-w /var/spool/cron/crontabs/ -p wa -k cron"
+
+        ###################################################################
+        # 21. SYSTEMD SERVICES
+        ###################################################################
+
+        # Überwacht System-Services
+        - "-w /etc/systemd/system/ -p wa -k systemd"
+
+        # Überwacht Standard-Services
+        - "-w /lib/systemd/system/ -p wa -k systemd"
+
+        ###################################################################
+        # 22. AUDIT SELBST
+        ###################################################################
+
+        # Überwacht Audit-Konfiguration
+        - "-w /etc/audit/ -p wa -k audit-config"
+
+        # Überwacht Audit-Logs
+        - "-w /var/log/audit/ -p wa -k audit-log"
+
+        ###################################################################
+        # 23. FILE DELETION EVENTS
+        ###################################################################
+
+        # Überwacht Datei-Löschungen (64-bit)
+        - "-a always,exit -F arch=b64 -S unlink -S unlinkat -S rename -S renameat -k delete"
+
+        # Überwacht Datei-Löschungen (32-bit)
+        - "-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -k delete"
+
+        - "-a always,exit -F path=/usr/bin/cp -F perm=x -F auid>=1000 -F auid!=4294967295 -k file-copy"
+        - "-a always,exit -F path=/usr/bin/rsync -F perm=x -F auid>=1000 -F auid!=4294967295 -k file-copy"
+        - "-a always,exit -F path=/usr/bin/scp -F perm=x -F auid>=1000 -F auid!=4294967295 -k file-copy"
+
+        ###################################################################
+        # 24. PRIVILEGIERTE BEFEHLE
+        ###################################################################
+
+        # Überwacht sudo-Ausführungen
+        - "-a always,exit -F path=/usr/bin/sudo -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"
+
+        # Überwacht su-Ausführungen
+        - "-a always,exit -F path=/usr/bin/su -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"
+
+    <ip_wazuh_server>:
+      Debian:
+        ###################################################################
+        # WAZUH MANAGER SERVER (<ip_wazuh_server>)
+        # Dienste: wazuh-manager, wazuh-indexer, wazuh-dashboard, nginx (optional)
+        ###################################################################
+
+        # 1. IDENTITÄTS-MANAGEMENT
+        - "-w /etc/passwd -p wa -k identity"
+        - "-w /etc/group -p wa -k identity"
+        - "-w /etc/shadow -p wa -k identity"
+        - "-w /etc/gshadow -p wa -k identity"
+
+        # 2. PRIVILEGIEN & BERECHTIGUNGEN
+        - "-w /etc/sudoers -p wa -k scope"
+        - "-w /etc/sudoers.d/ -p wa -k scope"
+
+        # 3. AUTHENTIFIZIERUNG & LOGIN
+        - "-w /var/log/auth.log -p wa -k auth"
+        - "-w /etc/pam.d/ -p wa -k pam"
+        - "-w /etc/security/ -p wa -k pam"
+
+        # 4. SSH-KONFIGURATION
+        - "-w /etc/ssh/sshd_config -p wa -k sshd"
+        - "-w /etc/ssh/sshd_config.d/ -p wa -k sshd"
+
+        # 5. SYSTEM-ZEIT-ÄNDERUNGEN
+        - "-a always,exit -F arch=b64 -S adjtimex -S settimeofday -S clock_settime -k time-change"
+        - "-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -S clock_settime -k time-change"
+
+        # 6. KERNEL-MODULE (Rootkit-Erkennung)
+        - "-a always,exit -F arch=b64 -S init_module -S delete_module -k modules"
+        - "-a always,exit -F arch=b32 -S init_module -S delete_module -k modules"
+
+        # 7. NETZWERK-KONFIGURATION
+        - "-w /etc/hosts -p wa -k network"
+        - "-w /etc/hostname -p wa -k network"
+        - "-w /etc/network/ -p wa -k network"
+        - "-a always,exit -F arch=b64 -S sethostname -S setdomainname -k network"
+        - "-a always,exit -F arch=b32 -S sethostname -S setdomainname -k network"
+
+        # 8. FIREWALL (nftables)
+        - "-w /etc/nftables.conf -p wa -k firewall"
+        - "-w /etc/nftables.d/ -p wa -k firewall"
+
+        # 9. FAIL2BAN
+        - "-w /etc/fail2ban/jail.conf -p wa -k fail2ban"
+        - "-w /etc/fail2ban/jail.d/ -p wa -k fail2ban"
+        - "-w /etc/fail2ban/filter.d/ -p wa -k fail2ban"
+
+        # 10. APPARMOR
+        - "-w /etc/apparmor/ -p wa -k apparmor"
+        - "-w /etc/apparmor.d/ -p wa -k apparmor"
+
+        # 11. NGINX (optional - nur wenn wazuh_nginx_integration aktiv)
+        - "-w /etc/nginx/nginx.conf -p wa -k nginx"
+        - "-w /etc/nginx/sites-enabled/ -p wa -k nginx"
+        - "-w /etc/nginx/sites-available/ -p wa -k nginx"
+
+        # 12. WAZUH MANAGER - Hauptkonfiguration
+        - "-w /var/ossec/etc/ossec.conf -p wa -k wazuh-manager"
+        - "-w /var/ossec/etc/ -p wa -k wazuh-manager"
+        - "-w /var/ossec/etc/client.keys -p wa -k wazuh-agents"
+        - "-w /var/ossec/logs/ -p wa -k wazuh-logs"
+
+        # 13. WAZUH INDEXER - Datenbank
+        - "-w /etc/wazuh-indexer/opensearch.yml -p wa -k wazuh-indexer"
+        - "-w /etc/wazuh-indexer/certs/ -p wa -k wazuh-indexer-certs"
+
+        # 14. WAZUH DASHBOARD - Web-Oberfläche
+        - "-w /etc/wazuh-dashboard/opensearch_dashboards.yml -p wa -k wazuh-dashboard"
+        - "-w /etc/wazuh-dashboard/certs/ -p wa -k wazuh-dashboard-certs"
+
+        # 15. WAZUH MANAGER CERTS
+        - "-w /etc/wazuh-manager/certs/ -p wa -k wazuh-manager-certs"
+
+        # 16. SSL/TLS ZERTIFIKATE
+        - "-w /etc/letsencrypt/ -p wa -k ssl"
+        - "-w /etc/ssl/certs/ -p wa -k ssl"
+        - "-w /etc/ssl/private/ -p wa -k ssl"
+
+        # 17. MSMTP
+        - "-w /etc/msmtprc -p wa -k smtp"
+
+        # 18. LOGROTATE
+        - "-w /etc/logrotate.conf -p wa -k logrotate"
+        - "-w /etc/logrotate.d/ -p wa -k logrotate"
+
+        # 19. CRON JOBS
+        - "-w /etc/cron.d/ -p wa -k cron"
+        - "-w /etc/cron.daily/ -p wa -k cron"
+        - "-w /etc/cron.hourly/ -p wa -k cron"
+        - "-w /etc/cron.monthly/ -p wa -k cron"
+        - "-w /etc/cron.weekly/ -p wa -k cron"
+        - "-w /var/spool/cron/crontabs/ -p wa -k cron"
+
+        # 20. SYSTEMD SERVICES
+        - "-w /etc/systemd/system/ -p wa -k systemd"
+        - "-w /lib/systemd/system/ -p wa -k systemd"
+
+        # 21. AUDIT SELBST
+        - "-w /etc/audit/ -p wa -k audit-config"
+        - "-w /var/log/audit/ -p wa -k audit-log"
+
+        # 22. FILE DELETION EVENTS
+        - "-a always,exit -F arch=b64 -S unlink -S unlinkat -S rename -S renameat -k delete"
+        - "-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -k delete"
+
+        # 23. PRIVILEGIERTE BEFEHLE
+        - "-a always,exit -F path=/usr/bin/sudo -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"
+        - "-a always,exit -F path=/usr/bin/su -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"

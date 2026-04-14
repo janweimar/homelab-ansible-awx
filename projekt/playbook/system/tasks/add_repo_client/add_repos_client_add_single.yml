@@ -1,0 +1,54 @@
+---
+# ============================================================
+# EINZELNES REPO HINZUFÜGEN - CLIENT
+# ============================================================
+# Input: repo_name (aus Loop)
+# ============================================================
+
+- name: "REPO – Repo-Konfiguration laden - {{ repo_name }}"
+  ansible.builtin.set_fact:
+    current_repo_config: "{{ soll_repo_dict[repo_name] | from_yaml }}"
+
+- name: "REPO – Signed-By Pfad extrahieren - {{ repo_name }}"
+  ansible.builtin.set_fact:
+    signed_by_file: "{{ current_repo_config.content | regex_search('Signed-By: (.+)', '\\1') | first }}"
+
+- name: "REPO – Keyring-Verzeichnis sicherstellen"
+  ansible.builtin.file:
+    path: "{{ paths.aptly_keyrings[ansible_facts.os_family] }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: "REPO – GPG-Key herunterladen und installieren - {{ repo_name }}"
+  ansible.builtin.shell: |
+    set -e
+    TMP_KEY="/tmp/{{ repo_name }}_temp.gpg"
+    curl -fsSL "{{ current_repo_config.key }}" -o "$TMP_KEY"
+
+    {% if current_repo_config.binary_key %}
+    # Binary Key direkt kopieren
+    mv "$TMP_KEY" "{{ signed_by_file }}"
+    {% else %}
+    # ASCII Key mit dearmor konvertieren
+    gpg --dearmor < "$TMP_KEY" > "{{ signed_by_file }}"
+    rm -f "$TMP_KEY"
+    {% endif %}
+
+    chmod 644 "{{ signed_by_file }}"
+  args:
+    executable: /bin/bash
+  changed_when: true
+
+- name: "REPO – Repository-Datei erstellen - {{ repo_name }}"
+  ansible.builtin.copy:
+    content: "{{ current_repo_config.content }}"
+    dest: "/etc/apt/sources.list.d/{{ repo_name }}.sources"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: "REPO – Info: Hinzugefügt - {{ repo_name }}"
+  ansible.builtin.debug:
+    msg: "✓ Repo '{{ repo_name }}' erfolgreich hinzugefügt"

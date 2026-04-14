@@ -1,0 +1,194 @@
+---
+###########################################################################
+# 🌐 playbook_conf_network.yml
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials:
+#   ssh_key: SSH-Zugangsdaten
+#   gai_conf_template: (Optional) Name des gai.conf Templates
+#
+# Beschreibung: Grundlegende Netzwerk-Konfiguration und Tools
+# Hinweise: Installiert Netzwerk-Diagnose-Tools (nload, iftop, mtr, etc.)
+#
+# BEST PRACTICES:
+# - Wenn möglich kein Code im Playbook, sondern in pre_task/task auslagern
+# - Nicht benötigte Service-Includes löschen (nicht auskommentieren)
+###########################################################################
+
+- name: playbook_conf_network.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  #
+  # Lädt OS-spezifische Variablen aus daten/vars/:
+  # - os_packages.yml: Paketnamen je OS
+  # - os_services.yml: Service-Befehle (start/stop/enable/status)
+  # - os_paths.yml: Pfade je OS
+  # - os_command.yml: Befehle je OS
+  #
+  # Wichtig: Für neue Anwendungen müssen Einträge in diesen Dateien erstellt werden!
+  ###########################################################################
+  vars:
+    # Hauptanwendung(en) - wird bei start/stop/enable/deinstall berücksichtigt
+    var_pack_name:
+      - net_conf
+
+    # Abhängigkeiten - werden installiert, aber NICHT bei start/stop berücksichtigt
+    var_dependencies_list:
+
+    # Voraussetzungen - müssen bereits installiert sein (werden NICHT installiert)
+    var_prerequisites:
+
+    # Installationsreihenfolge: 0 = erst Hauptanwendung dann Dependencies | 1 = umgekehrt
+    var_inst_order: 0
+
+    # Zusätzliche Services für start/autostart
+    var_sonder_start:
+
+    var_sonder_autostart:
+
+    # Nicht unterstützte OS (Debian, RedHat, Suse, Archlinux, FreeBSD)
+    unsupported_systems:
+
+    # Playbook-Kontext für Template-Auswahl
+    templates_paths_pb: net_conf
+    # Playbook-Log-Dokumentation (Template-Pfad)
+    pb_doku_template: net_conf
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden & setzen
+    ###########################################################################
+    - block:
+        - name: Lade playbooks_paths.yml
+          include_vars:
+            file: "playbooks_paths.yml"
+
+        - name: Lade alle Variablen-Dateien aus var_list.yml
+          include_vars:
+            file: "{{ item }}"
+          loop: "{{ var_files }}"
+
+    ###########################################################################
+    # Hook: Pre-Start (nach Variablen-Laden)
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck & Prerequisites
+    ###########################################################################
+    - name: 🔄 Importiere Systemcheck
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Importiere Systemcheck zwingend benötigter Komponenten
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks (für alle Playbooks)
+    ###########################################################################
+    - block:
+        - name: 🔄 Importiere Paketmanager-Lock prüfen
+          ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+        - name: 🔄 Importiere Debug ausgabe bei Playbook start
+          ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+        - name: 🔄 Importiere Playbook Debug
+          ansible.builtin.include_tasks: "{{ debug_tasks.net_conf_debug }}"
+
+    ###########################################################################
+    # Playbook-spezifische Pre-Tasks
+    ###########################################################################
+    - block:
+        - name: 🔄 Importiere pre_task
+          ansible.builtin.include_tasks: "{{ task_paths.net_conf_pretask }}"
+      when: allg_status == "aktiviert"
+
+  tasks:
+    ###########################################################################
+    # HAUPTLOGIK - Installation
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Hook: Pre-Install (vor Installation)
+        ###########################################################################
+        - name: 🔧 Hook Pre-Install
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        ###########################################################################
+        # Standard-Installation
+        ###########################################################################
+        - name: 🔄 Komplette installation von var_pack_name und var_dependencies_list
+          ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+        ###########################################################################
+        # Playbook-spezifische Konfiguration
+        ###########################################################################
+        - name: 🔄 Ausführen der Netzwerk-Konfiguration
+          ansible.builtin.include_tasks: "{{ task_paths.net_conf_task }}"
+
+        ###########################################################################
+        # Service-Management (nicht benötigte Includes löschen!)
+        ###########################################################################
+        - block:
+            - name: 🔄 Startet Hauptdienst
+              ansible.builtin.include_tasks: "{{ include_paths.services_start }}"
+
+            - name: 🔄 Autostart aktivieren
+              ansible.builtin.include_tasks: "{{ include_paths.services_autostart }}"
+
+            - name: 🔄 Status prüfen
+              ansible.builtin.include_tasks: "{{ include_paths.status_inst }}"
+
+            - name: 🔄 Autostart prüfen
+              ansible.builtin.include_tasks: "{{ include_paths.services_is_enable }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # Deaktivierung
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Dienste stoppen
+        ###########################################################################
+        - name: 🔄 Dienste stoppen
+          ansible.builtin.include_tasks: "{{ include_paths.services_stop }}"
+
+        ###########################################################################
+        # Playbook-spezifische Deaktivierung
+        ###########################################################################
+        - name: 🔄 Netzwerk-Konfiguration zurücksetzen
+          ansible.builtin.include_tasks: "{{ task_paths.net_conf_deactivate }}"
+
+      when: allg_status == "deaktiviert"
+
+    ###########################################################################
+    # Deinstallation
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Standard-Deinstallation
+        ###########################################################################
+        - name: 🔄 Deinstallationsscript mit debug Ausgabe
+          ansible.builtin.include_tasks: "{{ include_paths.deinstall_allg }}"
+
+        ###########################################################################
+        # Playbook-spezifische Deinstallation
+        ###########################################################################
+        - name: 🔄 Cleanup Netzwerk-Konfiguration
+          ansible.builtin.include_tasks: "{{ task_paths.net_conf_cleanup }}"
+
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # Hook: end (am Ende des Playbooks)
+    ###########################################################################
+    - name: 🔧 Hook Post-Install
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

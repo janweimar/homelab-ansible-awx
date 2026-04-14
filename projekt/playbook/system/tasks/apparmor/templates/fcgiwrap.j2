@@ -1,0 +1,31 @@
+# AppArmor Profile für FCGIWrap
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/sbin/fcgiwrap {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  
+  # Capabilities
+  capability setgid,
+  capability setuid,
+  
+  # FCGIWrap Binary
+  /usr/sbin/fcgiwrap mr,
+  
+  # Socket
+  /run/fcgiwrap.socket rw,
+  
+  # CGI Scripts
+  /usr/lib/cgi-bin/** rix,
+  /var/www/cgi-bin/** rix,
+  
+  # Git für CGit
+  /usr/bin/git rix,
+  
+  # Temp
+  /tmp/** rw,
+}

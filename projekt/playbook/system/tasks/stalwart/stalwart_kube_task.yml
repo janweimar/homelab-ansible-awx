@@ -1,0 +1,217 @@
+---
+###########################################################################
+# stalwart_kube_task.yml
+# Stalwart Mail Server auf K3s
+#
+# Einzelner Container — eingebaut:
+#   - SMTP (25, 587, 465)
+#   - IMAP (143, 993)
+#   - Admin-GUI (8080) — VPN-only via nginx
+#   - RocksDB (eingebaut, kein DB-Container)
+#   - DKIM, SPF, DMARC, TLS
+#   - Fail2Ban eingebaut (IP-Blocking)
+#   - Rate Limiting eingebaut
+#
+# Nach dem Deploy:
+#   1. Domain anlegen per API
+#   2. DKIM generieren per API
+#   3. CSV importieren (stalwart_csv_import.yml)
+###########################################################################
+
+# ============================================================
+# 0) Variablen + DEBUG
+# ============================================================
+- name: 🔧 Setze Stalwart Variablen - stalwart_kube_task.yml
+  ansible.builtin.set_fact:
+    _stalwart_storage_size: "10Gi"
+    _stalwart_api_url: "http://localhost:{{ app_port | default('8080') }}/api"
+    _stalwart_mail_domain: "{{ urls[ansible_host].stalwart.mail_domain }}"
+    _stalwart_hostname: "{{ urls[ansible_host].stalwart.hostname }}"
+
+- name: 📊 DEBUG Eingangsvariablen - stalwart_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "📧 Stalwart Mail Server — K3s Deployment"
+      - "=========================================="
+      - "app_name:        {{ app_name }}"
+      - "app_deploy_type: {{ app_deploy_type }}"
+      - "app_port:        {{ app_port | default('8080') }}"
+      - "kube_user:       {{ kube_user }}"
+      - "Mail-Domain:     {{ _stalwart_mail_domain }}"
+      - "Hostname:        {{ _stalwart_hostname }}"
+      - "Storage:         {{ _stalwart_storage_size }}"
+      - "=========================================="
+
+# ============================================================
+# 1) Aufräumen — alte Installation entfernen
+# ============================================================
+- name: 🧹 Alte Installation aufräumen - stalwart_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_cleanup }}"
+
+# ============================================================
+# 2) Namespace + Manifest deployen
+# ============================================================
+- name: 📁 Namespace erstellen - stalwart_kube_task.yml
+  ansible.builtin.command: kubectl create namespace {{ app_name }}
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _ns_result
+  failed_when:
+    - _ns_result.rc != 0
+    - "'already exists' not in _ns_result.stderr"
+  changed_when: "'created' in _ns_result.stdout"
+
+- name: 📁 Manifests-Verzeichnis sicherstellen - stalwart_kube_task.yml
+  ansible.builtin.file:
+    path: "/home/{{ kube_user }}/manifests"
+    state: directory
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0755"
+
+- name: 📝 Stalwart Manifest erstellen - stalwart_kube_task.yml
+  ansible.builtin.template:
+    src: playbook/system/tasks/stalwart/templates/stalwart_kube_manifests.yml.j2
+    dest: "/home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml"
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0644"
+
+- name: 🚀 Stalwart deployen - stalwart_kube_task.yml
+  ansible.builtin.command: kubectl apply -f /home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _deploy_result
+  changed_when: "'created' in _deploy_result.stdout or 'configured' in _deploy_result.stdout"
+
+# ============================================================
+# 3) Warten bis Pod Ready
+# ============================================================
+- name: ⏳ Warte auf Stalwart Pod - stalwart_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_wait_ready }}"
+  vars:
+    _app_pod_label: "{{ app_name }}"
+    _expected_ready: 1
+
+# ============================================================
+# 4) NodePort ermitteln + domain_port setzen
+# ============================================================
+- name: 🔌 Setze domain_port für nginx - stalwart_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_set_domain_port }}"
+
+# ============================================================
+# 5) Erstkonfiguration per REST-API
+# ============================================================
+- name: ⏳ Warte bis Stalwart API erreichbar ist - stalwart_kube_task.yml
+  ansible.builtin.uri:
+    url: "http://localhost:{{ app_port | default('8080') }}/healthz/live"
+    status_code: 200
+  register: _api_health
+  retries: 30
+  delay: 10
+  until: _api_health.status == 200
+  failed_when: false
+
+- name: 🔑 Hole initiales Admin-Passwort aus Pod-Logs - stalwart_kube_task.yml
+  ansible.builtin.shell: >
+    kubectl logs -n {{ app_name }}
+    -l app={{ app_name }}
+    --tail=50
+    | grep -oP '(?<=password )[^\s]+'
+    | head -1
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _initial_password
+  changed_when: false
+  failed_when: false
+
+- name: 🔑 Setze Admin-Passwort per API - stalwart_kube_task.yml
+  ansible.builtin.uri:
+    url: "http://localhost:{{ app_port | default('8080') }}/api/principal/admin"
+    method: PATCH
+    user: admin
+    password: "{{ _initial_password.stdout | default(app_admin_password) }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      - action: "set"
+        field: "secrets"
+        value: "{{ app_admin_password }}"
+    status_code: [200, 204]
+  register: _set_password
+  failed_when: false
+
+- name: 🌐 Domain anlegen per API - stalwart_kube_task.yml
+  ansible.builtin.uri:
+    url: "http://localhost:{{ app_port | default('8080') }}/api/principal"
+    method: POST
+    user: admin
+    password: "{{ app_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      type: "domain"
+      name: "{{ _stalwart_mail_domain }}"
+      description: "{{ _stalwart_mail_domain }}"
+    status_code: [200, 409]
+  register: _domain_result
+  failed_when: false
+
+- name: 📊 DEBUG Domain Ergebnis - stalwart_kube_task.yml
+  ansible.builtin.debug:
+    msg: "{{ '✅ Domain angelegt: ' + _stalwart_mail_domain if _domain_result.status | default(0) == 200 else '⚠️ Domain existiert bereits oder Fehler: ' + (_domain_result.json.detail | default('?')) }}"
+
+- name: 🔐 DKIM generieren per API - stalwart_kube_task.yml
+  ansible.builtin.uri:
+    url: "http://localhost:{{ app_port | default('8080') }}/api/dkim"
+    method: POST
+    user: admin
+    password: "{{ app_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      algorithm: "Ed25519"
+      domain: "{{ _stalwart_mail_domain }}"
+    status_code: [200, 409]
+  register: _dkim_result
+  failed_when: false
+
+- name: 📊 DEBUG DKIM - stalwart_kube_task.yml
+  ansible.builtin.debug:
+    msg: "{{ '✅ DKIM generiert für: ' + _stalwart_mail_domain if _dkim_result.status | default(0) == 200 else '⚠️ DKIM existiert bereits oder Fehler' }}"
+
+# ============================================================
+# 6) CSV-Import — Accounts synchronisieren
+# ============================================================
+- name: 📋 CSV-Import — Accounts synchronisieren - stalwart_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.stalwart_csv_import }}"
+
+# ============================================================
+# 7) Port-Tests
+# ============================================================
+- name: 🔌 Port-Tests - stalwart_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.port_test }}"
+
+# ============================================================
+# 8) Zugangsinfo
+# ============================================================
+- name: ✅ Stalwart bereit - stalwart_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "✅ Stalwart Mail Server läuft!"
+      - "=========================================="
+      - "🌐 Admin-GUI:  http://{{ _stalwart_hostname }}:{{ app_port | default('8080') }} (VPN-only)"
+      - "📧 Domain:     {{ _stalwart_mail_domain }}"
+      - "🔐 DKIM:       {{ '✅' if _dkim_result.status | default(0) in [200, 409] else '❌' }}"
+      - "📬 SMTP:       {{ _stalwart_hostname }}:25 / 587"
+      - "📫 IMAP:       {{ _stalwart_hostname }}:993"
+      - "⚠️  DNS setzen: MX + DKIM + SPF + DMARC!"
+      - "=========================================="

@@ -1,0 +1,58 @@
+# MINIKUBE CLUSTER - SYSTEM KONFIGURATION
+
+## 🧊 Status
+
+- **Status:** {{ allg_status }}
+- **Host:** {{ ansible_host }}
+- **OS:** {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
+- **Minikube:** v{{ minikube_stack.minikube_version }}
+- **Kubernetes:** v{{ minikube_stack.kubernetes_version }}
+- **Driver:** {{ minikube_stack.driver }}
+
+---
+
+## 📋 Cluster-Konfiguration
+
+| Parameter | Wert |
+|-----------|------|
+| CPUs | {{ minikube_stack.cpus }} |
+| Memory | {{ minikube_stack.memory }} |
+| Disk | {{ minikube_stack.disk_size }} |
+| Driver | {{ minikube_stack.driver }} |
+| Kubernetes | v{{ minikube_stack.kubernetes_version }} |
+
+---
+
+## 📦 Aktivierte Addons
+
+{% for addon in minikube_stack.addons %}
+- {{ addon }}
+{% endfor %}
+
+---
+
+## 🔧 Wichtige Pfade
+
+| Pfad | Beschreibung |
+|------|-------------|
+| `/home/{{ kube_user }}/.kube/config` | kubeconfig |
+| `/home/{{ kube_user }}/.minikube/` | Minikube Profil + Daten |
+| `/usr/local/bin/minikube` | Minikube Binary |
+| `/usr/local/bin/kubectl` | kubectl Binary |
+
+---
+
+## 🛠️ Wichtige Befehle
+
+```bash
+# Als kube User
+sudo -u {{ kube_user }} minikube status
+sudo -u {{ kube_user }} kubectl get pods --all-namespaces
+sudo -u {{ kube_user }} kubectl get nodes -o wide
+sudo -u {{ kube_user }} helm list --all-namespaces
+```
+
+---
+
+**Zeitstempel:** {{ ansible_date_time.iso8601 | default('n/a') }}
+**Status:** ✅ Minikube Cluster konfiguriert

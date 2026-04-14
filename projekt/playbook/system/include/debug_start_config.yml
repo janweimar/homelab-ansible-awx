@@ -1,0 +1,13 @@
+---
+- name: 🔄 Systeminfo zusammenfassen
+  ansible.builtin.set_fact:
+    sys_os: "{{ ansible_distribution }}"
+    sys_ver: "{{ ansible_distribution_version }}"
+    sys_major: "{{ ansible_distribution_major_version }}"
+
+- name: 🧩 Debug – Eingangsvariablen & Systeminformationen anzeigen
+  ansible.builtin.debug:
+    msg:
+      - "🔥 {{ var_pack_name | default('unbekannt') | capitalize }}-Status (AWX):             {{ allg_status | default('nicht gesetzt') }}"
+      - "🖥️ System:                                                 {{ sys_os | default('unbekannt') }}"
+      - "🔢 Version:                                                {{ sys_ver | default('unbekannt') }} (Major: {{ sys_major | default('unbekannt') }})"

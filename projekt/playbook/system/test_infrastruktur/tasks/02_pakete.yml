@@ -1,0 +1,134 @@
+---
+###########################################################################
+# 📦 Modul 02 — Pakete
+# =========================================================================
+# Zweck  : Alle installierten Pakete erfassen und analysieren
+# Liest  : dpkg -l, apt-mark, /etc/apt/sources.list
+# Schreibt in: pakete_results
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+# =========================================================================
+# Daten erfassen
+# =========================================================================
+
+- name: "02 | Alle installierten Pakete erfassen"
+  ansible.builtin.command: dpkg-query -W -f='${Package}\t${Version}\t${Status}\t${Architecture}\n'
+  register: reg_pakete_liste
+  changed_when: false
+  failed_when: false
+
+- name: "02 | Anzahl installierter Pakete zählen"
+  ansible.builtin.shell: dpkg -l | grep -c '^ii'
+  register: reg_pakete_anzahl
+  changed_when: false
+  failed_when: false
+
+- name: "02 | Manuell installierte Pakete erfassen"
+  ansible.builtin.command: apt-mark showmanual
+  register: reg_pakete_manuell
+  changed_when: false
+  failed_when: false
+
+- name: "02 | Automatisch installierte Pakete erfassen"
+  ansible.builtin.command: apt-mark showauto
+  register: reg_pakete_auto
+  changed_when: false
+  failed_when: false
+
+- name: "02 | Verwaiste Pakete prüfen"
+  ansible.builtin.shell: apt-get --simulate autoremove 2>/dev/null | grep "^Remv" | awk '{print $2}'
+  register: reg_pakete_verwaist
+  changed_when: false
+  failed_when: false
+
+- name: "02 | Paketquellen erfassen"
+  ansible.builtin.command: cat /etc/apt/sources.list
+  register: reg_sources_list
+  changed_when: false
+  failed_when: false
+
+- name: "02 | Zusätzliche Paketquellen erfassen"
+  ansible.builtin.find:
+    paths: /etc/apt/sources.list.d
+    patterns: "*.list,*.sources"
+  register: reg_sources_extra_files
+
+- name: "02 | Inhalt zusätzlicher Paketquellen lesen"
+  ansible.builtin.command: "cat {{ item.path }}"
+  loop: "{{ reg_sources_extra_files.files }}"
+  register: reg_sources_extra
+  changed_when: false
+  failed_when: false
+
+- name: "02 | Verfügbare Sicherheitsupdates prüfen"
+  ansible.builtin.shell: apt-get --simulate upgrade 2>/dev/null | grep -i security | wc -l
+  register: reg_security_updates
+  changed_when: false
+  failed_when: false
+
+- name: "02 | Alle verfügbaren Updates zählen"
+  ansible.builtin.shell: apt-get --simulate upgrade 2>/dev/null | grep "^Inst" | wc -l
+  register: reg_updates_gesamt
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ergebnisse in Variable speichern
+# =========================================================================
+
+- name: "02 | Ergebnisse in pakete_results speichern"
+  ansible.builtin.set_fact:
+    pakete_results:
+      status: >-
+        {{
+          'FEHLER' if (reg_security_updates.stdout | int) > 10
+          else 'WARNUNG' if (reg_security_updates.stdout | int) > 0
+          else 'OK'
+        }}
+      zusammenfassung:
+        ok: "{{ 1 if (reg_security_updates.stdout | int) == 0 else 0 }}"
+        warnungen: "{{ 1 if (reg_security_updates.stdout | int) > 0 and (reg_security_updates.stdout | int) <= 10 else 0 }}"
+        fehler: "{{ 1 if (reg_security_updates.stdout | int) > 10 else 0 }}"
+      details:
+        - name: "Installierte Pakete gesamt"
+          status: "OK"
+          wert: "{{ reg_pakete_anzahl.stdout | trim }} Pakete"
+          hinweis: ""
+
+        - name: "Manuell installiert"
+          status: "OK"
+          wert: "{{ reg_pakete_manuell.stdout_lines | length }} Pakete"
+          hinweis: ""
+
+        - name: "Automatisch installiert"
+          status: "OK"
+          wert: "{{ reg_pakete_auto.stdout_lines | length }} Pakete"
+          hinweis: ""
+
+        - name: "Verwaiste Pakete"
+          status: "{{ 'WARNUNG' if reg_pakete_verwaist.stdout_lines | length > 0 else 'OK' }}"
+          wert: "{{ reg_pakete_verwaist.stdout_lines | length }} verwaiste Pakete"
+          hinweis: "{{ 'Verwaiste Pakete vorhanden: ' + reg_pakete_verwaist.stdout if reg_pakete_verwaist.stdout_lines | length > 0 else '' }}"
+
+        - name: "Verfügbare Updates gesamt"
+          status: "{{ 'WARNUNG' if (reg_updates_gesamt.stdout | int) > 0 else 'OK' }}"
+          wert: "{{ reg_updates_gesamt.stdout | trim }} Updates verfügbar"
+          hinweis: "{{ 'Updates verfügbar — bitte einspielen' if (reg_updates_gesamt.stdout | int) > 0 else '' }}"
+
+        - name: "Sicherheitsupdates ausstehend"
+          status: >-
+            {{
+              'FEHLER' if (reg_security_updates.stdout | int) > 10
+              else 'WARNUNG' if (reg_security_updates.stdout | int) > 0
+              else 'OK'
+            }}
+          wert: "{{ reg_security_updates.stdout | trim }} Sicherheitsupdates"
+          hinweis: "{{ 'Kritisch: ' + reg_security_updates.stdout | trim + ' Sicherheitsupdates ausstehend!' if (reg_security_updates.stdout | int) > 0 else '' }}"
+
+      paketliste: "{{ reg_pakete_liste.stdout_lines | default([]) }}"
+      quellen: "{{ reg_sources_list.stdout_lines | default([]) }}"
+
+- name: "02 | ✅ Pakete-Analyse abgeschlossen"
+  ansible.builtin.debug:
+    msg: "Pakete erfasst — {{ reg_pakete_anzahl.stdout | trim }} installiert, {{ reg_security_updates.stdout | trim }} Sicherheitsupdates — Status: {{ pakete_results.status }}"

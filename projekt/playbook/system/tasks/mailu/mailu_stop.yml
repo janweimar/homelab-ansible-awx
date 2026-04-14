@@ -1,0 +1,12 @@
+---
+###########################################################################
+# mailu_stop.yml
+# Mailu Mail-Server — Container stoppen
+###########################################################################
+
+- name: Mailu Container stoppen - mailu_stop.yml
+  ansible.builtin.command:
+    cmd: docker compose stop
+    chdir: /opt/mailu
+  changed_when: true
+  failed_when: false

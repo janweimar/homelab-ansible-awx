@@ -1,0 +1,43 @@
+# AppArmor Profile für PostgreSQL
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/lib/postgresql/*/bin/postgres {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  
+  # Capabilities
+  capability dac_override,
+  capability setuid,
+  capability setgid,
+  capability sys_resource,
+  
+  # Netzwerk
+  network inet stream,
+  network inet6 stream,
+  network unix stream,
+  
+  # PostgreSQL Binary
+  /usr/lib/postgresql/*/bin/postgres mr,
+  
+  # Konfiguration
+  /etc/postgresql/** r,
+  
+  # Data
+  /var/lib/postgresql/** rwk,
+  
+  # Logs
+  /var/log/postgresql/** w,
+  
+  # Runtime
+  /run/postgresql/** rw,
+  
+  # Temp
+  /tmp/** rw,
+  
+  # Proc
+  @{PROC}/sys/kernel/random/uuid r,
+}

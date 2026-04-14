@@ -1,0 +1,131 @@
+---
+###########################################################################
+# 🔔 Alerting Konfiguration
+# Datei: alerting_task.yml
+# Zweck: Monitoring-Script, Cron-Job und fail2ban Action deployen
+###########################################################################
+
+# =========================================================================
+# 1. Prüfe ob msmtp installiert ist
+# =========================================================================
+- name: Prüfe ob msmtp installiert ist - alerting_task.yml
+  ansible.builtin.command: which msmtp
+  register: msmtp_installed
+  changed_when: false
+  failed_when: false
+
+- name: Abbruch wenn msmtp nicht installiert - alerting_task.yml
+  ansible.builtin.fail:
+    msg: "msmtp ist nicht installiert! Bitte zuerst pb_inst_conf_msmtp.yml ausfuehren."
+  when: msmtp_installed.rc != 0
+
+# =========================================================================
+# 2. Prüfe Verfuegbarkeit aller optionalen Komponenten
+# =========================================================================
+- name: Prüfe ob fail2ban installiert ist - alerting_task.yml
+  ansible.builtin.stat:
+    path: /etc/fail2ban/action.d
+  register: fail2ban_available
+
+- name: Prüfe ob nginx installiert ist - alerting_task.yml
+  ansible.builtin.command: which nginx
+  register: nginx_available
+  changed_when: false
+  failed_when: false
+
+- name: Prüfe ob journalctl verfuegbar ist (fuer SSH-Check) - alerting_task.yml
+  ansible.builtin.command: which journalctl
+  register: journalctl_available
+  changed_when: false
+  failed_when: false
+
+- name: Zeige Verfuegbarkeit der Komponenten - alerting_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "fail2ban: {{ 'verfuegbar' if fail2ban_available.stat.exists else 'NICHT installiert - wird uebersprungen' }}"
+      - "nginx: {{ 'verfuegbar' if nginx_available.rc == 0 else 'NICHT installiert - wird uebersprungen' }}"
+      - "journalctl: {{ 'verfuegbar' if journalctl_available.rc == 0 else 'NICHT verfuegbar - SSH-Check wird uebersprungen' }}"
+
+# =========================================================================
+# 3. Deploye Monitoring-Script
+# =========================================================================
+- name: Deploye alerting_check.sh - alerting_task.yml
+  ansible.builtin.template:
+    src: templates/alerting_check.sh.j2
+    dest: /usr/local/bin/alerting_check.sh
+    owner: root
+    group: root
+    mode: "0750"
+
+# =========================================================================
+# 4. Erstelle Log-Verzeichnis
+# =========================================================================
+- name: Erstelle Alerting Log-Verzeichnis - alerting_task.yml
+  ansible.builtin.file:
+    path: /var/log/alerting
+    state: directory
+    owner: root
+    group: adm
+    mode: "0750"
+
+# =========================================================================
+# 5. Cron-Job einrichten
+# =========================================================================
+- name: Richte Alerting Cron-Job ein - alerting_task.yml
+  ansible.builtin.cron:
+    name: "alerting_check"
+    minute: "*/{{ alerting_check_interval }}"
+    job: "/usr/local/bin/alerting_check.sh >> /var/log/alerting/alerting.log 2>&1"
+    user: root
+
+# =========================================================================
+# 6. fail2ban Action fuer msmtp (wenn aktiviert UND installiert)
+# =========================================================================
+- name: Deploye fail2ban msmtp Action - alerting_task.yml
+  ansible.builtin.template:
+    src: templates/msmtp_action.conf.j2
+    dest: /etc/fail2ban/action.d/msmtp.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - alerting_enable_fail2ban | bool
+    - fail2ban_available.stat.exists
+  register: fail2ban_action_result
+
+- name: Hinweis fail2ban nicht installiert - alerting_task.yml
+  ansible.builtin.debug:
+    msg: "⚠️ fail2ban nicht installiert - Action wird bei erneutem Lauf nach fail2ban-Installation deployed"
+  when:
+    - alerting_enable_fail2ban | bool
+    - not fail2ban_available.stat.exists
+
+- name: Restart fail2ban nach Action-Aenderung - alerting_task.yml
+  ansible.builtin.service:
+    name: fail2ban
+    state: restarted
+  when:
+    - alerting_enable_fail2ban | bool
+    - fail2ban_available.stat.exists
+    - fail2ban_action_result.changed
+
+# =========================================================================
+# 7. Erster Testlauf
+# =========================================================================
+- name: Fuehre ersten Alerting-Check aus - alerting_task.yml
+  ansible.builtin.command: /usr/local/bin/alerting_check.sh
+  register: alerting_test
+  changed_when: false
+  failed_when: false
+
+- name: Zeige Alerting Status - alerting_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ Alerting konfiguriert"
+      - "Check-Interval: alle {{ alerting_check_interval }} Minuten"
+      - "Disk-Warnung: {{ 'ab ' + alerting_disk_threshold + '%' if alerting_enable_disk | bool else 'deaktiviert' }}"
+      - "Services: {{ alerting_services if alerting_enable_services | bool else 'deaktiviert' }}"
+      - "fail2ban: {{ 'aktiviert' if alerting_enable_fail2ban | bool and fail2ban_available.stat.exists else 'deaktiviert (nicht installiert)' if alerting_enable_fail2ban | bool else 'deaktiviert' }}"
+      - "SSH-Login: {{ 'aktiviert' if alerting_enable_ssh | bool and journalctl_available.rc == 0 else 'deaktiviert (journalctl fehlt)' if alerting_enable_ssh | bool else 'deaktiviert' }}"
+      - "nginx: {{ 'aktiviert' if alerting_enable_nginx | bool and nginx_available.rc == 0 else 'deaktiviert (nicht installiert)' if alerting_enable_nginx | bool else 'deaktiviert' }}"
+      - "Empfaenger: {{ urls[ansible_host].msmtp.admin_email }}"

@@ -1,0 +1,898 @@
+[
+  {
+    "id": 6,
+    "type": "host",
+    "url": "/api/v2/hosts/6/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "variable_data": "/api/v2/hosts/6/variable_data/",
+      "groups": "/api/v2/hosts/6/groups/",
+      "all_groups": "/api/v2/hosts/6/all_groups/",
+      "job_events": "/api/v2/hosts/6/job_events/",
+      "job_host_summaries": "/api/v2/hosts/6/job_host_summaries/",
+      "activity_stream": "/api/v2/hosts/6/activity_stream/",
+      "inventory_sources": "/api/v2/hosts/6/inventory_sources/",
+      "smart_inventories": "/api/v2/hosts/6/smart_inventories/",
+      "ad_hoc_commands": "/api/v2/hosts/6/ad_hoc_commands/",
+      "ad_hoc_command_events": "/api/v2/hosts/6/ad_hoc_command_events/",
+      "ansible_facts": "/api/v2/hosts/6/ansible_facts/",
+      "inventory": "/api/v2/inventories/2/",
+      "last_job": "/api/v2/jobs/2085/",
+      "last_job_host_summary": "/api/v2/job_host_summaries/1123/"
+    },
+    "summary_fields": {
+      "inventory": {
+        "id": 2,
+        "name": "Homelab_Servers_inventory",
+        "description": "Homelab_Servers",
+        "has_active_failures": true,
+        "total_hosts": 7,
+        "hosts_with_active_failures": 2,
+        "total_groups": 7,
+        "has_inventory_sources": false,
+        "total_inventory_sources": 0,
+        "inventory_sources_with_failures": 0,
+        "organization_id": 2,
+        "kind": ""
+      },
+      "last_job": {
+        "id": 2085,
+        "name": "5000_jt_setup_app_deploy_qdrant",
+        "description": "Allgemeines deploy playbook im cred wird festgelegt wast deployed wird",
+        "finished": "2026-04-07T20:27:27.828259Z",
+        "status": "successful",
+        "failed": false,
+        "job_template_id": 66,
+        "job_template_name": "5000_jt_setup_app_deploy_qdrant"
+      },
+      "last_job_host_summary": {
+        "id": 1123,
+        "failed": false
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true
+      },
+      "groups": {
+        "count": 1,
+        "results": [
+          {
+            "id": 5,
+            "name": "ai_group"
+          }
+        ]
+      },
+      "recent_jobs": [
+        {
+          "id": 2085,
+          "name": "5000_jt_setup_app_deploy_qdrant",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-07T20:27:27.828259Z"
+        },
+        {
+          "id": 2084,
+          "name": "5000_jt_setup_app_deploy_open-webui",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-07T20:26:20.506604Z"
+        },
+        {
+          "id": 2083,
+          "name": "5000_jt_setup_app_deploy_ollama",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-07T20:10:09.685140Z"
+        },
+        {
+          "id": 2080,
+          "name": "5000_jt_setup_app_deploy_ollama",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-07T19:51:55.259593Z"
+        },
+        {
+          "id": 2076,
+          "name": "jt_setup_apparmor",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-07T18:55:38.765453Z"
+        }
+      ]
+    },
+    "created": "2026-03-08T09:32:23.220107Z",
+    "modified": "2026-03-08T09:32:23.220137Z",
+    "name": "ai_server_host",
+    "description": "AI Server",
+    "inventory": 2,
+    "enabled": true,
+    "instance_id": "",
+    "variables": "ansible_host: <ip_ai_server>\nansible_host_ipv6: <ip6_ai_server> \nansible_port: 10050",
+    "has_active_failures": false,
+    "has_inventory_sources": false,
+    "last_job": 2085,
+    "last_job_host_summary": 1123,
+    "ansible_facts_modified": null
+  },
+  {
+    "id": 8,
+    "type": "host",
+    "url": "/api/v2/hosts/8/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "variable_data": "/api/v2/hosts/8/variable_data/",
+      "groups": "/api/v2/hosts/8/groups/",
+      "all_groups": "/api/v2/hosts/8/all_groups/",
+      "job_events": "/api/v2/hosts/8/job_events/",
+      "job_host_summaries": "/api/v2/hosts/8/job_host_summaries/",
+      "activity_stream": "/api/v2/hosts/8/activity_stream/",
+      "inventory_sources": "/api/v2/hosts/8/inventory_sources/",
+      "smart_inventories": "/api/v2/hosts/8/smart_inventories/",
+      "ad_hoc_commands": "/api/v2/hosts/8/ad_hoc_commands/",
+      "ad_hoc_command_events": "/api/v2/hosts/8/ad_hoc_command_events/",
+      "ansible_facts": "/api/v2/hosts/8/ansible_facts/",
+      "inventory": "/api/v2/inventories/2/",
+      "last_job": "/api/v2/jobs/2204/",
+      "last_job_host_summary": "/api/v2/job_host_summaries/1186/"
+    },
+    "summary_fields": {
+      "inventory": {
+        "id": 2,
+        "name": "Homelab_Servers_inventory",
+        "description": "Homelab_Servers",
+        "has_active_failures": true,
+        "total_hosts": 7,
+        "hosts_with_active_failures": 2,
+        "total_groups": 7,
+        "has_inventory_sources": false,
+        "total_inventory_sources": 0,
+        "inventory_sources_with_failures": 0,
+        "organization_id": 2,
+        "kind": ""
+      },
+      "last_job": {
+        "id": 2204,
+        "name": "7000_jt_setup_app_deploy_stalwart_mailserver",
+        "description": "Allgemeines deploy playbook stalwart_mailserver",
+        "finished": "2026-04-13T21:34:39.769705Z",
+        "status": "successful",
+        "failed": false,
+        "job_template_id": 70,
+        "job_template_name": "7000_jt_setup_app_deploy_stalwart_mailserver"
+      },
+      "last_job_host_summary": {
+        "id": 1186,
+        "failed": false
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true
+      },
+      "groups": {
+        "count": 1,
+        "results": [
+          {
+            "id": 7,
+            "name": "awx_group"
+          }
+        ]
+      },
+      "recent_jobs": [
+        {
+          "id": 2204,
+          "name": "7000_jt_setup_app_deploy_stalwart_mailserver",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-13T21:34:39.769705Z"
+        },
+        {
+          "id": 2201,
+          "name": "7000_jt_setup_app_deploy_stalwart_mailserver",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-13T20:33:35.415239Z"
+        },
+        {
+          "id": 2199,
+          "name": "7000_jt_setup_app_deploy_stalwart_mailserver",
+          "type": "job",
+          "status": "failed",
+          "finished": "2026-04-13T20:20:43.944123Z"
+        },
+        {
+          "id": 2196,
+          "name": "7000_jt_setup_app_deploy_stalwart_mailserver",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-13T18:17:57.144856Z"
+        },
+        {
+          "id": 2194,
+          "name": "7000_jt_setup_app_deploy_stalwart_mailserver",
+          "type": "job",
+          "status": "failed",
+          "finished": "2026-04-13T17:52:18.757016Z"
+        }
+      ]
+    },
+    "created": "2026-03-08T09:33:48.461897Z",
+    "modified": "2026-03-08T09:33:48.461941Z",
+    "name": "awx_server_host",
+    "description": "AWX Server",
+    "inventory": 2,
+    "enabled": true,
+    "instance_id": "",
+    "variables": "ansible_host: <ip_awx_server>\nansible_host_ipv6: <ip6_awx_server> \nansible_port: 10070",
+    "has_active_failures": false,
+    "has_inventory_sources": false,
+    "last_job": 2204,
+    "last_job_host_summary": 1186,
+    "ansible_facts_modified": null
+  },
+  {
+    "id": 4,
+    "type": "host",
+    "url": "/api/v2/hosts/4/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "variable_data": "/api/v2/hosts/4/variable_data/",
+      "groups": "/api/v2/hosts/4/groups/",
+      "all_groups": "/api/v2/hosts/4/all_groups/",
+      "job_events": "/api/v2/hosts/4/job_events/",
+      "job_host_summaries": "/api/v2/hosts/4/job_host_summaries/",
+      "activity_stream": "/api/v2/hosts/4/activity_stream/",
+      "inventory_sources": "/api/v2/hosts/4/inventory_sources/",
+      "smart_inventories": "/api/v2/hosts/4/smart_inventories/",
+      "ad_hoc_commands": "/api/v2/hosts/4/ad_hoc_commands/",
+      "ad_hoc_command_events": "/api/v2/hosts/4/ad_hoc_command_events/",
+      "ansible_facts": "/api/v2/hosts/4/ansible_facts/",
+      "inventory": "/api/v2/inventories/2/",
+      "last_job": "/api/v2/jobs/1393/",
+      "last_job_host_summary": "/api/v2/job_host_summaries/658/"
+    },
+    "summary_fields": {
+      "inventory": {
+        "id": 2,
+        "name": "Homelab_Servers_inventory",
+        "description": "Homelab_Servers",
+        "has_active_failures": true,
+        "total_hosts": 7,
+        "hosts_with_active_failures": 2,
+        "total_groups": 7,
+        "has_inventory_sources": false,
+        "total_inventory_sources": 0,
+        "inventory_sources_with_failures": 0,
+        "organization_id": 2,
+        "kind": ""
+      },
+      "last_job": {
+        "id": 1393,
+        "name": "jt_setup_minikube",
+        "description": "jt_setup_minikube",
+        "finished": "2026-03-30T23:28:28.987467Z",
+        "status": "failed",
+        "failed": true,
+        "job_template_id": 59,
+        "job_template_name": "jt_setup_minikube"
+      },
+      "last_job_host_summary": {
+        "id": 658,
+        "failed": true
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true
+      },
+      "groups": {
+        "count": 1,
+        "results": [
+          {
+            "id": 3,
+            "name": "mail_group"
+          }
+        ]
+      },
+      "recent_jobs": [
+        {
+          "id": 1393,
+          "name": "jt_setup_minikube",
+          "type": "job",
+          "status": "failed",
+          "finished": "2026-03-30T23:28:28.987467Z"
+        },
+        {
+          "id": 1389,
+          "name": "jt_setup_minikube",
+          "type": "job",
+          "status": "failed",
+          "finished": "2026-03-30T23:22:35.132473Z"
+        },
+        {
+          "id": 839,
+          "name": "z_jt_setup_hinweis_vpn_server_pause",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-03-21T15:26:11.949522Z"
+        },
+        {
+          "id": 683,
+          "name": "z_jt_setup_hinweis_vpn_server_pause",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-03-18T21:42:50.485934Z"
+        },
+        {
+          "id": 658,
+          "name": "z_add_user_add_sshd_secure_default",
+          "type": "job",
+          "status": "failed",
+          "finished": "2026-03-18T21:13:08.900653Z"
+        }
+      ]
+    },
+    "created": "2026-03-08T09:30:41.654447Z",
+    "modified": "2026-03-08T09:30:41.654470Z",
+    "name": "mail_server_host",
+    "description": "Mail Server",
+    "inventory": 2,
+    "enabled": true,
+    "instance_id": "",
+    "variables": "ansible_host: <ip_mail_server>\nansible_host_ipv6: <ip6_mail_server> \nansible_port: 10030",
+    "has_active_failures": true,
+    "has_inventory_sources": false,
+    "last_job": 1393,
+    "last_job_host_summary": 658,
+    "ansible_facts_modified": null
+  },
+  {
+    "id": 7,
+    "type": "host",
+    "url": "/api/v2/hosts/7/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "variable_data": "/api/v2/hosts/7/variable_data/",
+      "groups": "/api/v2/hosts/7/groups/",
+      "all_groups": "/api/v2/hosts/7/all_groups/",
+      "job_events": "/api/v2/hosts/7/job_events/",
+      "job_host_summaries": "/api/v2/hosts/7/job_host_summaries/",
+      "activity_stream": "/api/v2/hosts/7/activity_stream/",
+      "inventory_sources": "/api/v2/hosts/7/inventory_sources/",
+      "smart_inventories": "/api/v2/hosts/7/smart_inventories/",
+      "ad_hoc_commands": "/api/v2/hosts/7/ad_hoc_commands/",
+      "ad_hoc_command_events": "/api/v2/hosts/7/ad_hoc_command_events/",
+      "ansible_facts": "/api/v2/hosts/7/ansible_facts/",
+      "inventory": "/api/v2/inventories/2/",
+      "last_job": "/api/v2/jobs/2107/",
+      "last_job_host_summary": "/api/v2/job_host_summaries/1135/"
+    },
+    "summary_fields": {
+      "inventory": {
+        "id": 2,
+        "name": "Homelab_Servers_inventory",
+        "description": "Homelab_Servers",
+        "has_active_failures": true,
+        "total_hosts": 7,
+        "hosts_with_active_failures": 2,
+        "total_groups": 7,
+        "has_inventory_sources": false,
+        "total_inventory_sources": 0,
+        "inventory_sources_with_failures": 0,
+        "organization_id": 2,
+        "kind": ""
+      },
+      "last_job": {
+        "id": 2107,
+        "name": "6000_jt_setup_app_deploy_odoo19",
+        "description": "Allgemeines deploy playbook",
+        "finished": "2026-04-09T20:22:38.875087Z",
+        "status": "successful",
+        "failed": false,
+        "job_template_id": 69,
+        "job_template_name": "6000_jt_setup_app_deploy_odoo19"
+      },
+      "last_job_host_summary": {
+        "id": 1135,
+        "failed": false
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true
+      },
+      "groups": {
+        "count": 1,
+        "results": [
+          {
+            "id": 6,
+            "name": "odoo_group"
+          }
+        ]
+      },
+      "recent_jobs": [
+        {
+          "id": 2107,
+          "name": "6000_jt_setup_app_deploy_odoo19",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-09T20:22:38.875087Z"
+        },
+        {
+          "id": 2105,
+          "name": "6000_jt_setup_app_deploy_odoo19",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-09T19:38:31.480821Z"
+        },
+        {
+          "id": 2102,
+          "name": "6000_jt_setup_app_deploy_odoo19",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-09T18:23:32.036080Z"
+        },
+        {
+          "id": 2100,
+          "name": "6000_jt_setup_app_deploy_odoo19",
+          "type": "job",
+          "status": "failed",
+          "finished": "2026-04-09T17:59:23.818613Z"
+        },
+        {
+          "id": 2098,
+          "name": "6000_jt_setup_app_deploy_odoo19",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-08T20:10:19.554249Z"
+        }
+      ]
+    },
+    "created": "2026-03-08T09:33:03.203289Z",
+    "modified": "2026-03-08T09:33:03.203308Z",
+    "name": "odoo_server_host",
+    "description": "Odoo Server",
+    "inventory": 2,
+    "enabled": true,
+    "instance_id": "",
+    "variables": "ansible_host: <ip_odoo_server>\nansible_host_ipv6: <ip6_odoo_server> \nansible_port: 10060",
+    "has_active_failures": false,
+    "has_inventory_sources": false,
+    "last_job": 2107,
+    "last_job_host_summary": 1135,
+    "ansible_facts_modified": null
+  },
+  {
+    "id": 5,
+    "type": "host",
+    "url": "/api/v2/hosts/5/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "variable_data": "/api/v2/hosts/5/variable_data/",
+      "groups": "/api/v2/hosts/5/groups/",
+      "all_groups": "/api/v2/hosts/5/all_groups/",
+      "job_events": "/api/v2/hosts/5/job_events/",
+      "job_host_summaries": "/api/v2/hosts/5/job_host_summaries/",
+      "activity_stream": "/api/v2/hosts/5/activity_stream/",
+      "inventory_sources": "/api/v2/hosts/5/inventory_sources/",
+      "smart_inventories": "/api/v2/hosts/5/smart_inventories/",
+      "ad_hoc_commands": "/api/v2/hosts/5/ad_hoc_commands/",
+      "ad_hoc_command_events": "/api/v2/hosts/5/ad_hoc_command_events/",
+      "ansible_facts": "/api/v2/hosts/5/ansible_facts/",
+      "inventory": "/api/v2/inventories/2/",
+      "last_job": "/api/v2/jobs/1623/",
+      "last_job_host_summary": "/api/v2/job_host_summaries/791/"
+    },
+    "summary_fields": {
+      "inventory": {
+        "id": 2,
+        "name": "Homelab_Servers_inventory",
+        "description": "Homelab_Servers",
+        "has_active_failures": true,
+        "total_hosts": 7,
+        "hosts_with_active_failures": 2,
+        "total_groups": 7,
+        "has_inventory_sources": false,
+        "total_inventory_sources": 0,
+        "inventory_sources_with_failures": 0,
+        "organization_id": 2,
+        "kind": ""
+      },
+      "last_job": {
+        "id": 1623,
+        "name": "jt_setup_wazuh_agent",
+        "description": "jt_setup_wazuh_agent",
+        "finished": "2026-04-01T14:07:26.504143Z",
+        "status": "successful",
+        "failed": false,
+        "job_template_id": 25,
+        "job_template_name": "jt_setup_wazuh_agent"
+      },
+      "last_job_host_summary": {
+        "id": 791,
+        "failed": false
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true
+      },
+      "groups": {
+        "count": 1,
+        "results": [
+          {
+            "id": 4,
+            "name": "repo_group"
+          }
+        ]
+      },
+      "recent_jobs": [
+        {
+          "id": 1623,
+          "name": "jt_setup_wazuh_agent",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-01T14:07:26.504143Z"
+        },
+        {
+          "id": 1393,
+          "name": "jt_setup_minikube",
+          "type": "job",
+          "status": "failed",
+          "finished": "2026-03-30T23:28:28.987467Z"
+        },
+        {
+          "id": 1389,
+          "name": "jt_setup_minikube",
+          "type": "job",
+          "status": "failed",
+          "finished": "2026-03-30T23:22:35.132473Z"
+        },
+        {
+          "id": 1226,
+          "name": "jt_setup_helm_charts_repo_server",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-03-29T21:34:47.910752Z"
+        },
+        {
+          "id": 1222,
+          "name": "1000_repo_group_jt_setup_repo_server",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-03-29T21:24:52.837696Z"
+        }
+      ]
+    },
+    "created": "2026-03-08T09:31:46.165270Z",
+    "modified": "2026-03-08T09:31:46.165289Z",
+    "name": "repo_server_host",
+    "description": "Repo Server",
+    "inventory": 2,
+    "enabled": true,
+    "instance_id": "",
+    "variables": "ansible_host: <ip_repo_server>\nansible_host_ipv6: <ip6_repo_server> \nansible_port: 10040",
+    "has_active_failures": false,
+    "has_inventory_sources": false,
+    "last_job": 1623,
+    "last_job_host_summary": 791,
+    "ansible_facts_modified": null
+  },
+  {
+    "id": 2,
+    "type": "host",
+    "url": "/api/v2/hosts/2/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "variable_data": "/api/v2/hosts/2/variable_data/",
+      "groups": "/api/v2/hosts/2/groups/",
+      "all_groups": "/api/v2/hosts/2/all_groups/",
+      "job_events": "/api/v2/hosts/2/job_events/",
+      "job_host_summaries": "/api/v2/hosts/2/job_host_summaries/",
+      "activity_stream": "/api/v2/hosts/2/activity_stream/",
+      "inventory_sources": "/api/v2/hosts/2/inventory_sources/",
+      "smart_inventories": "/api/v2/hosts/2/smart_inventories/",
+      "ad_hoc_commands": "/api/v2/hosts/2/ad_hoc_commands/",
+      "ad_hoc_command_events": "/api/v2/hosts/2/ad_hoc_command_events/",
+      "ansible_facts": "/api/v2/hosts/2/ansible_facts/",
+      "inventory": "/api/v2/inventories/2/",
+      "last_job": "/api/v2/jobs/1765/",
+      "last_job_host_summary": "/api/v2/job_host_summaries/873/"
+    },
+    "summary_fields": {
+      "inventory": {
+        "id": 2,
+        "name": "Homelab_Servers_inventory",
+        "description": "Homelab_Servers",
+        "has_active_failures": true,
+        "total_hosts": 7,
+        "hosts_with_active_failures": 2,
+        "total_groups": 7,
+        "has_inventory_sources": false,
+        "total_inventory_sources": 0,
+        "inventory_sources_with_failures": 0,
+        "organization_id": 2,
+        "kind": ""
+      },
+      "last_job": {
+        "id": 1765,
+        "name": "jt_setup_firewall",
+        "description": "jt_setup_firewall",
+        "finished": "2026-04-04T12:13:58.357489Z",
+        "status": "failed",
+        "failed": true,
+        "job_template_id": 18,
+        "job_template_name": "jt_setup_firewall"
+      },
+      "last_job_host_summary": {
+        "id": 873,
+        "failed": true
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true
+      },
+      "groups": {
+        "count": 1,
+        "results": [
+          {
+            "id": 1,
+            "name": "vpn_group"
+          }
+        ]
+      },
+      "recent_jobs": [
+        {
+          "id": 1765,
+          "name": "jt_setup_firewall",
+          "type": "job",
+          "status": "failed",
+          "finished": "2026-04-04T12:13:58.357489Z"
+        },
+        {
+          "id": 1764,
+          "name": "jt_setup_firewall",
+          "type": "job",
+          "status": "failed",
+          "finished": "2026-04-04T12:13:14.497061Z"
+        },
+        {
+          "id": 1694,
+          "name": "jt_setup_firewall",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-02T10:44:22.067497Z"
+        },
+        {
+          "id": 1693,
+          "name": "jt_setup_vpn_server",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-02T10:25:46.355609Z"
+        },
+        {
+          "id": 1680,
+          "name": "jt_setup_vpn_server",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-01T23:53:54.175820Z"
+        }
+      ]
+    },
+    "created": "2026-03-08T09:29:08.647708Z",
+    "modified": "2026-03-08T09:30:13.489448Z",
+    "name": "vpn_server_host",
+    "description": "VPN Server",
+    "inventory": 2,
+    "enabled": true,
+    "instance_id": "",
+    "variables": "ansible_host: <ip_vpn_server>\nansible_host_ipv6: <ip6_vpn_server> \nansible_port: 10010",
+    "has_active_failures": true,
+    "has_inventory_sources": false,
+    "last_job": 1765,
+    "last_job_host_summary": 873,
+    "ansible_facts_modified": null
+  },
+  {
+    "id": 3,
+    "type": "host",
+    "url": "/api/v2/hosts/3/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "variable_data": "/api/v2/hosts/3/variable_data/",
+      "groups": "/api/v2/hosts/3/groups/",
+      "all_groups": "/api/v2/hosts/3/all_groups/",
+      "job_events": "/api/v2/hosts/3/job_events/",
+      "job_host_summaries": "/api/v2/hosts/3/job_host_summaries/",
+      "activity_stream": "/api/v2/hosts/3/activity_stream/",
+      "inventory_sources": "/api/v2/hosts/3/inventory_sources/",
+      "smart_inventories": "/api/v2/hosts/3/smart_inventories/",
+      "ad_hoc_commands": "/api/v2/hosts/3/ad_hoc_commands/",
+      "ad_hoc_command_events": "/api/v2/hosts/3/ad_hoc_command_events/",
+      "ansible_facts": "/api/v2/hosts/3/ansible_facts/",
+      "inventory": "/api/v2/inventories/2/",
+      "last_job": "/api/v2/jobs/1666/",
+      "last_job_host_summary": "/api/v2/job_host_summaries/812/"
+    },
+    "summary_fields": {
+      "inventory": {
+        "id": 2,
+        "name": "Homelab_Servers_inventory",
+        "description": "Homelab_Servers",
+        "has_active_failures": true,
+        "total_hosts": 7,
+        "hosts_with_active_failures": 2,
+        "total_groups": 7,
+        "has_inventory_sources": false,
+        "total_inventory_sources": 0,
+        "inventory_sources_with_failures": 0,
+        "organization_id": 2,
+        "kind": ""
+      },
+      "last_job": {
+        "id": 1666,
+        "name": "jt_setup_wazuh_manager",
+        "description": "jt_setup_wazuh_manager",
+        "finished": "2026-04-01T21:47:44.411970Z",
+        "status": "successful",
+        "failed": false,
+        "job_template_id": 32,
+        "job_template_name": "jt_setup_wazuh_manager"
+      },
+      "last_job_host_summary": {
+        "id": 812,
+        "failed": false
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true
+      },
+      "groups": {
+        "count": 1,
+        "results": [
+          {
+            "id": 2,
+            "name": "wazuh_group"
+          }
+        ]
+      },
+      "recent_jobs": [
+        {
+          "id": 1666,
+          "name": "jt_setup_wazuh_manager",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-01T21:47:44.411970Z"
+        },
+        {
+          "id": 1652,
+          "name": "jt_setup_wazuh_manager",
+          "type": "job",
+          "status": "successful",
+          "finished": "2026-04-01T19:04:58.584946Z"
+        },
+        {
+          "id": 1648,
+          "name": "jt_setup_wazuh_manager",
+          "type": "job",
+          "status": "failed",
+          "finished": "2026-04-01T17:27:51.397323Z"
+        },
+        {
+          "id": 1634,
+          "name": "jt_setup_wazuh_manager",
+          "type": "job",
+          "status": "failed",
+          "finished": "2026-04-01T16:38:50.286626Z"
+        },
+        {
+          "id": 1627,
+          "name": "jt_setup_wazuh_manager",
+          "type": "job",
+          "status": "failed",
+          "finished": "2026-04-01T15:32:42.328838Z"
+        }
+      ]
+    },
+    "created": "2026-03-08T09:29:52.786298Z",
+    "modified": "2026-03-08T09:29:52.786310Z",
+    "name": "wazuh_manager_host",
+    "description": "Wazuh Manager",
+    "inventory": 2,
+    "enabled": true,
+    "instance_id": "",
+    "variables": "ansible_host: <ip_wazuh_server>\nansible_host_ipv6: <ip6_wazuh_server> \nansible_port: 10020",
+    "has_active_failures": false,
+    "has_inventory_sources": false,
+    "last_job": 1666,
+    "last_job_host_summary": 812,
+    "ansible_facts_modified": null
+  }
+]

@@ -1,0 +1,14 @@
+## Directus Deployment Dokumentation
+
+**Datum:** {{ ansible_date_time.iso8601 }}
+**Server:** {{ ansible_host }} ({{ ansible_hostname }})
+**App:** {{ app_name }}
+**Deploy-Typ:** {{ app_deploy_type | default('docker') }}
+**DB:** {{ app_db_type | default('mariadb') }}
+**Port:** {{ app_port | default('8055') }}
+**Domain:** {{ urls[ansible_host][app_name].domain | default('nicht konfiguriert') }}
+**Admin:** {{ app_admin_email | default('nicht gesetzt') }}
+**SSL:** {{ app_ssl | default(false) }}
+**ModSecurity:** {{ app_modsecurity | default(false) }}
+**VPN-only:** {{ app_vpn_only | default(false) }}
+**Status:** {{ allg_status }}

@@ -1,0 +1,41 @@
+# AppArmor Profile für AWX
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/bin/awx-manage {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  #include <abstractions/python>
+  
+  # Capabilities
+  capability dac_override,
+  capability setuid,
+  capability setgid,
+  
+  # Netzwerk
+  network inet stream,
+  network inet6 stream,
+  
+  # AWX Binary
+  /usr/bin/awx-manage mr,
+  /usr/bin/python3* rix,
+  
+  # Konfiguration
+  /etc/tower/** r,
+  /etc/awx/** r,
+  
+  # Data
+  /var/lib/awx/** rw,
+  
+  # Logs
+  /var/log/tower/** w,
+  
+  # Temp
+  /tmp/** rw,
+  
+  # PostgreSQL
+  /var/run/postgresql/.s.PGSQL.* rw,
+}

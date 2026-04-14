@@ -1,0 +1,126 @@
+---
+# ============================================================
+# APTLY – Mirror Management (Git-Pattern)
+# ============================================================
+
+# ------------------------------------------------------------
+# 1) Vorhandene Mirrors ermitteln
+# ------------------------------------------------------------
+- name: APTLY – Vorhandene Mirrors ermitteln - conf_aptly_mirror_server_task.yml
+  ansible.builtin.command: aptly mirror list -raw
+  register: aptly_existing_mirrors
+  changed_when: false
+  failed_when: false
+
+# ------------------------------------------------------------
+# 2) Unerwünschte Mirrors löschen
+# ------------------------------------------------------------
+- name: APTLY – Unerwünschte Mirrors löschen - conf_aptly_mirror_server_task.yml
+  ansible.builtin.command: "aptly mirror drop -force {{ item }}"
+  loop: "{{ aptly_existing_mirrors.stdout_lines | default([]) }}"
+  when:
+    - aptly_existing_mirrors.stdout_lines | default([]) | length > 0
+    - item not in (aptly_mirrors | map(attribute='name') | list)
+  failed_when: false
+  changed_when: true
+
+- name: APTLY – Datenbank bereinigen - conf_aptly_mirror_server_task.yml
+  ansible.builtin.command: aptly db cleanup
+  register: db_cleanup_result
+  changed_when: "'Objects removed' in db_cleanup_result.stdout"
+  when: aptly_existing_mirrors.stdout_lines | default([]) | length > 0
+
+# ============================================================
+# 3) APTLY – GPG & Basis Infrastruktur
+# ============================================================
+- name: APTLY – Infrastruktur sicherstellen - conf_aptly_mirror_server_task.yml
+  block:
+    - name: GPG-Home & Basisverzeichnisse - conf_aptly_mirror_server_task.yml
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: "/root/.aptly", mode: "0755" }
+        - { path: "/root/.aptly/public", mode: "0755" }
+
+    - name: trustedkeys.gpg sicherstellen - conf_aptly_mirror_server_task.yml
+      ansible.builtin.file:
+        path: /root/.gnupg/trustedkeys.gpg
+        state: touch
+        owner: root
+        group: root
+        mode: "0600"
+        modification_time: preserve
+        access_time: preserve
+
+# ============================================================
+# 4) APTLY – GPG Keys importieren (nur Ubuntu-Basis)
+# ============================================================
+- name: APTLY – Ubuntu-Archiv-Keys importieren - conf_aptly_mirror_server_task.yml
+  ansible.builtin.shell: |
+    gpg --no-default-keyring --keyring /usr/share/keyrings/ubuntu-archive-keyring.gpg --export | \
+    gpg --no-default-keyring --keyring /root/.gnupg/trustedkeys.gpg --import
+  args:
+    executable: /bin/bash
+  environment:
+    GNUPGHOME: /root/.gnupg
+  changed_when: false
+  failed_when: false
+
+# ============================================================
+# 5) APTLY – Mirror Management (Keys + Mirror pro Item)
+# ============================================================
+- name: APTLY – Mirrors verarbeiten - conf_aptly_mirror_server_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.aptly_mirror_management }}"
+  loop: "{{ aptly_mirrors }}"
+
+## Größenangabe stimmt immer nich nicht 100%ig
+- name: APTLY – Mirror-Details sammeln - conf_aptly_mirror_server_task.yml
+  block:
+    - name: APTLY – Paket-Anzahl pro Mirror abrufen - conf_aptly_mirror_server_task.yml
+      ansible.builtin.shell: |
+        MIRROR="{{ item.name }}"
+        # Pakete zählen
+        PACKAGES=$(aptly mirror show "$MIRROR" 2>/dev/null | grep "Number of packages" | awk '{print $4}' || echo "0")
+        echo "$MIRROR|$PACKAGES"
+      register: mirror_info
+      loop: "{{ aptly_mirrors }}"
+      changed_when: false
+      failed_when: false
+    
+    - name: APTLY – Pool-Gesamtgröße ermitteln - conf_aptly_mirror_server_task.yml
+      ansible.builtin.shell: |
+        # Pool-Verzeichnis Größe in MB
+        if [ -d "/root/.aptly/pool" ]; then
+          SIZE=$(du -sm /root/.aptly/pool 2>/dev/null | cut -f1 || echo "0")
+        else
+          SIZE=0
+        fi
+        echo "$SIZE"
+      register: pool_size
+      changed_when: false
+      failed_when: false
+
+    - name: APTLY – Mirror-Übersicht (AWX Optimiert) - conf_aptly_mirror_server_task.yml
+      ansible.builtin.debug:
+        msg: >-
+          {%- set output_list = [
+            "═══════════════════════════════════════════════════",
+            "📦 APTLY MIRROR ÜBERSICHT",
+            "═══════════════════════════════════════════════════"
+          ] -%}
+          {%- for result in mirror_info.results -%}
+            {%- set parts = result.stdout.split('|') -%}
+            {%- set _ = output_list.append("Mirror: " ~ parts[0]) -%}
+            {%- set _ = output_list.append("  └─ Pakete: " ~ (parts[1] | default('0'))) -%}
+            {%- if not loop.last -%}
+              {%- set _ = output_list.append("  ---------------------------------") -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {%- set _ = output_list.append("═══════════════════════════════════════════════════") -%}
+          {%- set _ = output_list.append("💾 Gesamtgröße Pool: " ~ pool_size.stdout ~ " MB") -%}
+          {%- set _ = output_list.append("═══════════════════════════════════════════════════") -%}
+          {{ output_list }}

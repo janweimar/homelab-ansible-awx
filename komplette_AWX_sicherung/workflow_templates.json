@@ -1,0 +1,1402 @@
+[
+  {
+    "id": 16,
+    "type": "workflow_job_template",
+    "url": "/api/v2/workflow_job_templates/16/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "last_job": "/api/v2/workflow_jobs/820/",
+      "workflow_jobs": "/api/v2/workflow_job_templates/16/workflow_jobs/",
+      "schedules": "/api/v2/workflow_job_templates/16/schedules/",
+      "launch": "/api/v2/workflow_job_templates/16/launch/",
+      "webhook_key": "/api/v2/workflow_job_templates/16/webhook_key/",
+      "webhook_receiver": "",
+      "workflow_nodes": "/api/v2/workflow_job_templates/16/workflow_nodes/",
+      "labels": "/api/v2/workflow_job_templates/16/labels/",
+      "activity_stream": "/api/v2/workflow_job_templates/16/activity_stream/",
+      "notification_templates_started": "/api/v2/workflow_job_templates/16/notification_templates_started/",
+      "notification_templates_success": "/api/v2/workflow_job_templates/16/notification_templates_success/",
+      "notification_templates_error": "/api/v2/workflow_job_templates/16/notification_templates_error/",
+      "notification_templates_approvals": "/api/v2/workflow_job_templates/16/notification_templates_approvals/",
+      "access_list": "/api/v2/workflow_job_templates/16/access_list/",
+      "object_roles": "/api/v2/workflow_job_templates/16/object_roles/",
+      "survey_spec": "/api/v2/workflow_job_templates/16/survey_spec/",
+      "copy": "/api/v2/workflow_job_templates/16/copy/",
+      "organization": "/api/v2/organizations/2/",
+      "inventory": "/api/v2/inventories/2/"
+    },
+    "summary_fields": {
+      "organization": {
+        "id": 2,
+        "name": "Homelab_organization",
+        "description": "Gesamtes Projekt (Linux Family)"
+      },
+      "inventory": {
+        "id": 2,
+        "name": "Homelab_Servers_inventory",
+        "description": "Homelab_Servers",
+        "has_active_failures": true,
+        "total_hosts": 7,
+        "hosts_with_active_failures": 2,
+        "total_groups": 7,
+        "has_inventory_sources": false,
+        "total_inventory_sources": 0,
+        "inventory_sources_with_failures": 0,
+        "organization_id": 2,
+        "kind": ""
+      },
+      "last_job": {
+        "id": 820,
+        "name": "0001_wf_VPN_Server_Teil_1",
+        "description": "erster Teil VPN setup",
+        "finished": "2026-03-21T15:26:12.200870Z",
+        "status": "successful",
+        "failed": false
+      },
+      "last_update": {
+        "id": 820,
+        "name": "0001_wf_VPN_Server_Teil_1",
+        "description": "erster Teil VPN setup",
+        "status": "successful",
+        "failed": false
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "object_roles": {
+        "admin_role": {
+          "description": "Can manage all aspects of the workflow job template",
+          "name": "Admin",
+          "id": 144
+        },
+        "execute_role": {
+          "description": "May run the workflow job template",
+          "name": "Execute",
+          "id": 145
+        },
+        "read_role": {
+          "description": "May view settings for the workflow job template",
+          "name": "Read",
+          "id": 146
+        },
+        "approval_role": {
+          "description": "Can approve or deny a workflow approval node",
+          "name": "Approve",
+          "id": 147
+        }
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true,
+        "start": true,
+        "schedule": true,
+        "copy": true
+      },
+      "labels": {
+        "count": 0,
+        "results": []
+      },
+      "recent_jobs": [
+        {
+          "id": 820,
+          "status": "successful",
+          "finished": "2026-03-21T15:26:12.200870Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 664,
+          "status": "successful",
+          "finished": "2026-03-18T21:42:50.791464Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 607,
+          "status": "failed",
+          "finished": "2026-03-18T19:14:30.290247Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 281,
+          "status": "successful",
+          "finished": "2026-03-14T20:50:18.362502Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 276,
+          "status": "canceled",
+          "finished": "2026-03-14T20:06:56.461250Z",
+          "canceled_on": "2026-03-14T20:06:55.902433Z",
+          "type": "workflow_job"
+        },
+        {
+          "id": 273,
+          "status": "canceled",
+          "finished": "2026-03-14T19:59:42.846551Z",
+          "canceled_on": "2026-03-14T19:59:42.248437Z",
+          "type": "workflow_job"
+        },
+        {
+          "id": 256,
+          "status": "failed",
+          "finished": "2026-03-14T19:13:11.976479Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 222,
+          "status": "successful",
+          "finished": "2026-03-13T21:11:53.199837Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 211,
+          "status": "failed",
+          "finished": "2026-03-13T20:09:54.923289Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 155,
+          "status": "failed",
+          "finished": "2026-03-10T16:41:26.121717Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        }
+      ]
+    },
+    "created": "2026-03-08T18:48:21.090347Z",
+    "modified": "2026-03-14T19:53:48.302032Z",
+    "name": "0001_wf_VPN_Server_Teil_1",
+    "description": "erster Teil VPN setup",
+    "last_job_run": "2026-03-21T15:26:12.200870Z",
+    "last_job_failed": false,
+    "next_job_run": null,
+    "status": "successful",
+    "extra_vars": "ansible_timeout: 60",
+    "organization": 2,
+    "survey_enabled": false,
+    "allow_simultaneous": false,
+    "ask_variables_on_launch": false,
+    "inventory": 2,
+    "limit": "vpn_group",
+    "scm_branch": "",
+    "ask_inventory_on_launch": false,
+    "ask_scm_branch_on_launch": false,
+    "ask_limit_on_launch": false,
+    "webhook_service": "",
+    "webhook_credential": null,
+    "ask_labels_on_launch": false,
+    "ask_skip_tags_on_launch": false,
+    "ask_tags_on_launch": false,
+    "skip_tags": "",
+    "job_tags": ""
+  },
+  {
+    "id": 27,
+    "type": "workflow_job_template",
+    "url": "/api/v2/workflow_job_templates/27/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "last_job": "/api/v2/workflow_jobs/1001/",
+      "workflow_jobs": "/api/v2/workflow_job_templates/27/workflow_jobs/",
+      "schedules": "/api/v2/workflow_job_templates/27/schedules/",
+      "launch": "/api/v2/workflow_job_templates/27/launch/",
+      "webhook_key": "/api/v2/workflow_job_templates/27/webhook_key/",
+      "webhook_receiver": "",
+      "workflow_nodes": "/api/v2/workflow_job_templates/27/workflow_nodes/",
+      "labels": "/api/v2/workflow_job_templates/27/labels/",
+      "activity_stream": "/api/v2/workflow_job_templates/27/activity_stream/",
+      "notification_templates_started": "/api/v2/workflow_job_templates/27/notification_templates_started/",
+      "notification_templates_success": "/api/v2/workflow_job_templates/27/notification_templates_success/",
+      "notification_templates_error": "/api/v2/workflow_job_templates/27/notification_templates_error/",
+      "notification_templates_approvals": "/api/v2/workflow_job_templates/27/notification_templates_approvals/",
+      "access_list": "/api/v2/workflow_job_templates/27/access_list/",
+      "object_roles": "/api/v2/workflow_job_templates/27/object_roles/",
+      "survey_spec": "/api/v2/workflow_job_templates/27/survey_spec/",
+      "copy": "/api/v2/workflow_job_templates/27/copy/",
+      "organization": "/api/v2/organizations/2/",
+      "inventory": "/api/v2/inventories/2/"
+    },
+    "summary_fields": {
+      "organization": {
+        "id": 2,
+        "name": "Homelab_organization",
+        "description": "Gesamtes Projekt (Linux Family)"
+      },
+      "inventory": {
+        "id": 2,
+        "name": "Homelab_Servers_inventory",
+        "description": "Homelab_Servers",
+        "has_active_failures": true,
+        "total_hosts": 7,
+        "hosts_with_active_failures": 2,
+        "total_groups": 7,
+        "has_inventory_sources": false,
+        "total_inventory_sources": 0,
+        "inventory_sources_with_failures": 0,
+        "organization_id": 2,
+        "kind": ""
+      },
+      "last_job": {
+        "id": 1001,
+        "name": "0001_wf_VPN_Server_Teil_2",
+        "description": "zweiter Teil VPN setup",
+        "finished": "2026-03-21T22:15:24.247255Z",
+        "status": "successful",
+        "failed": false
+      },
+      "last_update": {
+        "id": 1001,
+        "name": "0001_wf_VPN_Server_Teil_2",
+        "description": "zweiter Teil VPN setup",
+        "status": "successful",
+        "failed": false
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "object_roles": {
+        "admin_role": {
+          "description": "Can manage all aspects of the workflow job template",
+          "name": "Admin",
+          "id": 244
+        },
+        "execute_role": {
+          "description": "May run the workflow job template",
+          "name": "Execute",
+          "id": 245
+        },
+        "read_role": {
+          "description": "May view settings for the workflow job template",
+          "name": "Read",
+          "id": 246
+        },
+        "approval_role": {
+          "description": "Can approve or deny a workflow approval node",
+          "name": "Approve",
+          "id": 247
+        }
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true,
+        "start": true,
+        "schedule": true,
+        "copy": true
+      },
+      "labels": {
+        "count": 0,
+        "results": []
+      },
+      "recent_jobs": [
+        {
+          "id": 1001,
+          "status": "successful",
+          "finished": "2026-03-21T22:15:24.247255Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 598,
+          "status": "successful",
+          "finished": "2026-03-18T17:51:14.939777Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 595,
+          "status": "failed",
+          "finished": "2026-03-18T17:28:48.766910Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 584,
+          "status": "canceled",
+          "finished": "2026-03-17T22:49:56.995011Z",
+          "canceled_on": "2026-03-17T22:49:56.961235Z",
+          "type": "workflow_job"
+        },
+        {
+          "id": 581,
+          "status": "failed",
+          "finished": "2026-03-17T22:50:20.656140Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 578,
+          "status": "failed",
+          "finished": "2026-03-17T22:39:54.478786Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 575,
+          "status": "failed",
+          "finished": "2026-03-17T22:14:22.900319Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 572,
+          "status": "failed",
+          "finished": "2026-03-17T20:54:30.797113Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        }
+      ]
+    },
+    "created": "2026-03-13T19:59:45.108022Z",
+    "modified": "2026-03-14T19:53:59.301750Z",
+    "name": "0001_wf_VPN_Server_Teil_2",
+    "description": "zweiter Teil VPN setup",
+    "last_job_run": "2026-03-21T22:15:24.247255Z",
+    "last_job_failed": false,
+    "next_job_run": null,
+    "status": "successful",
+    "extra_vars": "ansible_timeout: 60",
+    "organization": 2,
+    "survey_enabled": false,
+    "allow_simultaneous": false,
+    "ask_variables_on_launch": false,
+    "inventory": 2,
+    "limit": "vpn_group",
+    "scm_branch": "",
+    "ask_inventory_on_launch": false,
+    "ask_scm_branch_on_launch": false,
+    "ask_limit_on_launch": false,
+    "webhook_service": "",
+    "webhook_credential": null,
+    "ask_labels_on_launch": false,
+    "ask_skip_tags_on_launch": false,
+    "ask_tags_on_launch": false,
+    "skip_tags": "",
+    "job_tags": ""
+  },
+  {
+    "id": 29,
+    "type": "workflow_job_template",
+    "url": "/api/v2/workflow_job_templates/29/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "last_job": "/api/v2/workflow_jobs/943/",
+      "workflow_jobs": "/api/v2/workflow_job_templates/29/workflow_jobs/",
+      "schedules": "/api/v2/workflow_job_templates/29/schedules/",
+      "launch": "/api/v2/workflow_job_templates/29/launch/",
+      "webhook_key": "/api/v2/workflow_job_templates/29/webhook_key/",
+      "webhook_receiver": "",
+      "workflow_nodes": "/api/v2/workflow_job_templates/29/workflow_nodes/",
+      "labels": "/api/v2/workflow_job_templates/29/labels/",
+      "activity_stream": "/api/v2/workflow_job_templates/29/activity_stream/",
+      "notification_templates_started": "/api/v2/workflow_job_templates/29/notification_templates_started/",
+      "notification_templates_success": "/api/v2/workflow_job_templates/29/notification_templates_success/",
+      "notification_templates_error": "/api/v2/workflow_job_templates/29/notification_templates_error/",
+      "notification_templates_approvals": "/api/v2/workflow_job_templates/29/notification_templates_approvals/",
+      "access_list": "/api/v2/workflow_job_templates/29/access_list/",
+      "object_roles": "/api/v2/workflow_job_templates/29/object_roles/",
+      "survey_spec": "/api/v2/workflow_job_templates/29/survey_spec/",
+      "copy": "/api/v2/workflow_job_templates/29/copy/",
+      "organization": "/api/v2/organizations/2/",
+      "inventory": "/api/v2/inventories/2/"
+    },
+    "summary_fields": {
+      "organization": {
+        "id": 2,
+        "name": "Homelab_organization",
+        "description": "Gesamtes Projekt (Linux Family)"
+      },
+      "inventory": {
+        "id": 2,
+        "name": "Homelab_Servers_inventory",
+        "description": "Homelab_Servers",
+        "has_active_failures": true,
+        "total_hosts": 7,
+        "hosts_with_active_failures": 2,
+        "total_groups": 7,
+        "has_inventory_sources": false,
+        "total_inventory_sources": 0,
+        "inventory_sources_with_failures": 0,
+        "organization_id": 2,
+        "kind": ""
+      },
+      "last_job": {
+        "id": 943,
+        "name": "0002_wf_WAZUH_Server",
+        "description": "WAZUH_Server",
+        "finished": "2026-03-21T21:58:06.604088Z",
+        "status": "successful",
+        "failed": false
+      },
+      "last_update": {
+        "id": 943,
+        "name": "0002_wf_WAZUH_Server",
+        "description": "WAZUH_Server",
+        "status": "successful",
+        "failed": false
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "object_roles": {
+        "admin_role": {
+          "description": "Can manage all aspects of the workflow job template",
+          "name": "Admin",
+          "id": 251
+        },
+        "execute_role": {
+          "description": "May run the workflow job template",
+          "name": "Execute",
+          "id": 252
+        },
+        "read_role": {
+          "description": "May view settings for the workflow job template",
+          "name": "Read",
+          "id": 253
+        },
+        "approval_role": {
+          "description": "Can approve or deny a workflow approval node",
+          "name": "Approve",
+          "id": 254
+        }
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true,
+        "start": true,
+        "schedule": true,
+        "copy": true
+      },
+      "labels": {
+        "count": 0,
+        "results": []
+      },
+      "recent_jobs": [
+        {
+          "id": 943,
+          "status": "successful",
+          "finished": "2026-03-21T21:58:06.604088Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 930,
+          "status": "failed",
+          "finished": "2026-03-21T18:47:07.373703Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 907,
+          "status": "failed",
+          "finished": "2026-03-21T18:45:51.273285Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 904,
+          "status": "canceled",
+          "finished": "2026-03-21T18:06:16.225770Z",
+          "canceled_on": "2026-03-21T18:06:15.377153Z",
+          "type": "workflow_job"
+        },
+        {
+          "id": 901,
+          "status": "failed",
+          "finished": "2026-03-21T18:02:09.374195Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 876,
+          "status": "failed",
+          "finished": "2026-03-21T17:46:29.739884Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 873,
+          "status": "failed",
+          "finished": "2026-03-21T17:06:52.415468Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 870,
+          "status": "failed",
+          "finished": "2026-03-21T17:05:03.613487Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 841,
+          "status": "failed",
+          "finished": "2026-03-21T16:10:11.677249Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 791,
+          "status": "failed",
+          "finished": "2026-03-21T14:17:38.599649Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        }
+      ]
+    },
+    "created": "2026-03-13T22:36:14.807471Z",
+    "modified": "2026-03-15T11:40:22.599415Z",
+    "name": "0002_wf_WAZUH_Server",
+    "description": "WAZUH_Server",
+    "last_job_run": "2026-03-21T21:58:06.604088Z",
+    "last_job_failed": false,
+    "next_job_run": null,
+    "status": "successful",
+    "extra_vars": "ansible_timeout: 60",
+    "organization": 2,
+    "survey_enabled": false,
+    "allow_simultaneous": false,
+    "ask_variables_on_launch": false,
+    "inventory": 2,
+    "limit": "wazuh_group",
+    "scm_branch": "",
+    "ask_inventory_on_launch": false,
+    "ask_scm_branch_on_launch": false,
+    "ask_limit_on_launch": false,
+    "webhook_service": "",
+    "webhook_credential": null,
+    "ask_labels_on_launch": false,
+    "ask_skip_tags_on_launch": false,
+    "ask_tags_on_launch": false,
+    "skip_tags": "",
+    "job_tags": ""
+  },
+  {
+    "id": 36,
+    "type": "workflow_job_template",
+    "url": "/api/v2/workflow_job_templates/36/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "last_job": "/api/v2/workflow_jobs/1068/",
+      "workflow_jobs": "/api/v2/workflow_job_templates/36/workflow_jobs/",
+      "schedules": "/api/v2/workflow_job_templates/36/schedules/",
+      "launch": "/api/v2/workflow_job_templates/36/launch/",
+      "webhook_key": "/api/v2/workflow_job_templates/36/webhook_key/",
+      "webhook_receiver": "",
+      "workflow_nodes": "/api/v2/workflow_job_templates/36/workflow_nodes/",
+      "labels": "/api/v2/workflow_job_templates/36/labels/",
+      "activity_stream": "/api/v2/workflow_job_templates/36/activity_stream/",
+      "notification_templates_started": "/api/v2/workflow_job_templates/36/notification_templates_started/",
+      "notification_templates_success": "/api/v2/workflow_job_templates/36/notification_templates_success/",
+      "notification_templates_error": "/api/v2/workflow_job_templates/36/notification_templates_error/",
+      "notification_templates_approvals": "/api/v2/workflow_job_templates/36/notification_templates_approvals/",
+      "access_list": "/api/v2/workflow_job_templates/36/access_list/",
+      "object_roles": "/api/v2/workflow_job_templates/36/object_roles/",
+      "survey_spec": "/api/v2/workflow_job_templates/36/survey_spec/",
+      "copy": "/api/v2/workflow_job_templates/36/copy/",
+      "organization": "/api/v2/organizations/2/",
+      "inventory": "/api/v2/inventories/2/"
+    },
+    "summary_fields": {
+      "organization": {
+        "id": 2,
+        "name": "Homelab_organization",
+        "description": "Gesamtes Projekt (Linux Family)"
+      },
+      "inventory": {
+        "id": 2,
+        "name": "Homelab_Servers_inventory",
+        "description": "Homelab_Servers",
+        "has_active_failures": true,
+        "total_hosts": 7,
+        "hosts_with_active_failures": 2,
+        "total_groups": 7,
+        "has_inventory_sources": false,
+        "total_inventory_sources": 0,
+        "inventory_sources_with_failures": 0,
+        "organization_id": 2,
+        "kind": ""
+      },
+      "last_job": {
+        "id": 1068,
+        "name": "0003_wf_REPO_Server",
+        "description": "Repo Server cgit, aptly, EE",
+        "finished": "2026-03-22T10:52:52.051501Z",
+        "status": "successful",
+        "failed": false
+      },
+      "last_update": {
+        "id": 1068,
+        "name": "0003_wf_REPO_Server",
+        "description": "Repo Server cgit, aptly, EE",
+        "status": "successful",
+        "failed": false
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "object_roles": {
+        "admin_role": {
+          "description": "Can manage all aspects of the workflow job template",
+          "name": "Admin",
+          "id": 395
+        },
+        "execute_role": {
+          "description": "May run the workflow job template",
+          "name": "Execute",
+          "id": 396
+        },
+        "read_role": {
+          "description": "May view settings for the workflow job template",
+          "name": "Read",
+          "id": 397
+        },
+        "approval_role": {
+          "description": "Can approve or deny a workflow approval node",
+          "name": "Approve",
+          "id": 398
+        }
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true,
+        "start": true,
+        "schedule": true,
+        "copy": true
+      },
+      "labels": {
+        "count": 0,
+        "results": []
+      },
+      "recent_jobs": [
+        {
+          "id": 1068,
+          "status": "successful",
+          "finished": "2026-03-22T10:52:52.051501Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1041,
+          "status": "canceled",
+          "finished": "2026-03-21T22:43:14.404326Z",
+          "canceled_on": "2026-03-21T22:43:13.141811Z",
+          "type": "workflow_job"
+        },
+        {
+          "id": 1020,
+          "status": "failed",
+          "finished": "2026-03-21T22:42:30.150805Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 996,
+          "status": "failed",
+          "finished": "2026-03-21T22:12:46.143314Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 973,
+          "status": "failed",
+          "finished": "2026-03-21T21:39:13.422716Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 948,
+          "status": "failed",
+          "finished": "2026-03-21T21:03:48.914502Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        }
+      ]
+    },
+    "created": "2026-03-18T18:27:01.316629Z",
+    "modified": "2026-03-22T05:19:24.096244Z",
+    "name": "0003_wf_REPO_Server",
+    "description": "Repo Server cgit, aptly, EE",
+    "last_job_run": "2026-03-22T10:52:52.051501Z",
+    "last_job_failed": false,
+    "next_job_run": null,
+    "status": "successful",
+    "extra_vars": "ansible_timeout: 60",
+    "organization": 2,
+    "survey_enabled": false,
+    "allow_simultaneous": false,
+    "ask_variables_on_launch": false,
+    "inventory": 2,
+    "limit": "repo_group",
+    "scm_branch": "",
+    "ask_inventory_on_launch": false,
+    "ask_scm_branch_on_launch": false,
+    "ask_limit_on_launch": false,
+    "webhook_service": "",
+    "webhook_credential": null,
+    "ask_labels_on_launch": false,
+    "ask_skip_tags_on_launch": false,
+    "ask_tags_on_launch": false,
+    "skip_tags": "",
+    "job_tags": ""
+  },
+  {
+    "id": 50,
+    "type": "workflow_job_template",
+    "url": "/api/v2/workflow_job_templates/50/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "last_job": "/api/v2/workflow_jobs/2046/",
+      "workflow_jobs": "/api/v2/workflow_job_templates/50/workflow_jobs/",
+      "schedules": "/api/v2/workflow_job_templates/50/schedules/",
+      "launch": "/api/v2/workflow_job_templates/50/launch/",
+      "webhook_key": "/api/v2/workflow_job_templates/50/webhook_key/",
+      "webhook_receiver": "",
+      "workflow_nodes": "/api/v2/workflow_job_templates/50/workflow_nodes/",
+      "labels": "/api/v2/workflow_job_templates/50/labels/",
+      "activity_stream": "/api/v2/workflow_job_templates/50/activity_stream/",
+      "notification_templates_started": "/api/v2/workflow_job_templates/50/notification_templates_started/",
+      "notification_templates_success": "/api/v2/workflow_job_templates/50/notification_templates_success/",
+      "notification_templates_error": "/api/v2/workflow_job_templates/50/notification_templates_error/",
+      "notification_templates_approvals": "/api/v2/workflow_job_templates/50/notification_templates_approvals/",
+      "access_list": "/api/v2/workflow_job_templates/50/access_list/",
+      "object_roles": "/api/v2/workflow_job_templates/50/object_roles/",
+      "survey_spec": "/api/v2/workflow_job_templates/50/survey_spec/",
+      "copy": "/api/v2/workflow_job_templates/50/copy/",
+      "organization": "/api/v2/organizations/2/",
+      "inventory": "/api/v2/inventories/2/"
+    },
+    "summary_fields": {
+      "organization": {
+        "id": 2,
+        "name": "Homelab_organization",
+        "description": "Gesamtes Projekt (Linux Family)"
+      },
+      "inventory": {
+        "id": 2,
+        "name": "Homelab_Servers_inventory",
+        "description": "Homelab_Servers",
+        "has_active_failures": true,
+        "total_hosts": 7,
+        "hosts_with_active_failures": 2,
+        "total_groups": 7,
+        "has_inventory_sources": false,
+        "total_inventory_sources": 0,
+        "inventory_sources_with_failures": 0,
+        "organization_id": 2,
+        "kind": ""
+      },
+      "last_job": {
+        "id": 2046,
+        "name": "0005_wf_AI_Server",
+        "description": "AI Server",
+        "finished": "2026-04-07T18:55:39.150395Z",
+        "status": "successful",
+        "failed": false
+      },
+      "last_update": {
+        "id": 2046,
+        "name": "0005_wf_AI_Server",
+        "description": "AI Server",
+        "status": "successful",
+        "failed": false
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "object_roles": {
+        "admin_role": {
+          "description": "Can manage all aspects of the workflow job template",
+          "name": "Admin",
+          "id": 466
+        },
+        "execute_role": {
+          "description": "May run the workflow job template",
+          "name": "Execute",
+          "id": 467
+        },
+        "read_role": {
+          "description": "May view settings for the workflow job template",
+          "name": "Read",
+          "id": 468
+        },
+        "approval_role": {
+          "description": "Can approve or deny a workflow approval node",
+          "name": "Approve",
+          "id": 469
+        }
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true,
+        "start": true,
+        "schedule": true,
+        "copy": true
+      },
+      "labels": {
+        "count": 0,
+        "results": []
+      },
+      "recent_jobs": [
+        {
+          "id": 2046,
+          "status": "successful",
+          "finished": "2026-04-07T18:55:39.150395Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1990,
+          "status": "successful",
+          "finished": "2026-04-06T20:25:36.097141Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1981,
+          "status": "failed",
+          "finished": "2026-04-06T18:13:49.006275Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1924,
+          "status": "successful",
+          "finished": "2026-04-06T13:39:34.856061Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1866,
+          "status": "failed",
+          "finished": "2026-04-05T23:05:14.120403Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1863,
+          "status": "canceled",
+          "finished": "2026-04-05T22:29:41.719906Z",
+          "canceled_on": "2026-04-05T22:29:40.743190Z",
+          "type": "workflow_job"
+        },
+        {
+          "id": 1861,
+          "status": "canceled",
+          "finished": "2026-04-05T22:02:11.039816Z",
+          "canceled_on": "2026-04-05T22:02:11.158683Z",
+          "type": "workflow_job"
+        },
+        {
+          "id": 1845,
+          "status": "successful",
+          "finished": "2026-04-05T20:40:50.802996Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1695,
+          "status": "canceled",
+          "finished": "2026-04-02T11:15:24.538430Z",
+          "canceled_on": "2026-04-02T11:15:23.824012Z",
+          "type": "workflow_job"
+        },
+        {
+          "id": 1577,
+          "status": "successful",
+          "finished": "2026-04-01T09:33:28.738200Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        }
+      ]
+    },
+    "created": "2026-03-27T18:28:06.447268Z",
+    "modified": "2026-03-27T18:28:44.717294Z",
+    "name": "0005_wf_AI_Server",
+    "description": "AI Server",
+    "last_job_run": "2026-04-07T18:55:39.150395Z",
+    "last_job_failed": false,
+    "next_job_run": null,
+    "status": "successful",
+    "extra_vars": "ansible_timeout: 60",
+    "organization": 2,
+    "survey_enabled": false,
+    "allow_simultaneous": false,
+    "ask_variables_on_launch": false,
+    "inventory": 2,
+    "limit": "ai_group",
+    "scm_branch": null,
+    "ask_inventory_on_launch": false,
+    "ask_scm_branch_on_launch": false,
+    "ask_limit_on_launch": false,
+    "webhook_service": "",
+    "webhook_credential": null,
+    "ask_labels_on_launch": false,
+    "ask_skip_tags_on_launch": false,
+    "ask_tags_on_launch": false,
+    "skip_tags": null,
+    "job_tags": null
+  },
+  {
+    "id": 68,
+    "type": "workflow_job_template",
+    "url": "/api/v2/workflow_job_templates/68/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "last_job": "/api/v2/workflow_jobs/2055/",
+      "workflow_jobs": "/api/v2/workflow_job_templates/68/workflow_jobs/",
+      "schedules": "/api/v2/workflow_job_templates/68/schedules/",
+      "launch": "/api/v2/workflow_job_templates/68/launch/",
+      "webhook_key": "/api/v2/workflow_job_templates/68/webhook_key/",
+      "webhook_receiver": "",
+      "workflow_nodes": "/api/v2/workflow_job_templates/68/workflow_nodes/",
+      "labels": "/api/v2/workflow_job_templates/68/labels/",
+      "activity_stream": "/api/v2/workflow_job_templates/68/activity_stream/",
+      "notification_templates_started": "/api/v2/workflow_job_templates/68/notification_templates_started/",
+      "notification_templates_success": "/api/v2/workflow_job_templates/68/notification_templates_success/",
+      "notification_templates_error": "/api/v2/workflow_job_templates/68/notification_templates_error/",
+      "notification_templates_approvals": "/api/v2/workflow_job_templates/68/notification_templates_approvals/",
+      "access_list": "/api/v2/workflow_job_templates/68/access_list/",
+      "object_roles": "/api/v2/workflow_job_templates/68/object_roles/",
+      "survey_spec": "/api/v2/workflow_job_templates/68/survey_spec/",
+      "copy": "/api/v2/workflow_job_templates/68/copy/",
+      "organization": "/api/v2/organizations/2/",
+      "inventory": "/api/v2/inventories/2/"
+    },
+    "summary_fields": {
+      "organization": {
+        "id": 2,
+        "name": "Homelab_organization",
+        "description": "Gesamtes Projekt (Linux Family)"
+      },
+      "inventory": {
+        "id": 2,
+        "name": "Homelab_Servers_inventory",
+        "description": "Homelab_Servers",
+        "has_active_failures": true,
+        "total_hosts": 7,
+        "hosts_with_active_failures": 2,
+        "total_groups": 7,
+        "has_inventory_sources": false,
+        "total_inventory_sources": 0,
+        "inventory_sources_with_failures": 0,
+        "organization_id": 2,
+        "kind": ""
+      },
+      "last_job": {
+        "id": 2055,
+        "name": "0006_wf_Odoo_Serve",
+        "description": "Odoo Server",
+        "finished": "2026-04-07T18:18:40.850196Z",
+        "status": "failed",
+        "failed": true
+      },
+      "last_update": {
+        "id": 2055,
+        "name": "0006_wf_Odoo_Serve",
+        "description": "Odoo Server",
+        "status": "failed",
+        "failed": true
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "object_roles": {
+        "admin_role": {
+          "description": "Can manage all aspects of the workflow job template",
+          "name": "Admin",
+          "id": 569
+        },
+        "execute_role": {
+          "description": "May run the workflow job template",
+          "name": "Execute",
+          "id": 570
+        },
+        "read_role": {
+          "description": "May view settings for the workflow job template",
+          "name": "Read",
+          "id": 571
+        },
+        "approval_role": {
+          "description": "Can approve or deny a workflow approval node",
+          "name": "Approve",
+          "id": 572
+        }
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true,
+        "start": true,
+        "schedule": true,
+        "copy": true
+      },
+      "labels": {
+        "count": 0,
+        "results": []
+      },
+      "recent_jobs": [
+        {
+          "id": 2055,
+          "status": "failed",
+          "finished": "2026-04-07T18:18:40.850196Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 2034,
+          "status": "failed",
+          "finished": "2026-04-07T17:50:25.549893Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 2020,
+          "status": "failed",
+          "finished": "2026-04-06T20:13:05.807880Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 2012,
+          "status": "failed",
+          "finished": "2026-04-06T19:56:52.503377Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 2004,
+          "status": "failed",
+          "finished": "2026-04-06T19:45:49.050924Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1992,
+          "status": "failed",
+          "finished": "2026-04-06T19:35:22.862327Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1976,
+          "status": "failed",
+          "finished": "2026-04-06T17:49:28.386856Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1973,
+          "status": "failed",
+          "finished": "2026-04-06T17:27:01.219094Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1971,
+          "status": "failed",
+          "finished": "2026-04-06T17:17:07.245742Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        }
+      ]
+    },
+    "created": "2026-04-06T16:29:30.657387Z",
+    "modified": "2026-04-06T16:30:13.431820Z",
+    "name": "0006_wf_Odoo_Serve",
+    "description": "Odoo Server",
+    "last_job_run": "2026-04-07T18:18:40.850196Z",
+    "last_job_failed": true,
+    "next_job_run": null,
+    "status": "failed",
+    "extra_vars": "ansible_timeout: 60",
+    "organization": 2,
+    "survey_enabled": false,
+    "allow_simultaneous": false,
+    "ask_variables_on_launch": false,
+    "inventory": 2,
+    "limit": "odoo_group",
+    "scm_branch": "",
+    "ask_inventory_on_launch": false,
+    "ask_scm_branch_on_launch": false,
+    "ask_limit_on_launch": false,
+    "webhook_service": "",
+    "webhook_credential": null,
+    "ask_labels_on_launch": false,
+    "ask_skip_tags_on_launch": false,
+    "ask_tags_on_launch": false,
+    "skip_tags": "",
+    "job_tags": ""
+  },
+  {
+    "id": 47,
+    "type": "workflow_job_template",
+    "url": "/api/v2/workflow_job_templates/47/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "last_job": "/api/v2/workflow_jobs/2109/",
+      "workflow_jobs": "/api/v2/workflow_job_templates/47/workflow_jobs/",
+      "schedules": "/api/v2/workflow_job_templates/47/schedules/",
+      "launch": "/api/v2/workflow_job_templates/47/launch/",
+      "webhook_key": "/api/v2/workflow_job_templates/47/webhook_key/",
+      "webhook_receiver": "",
+      "workflow_nodes": "/api/v2/workflow_job_templates/47/workflow_nodes/",
+      "labels": "/api/v2/workflow_job_templates/47/labels/",
+      "activity_stream": "/api/v2/workflow_job_templates/47/activity_stream/",
+      "notification_templates_started": "/api/v2/workflow_job_templates/47/notification_templates_started/",
+      "notification_templates_success": "/api/v2/workflow_job_templates/47/notification_templates_success/",
+      "notification_templates_error": "/api/v2/workflow_job_templates/47/notification_templates_error/",
+      "notification_templates_approvals": "/api/v2/workflow_job_templates/47/notification_templates_approvals/",
+      "access_list": "/api/v2/workflow_job_templates/47/access_list/",
+      "object_roles": "/api/v2/workflow_job_templates/47/object_roles/",
+      "survey_spec": "/api/v2/workflow_job_templates/47/survey_spec/",
+      "copy": "/api/v2/workflow_job_templates/47/copy/",
+      "organization": "/api/v2/organizations/2/",
+      "inventory": "/api/v2/inventories/2/"
+    },
+    "summary_fields": {
+      "organization": {
+        "id": 2,
+        "name": "Homelab_organization",
+        "description": "Gesamtes Projekt (Linux Family)"
+      },
+      "inventory": {
+        "id": 2,
+        "name": "Homelab_Servers_inventory",
+        "description": "Homelab_Servers",
+        "has_active_failures": true,
+        "total_hosts": 7,
+        "hosts_with_active_failures": 2,
+        "total_groups": 7,
+        "has_inventory_sources": false,
+        "total_inventory_sources": 0,
+        "inventory_sources_with_failures": 0,
+        "organization_id": 2,
+        "kind": ""
+      },
+      "last_job": {
+        "id": 2109,
+        "name": "0007_wf_AWX_Server",
+        "description": "AWX Server",
+        "finished": "2026-04-11T14:03:26.700561Z",
+        "status": "successful",
+        "failed": false
+      },
+      "last_update": {
+        "id": 2109,
+        "name": "0007_wf_AWX_Server",
+        "description": "AWX Server",
+        "status": "successful",
+        "failed": false
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "object_roles": {
+        "admin_role": {
+          "description": "Can manage all aspects of the workflow job template",
+          "name": "Admin",
+          "id": 444
+        },
+        "execute_role": {
+          "description": "May run the workflow job template",
+          "name": "Execute",
+          "id": 445
+        },
+        "read_role": {
+          "description": "May view settings for the workflow job template",
+          "name": "Read",
+          "id": 446
+        },
+        "approval_role": {
+          "description": "Can approve or deny a workflow approval node",
+          "name": "Approve",
+          "id": 447
+        }
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true,
+        "start": true,
+        "schedule": true,
+        "copy": true
+      },
+      "labels": {
+        "count": 0,
+        "results": []
+      },
+      "recent_jobs": [
+        {
+          "id": 2109,
+          "status": "successful",
+          "finished": "2026-04-11T14:03:26.700561Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1944,
+          "status": "successful",
+          "finished": "2026-04-06T13:48:51.907809Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1829,
+          "status": "successful",
+          "finished": "2026-04-05T19:58:24.170323Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1816,
+          "status": "failed",
+          "finished": "2026-04-05T17:18:37.164914Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1801,
+          "status": "failed",
+          "finished": "2026-04-05T16:51:16.787662Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1712,
+          "status": "successful",
+          "finished": "2026-04-02T20:47:50.290171Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1681,
+          "status": "successful",
+          "finished": "2026-04-02T10:22:15.855765Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1291,
+          "status": "successful",
+          "finished": "2026-03-30T13:05:12.441602Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1149,
+          "status": "successful",
+          "finished": "2026-03-23T22:32:32.538843Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        },
+        {
+          "id": 1124,
+          "status": "failed",
+          "finished": "2026-03-22T22:20:50.922413Z",
+          "canceled_on": null,
+          "type": "workflow_job"
+        }
+      ]
+    },
+    "created": "2026-03-21T22:23:23.912443Z",
+    "modified": "2026-03-22T05:19:01.097702Z",
+    "name": "0007_wf_AWX_Server",
+    "description": "AWX Server",
+    "last_job_run": "2026-04-11T14:03:26.700561Z",
+    "last_job_failed": false,
+    "next_job_run": null,
+    "status": "successful",
+    "extra_vars": "ansible_timeout: 60",
+    "organization": 2,
+    "survey_enabled": false,
+    "allow_simultaneous": false,
+    "ask_variables_on_launch": false,
+    "inventory": 2,
+    "limit": "awx_group",
+    "scm_branch": "",
+    "ask_inventory_on_launch": false,
+    "ask_scm_branch_on_launch": false,
+    "ask_limit_on_launch": false,
+    "webhook_service": "",
+    "webhook_credential": null,
+    "ask_labels_on_launch": false,
+    "ask_skip_tags_on_launch": false,
+    "ask_tags_on_launch": false,
+    "skip_tags": "",
+    "job_tags": ""
+  }
+]

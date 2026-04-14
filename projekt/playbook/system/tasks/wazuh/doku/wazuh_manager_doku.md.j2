@@ -1,0 +1,100 @@
+# WAZUH MANAGER - SYSTEM KONFIGURATION
+
+## 🔒 WAZUH MANAGER (All-in-One)
+
+- **Status:** {{ allg_status }}
+- **Host:** {{ ansible_host }}
+- **OS-Family:** {{ ansible_facts.os_family }}
+- **OS-Version:** {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
+- **Installationsmodus:** {{ wazuh_install_mode | default('unbekannt') }}
+- **Dashboard-Port:** {{ wazuh_install_port | default('443 (Standard)') }}
+- **nginx Integration:** {{ wazuh_nginx_integration | default(false) }}
+- **SSL aktiviert:** {{ server_ssl | default(false) }}
+- **ModSecurity:** {{ nginx_modsecurity | default(false) }}
+{% if wazuh_nginx_integration | default(false) | string | lower == 'true' %}
+- **Dashboard-URL:** {{ server_urls.wazuh.url | default('n/a') }}
+{% endif %}
+
+---
+
+## Installierte Komponenten
+
+| Komponente       | Beschreibung                                |
+| ---------------- | ------------------------------------------- |
+| wazuh-manager    | SIEM/XDR Hauptdienst (Port 1514/1515/55000) |
+| wazuh-indexer    | Datenbank (OpenSearch, Port 9200)           |
+| wazuh-dashboard  | Web-Oberfläche                              |
+{% if wazuh_nginx_integration | default(false) | string | lower == 'true' %}
+| nginx            | Reverse Proxy ({{ paths.nginx_conf_dir[ansible_os_family] }}) |
+{% if nginx_modsecurity | default(false) | string | lower == 'true' %}
+| ModSecurity      | WAF - Web Application Firewall              |
+{% endif %}
+{% endif %}
+
+---
+{% if nginx_modsecurity | default(false) | string | lower == 'true' %}
+
+## 🛡️ ModSecurity WAF
+
+- **Status:** aktiv (Enforce-Modus)
+- **Regelwerk:** OWASP Core Rule Set (CRS)
+- **Basis-Config:** {{ paths.modsecurity_conf[ansible_os_family] }}
+- **CRS-Verzeichnis:** {{ paths.owasp_crs[ansible_os_family] }}
+- **Quell-Regeln:** {{ paths.modsecurity_crs_rules_src[ansible_os_family] }}
+
+### Konfigurationsdateien
+
+| Datei               | Pfad |
+| ------------------- | ---- |
+| ModSecurity Basis   | {{ paths.modsecurity_conf[ansible_os_family] }} |
+| OWASP CRS Setup     | {{ paths.owasp_crs[ansible_os_family] }}/crs-setup.conf |
+| nginx ModSec Config | {{ paths.nginx_conf_dir[ansible_os_family] }}/modsec/modsecurity.conf |
+
+### Geladene OWASP CRS Regeldateien ({{ modsec_loaded_rules | default([]) | length }} Dateien)
+
+{% if modsec_loaded_rules | default([]) | length > 0 %}
+{% for rule in modsec_loaded_rules %}
+- `{{ rule }}`
+{% endfor %}
+{% else %}
+_Keine Regeldateien gefunden oder ModSecurity nicht aktiv._
+{% endif %}
+
+### Wichtige Befehle
+
+```bash
+# ModSecurity Logs ansehen
+tail -f {{ paths.nginx_log_dir[ansible_os_family] }}/modsec_audit.log
+
+# nginx Error Log (ModSecurity Blocks)
+tail -f {{ paths.nginx_log_dir[ansible_os_family] }}/error.log | grep -i modsec
+
+# Regel temporaer deaktivieren (in nginx vHost):
+# SecRuleRemoveById <REGEL-ID>
+
+# ModSecurity Status pruefen
+grep -i "modsecurity" {{ paths.nginx_conf[ansible_os_family] }}
+```
+
+{% endif %}
+---
+
+## 📋 Konfiguration
+
+| Einstellung         | Wert                                             |
+|---------------------|--------------------------------------------------|
+| Manager Config      | `/var/ossec/etc/ossec.conf`                      |
+| Indexer Config      | `/etc/wazuh-indexer/opensearch.yml`              |
+| Dashboard Config    | `/etc/wazuh-dashboard/opensearch_dashboards.yml` |
+| Agent-Schlüssel     | `/var/ossec/etc/client.keys`                     |
+| Logs                | `/var/ossec/logs/ossec.log`                      |
+| nginx Config        | {{ paths.nginx_conf[ansible_os_family] }}        |
+| nginx Log           | {{ paths.nginx_log_dir[ansible_os_family] }}     |
+| Port Agents         | 1514/tcp                                         |
+| Port Registrierung  | 1515/tcp                                         |
+| Port REST API       | 55000/tcp                                        |
+
+---
+
+**Zeitstempel:** {{ ansible_date_time.iso8601 | default('n/a') }}
+**Status:** ✅ Wazuh Manager installiert

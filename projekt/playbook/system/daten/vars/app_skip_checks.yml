@@ -1,0 +1,96 @@
+---
+###########################################################################
+# app_skip_checks.yml
+# Definiert welche Pods/Container pro App laufen müssen
+# damit app_skip_install=true die Installation überspringt.
+###########################################################################
+#
+# Struktur:
+#   app_skip_checks:
+#     <app_base_name>:
+#       check_suffixes:         # Pod-Name-Suffixe (werden an app_name gehängt)
+#         - "-web"              # → prüft: <app_name>-web* ist Running + Ready
+#         - "-task"             # → prüft: <app_name>-task* ist Running + Ready
+#       min_running: 3          # Mindestanzahl FULLY Ready Pods (X/X Running)
+#
+# DATENBANK wird AUTOMATISCH geprüft:
+#   app_db_type aus Credential wird automatisch als Suffix hinzugefügt:
+#     mariadb    → prüft <app_name>-mariadb* + min_running +1
+#     postgresql → prüft <app_name>-postgres* + min_running +1
+#     mysql      → prüft <app_name>-mysql* + min_running +1
+#     none       → keine DB-Prüfung
+#   → NICHT in check_suffixes eintragen! Kommt automatisch!
+#
+# Bei app_bez wird app_name erweitert:
+#   app_name=awx, app_bez=playground → app_name=awx-playground
+#   → Namespace: awx-playground
+#   → Prüft: awx-playground-web*, awx-playground-task*, etc.
+#
+# Wenn eine App hier NICHT eingetragen ist:
+#   → Fallback: min_running=1, keine Suffixe (nur Gesamtanzahl)
+#
+# Neue App hinzufügen:
+#   1. App deployen: kubectl get pods -n <namespace>
+#   2. Pod-Namen-Muster identifizieren (OHNE DB — die kommt automatisch!)
+#   3. check_suffixes + min_running hier eintragen
+#   4. Testen mit app_skip_install=true
+#
+###########################################################################
+
+app_skip_checks:
+
+  # ── AWX (Operator-managed) ──────────────────────────────
+  # Pods: awx-operator-xxx (2/2), awx-web-xxx (3/3),
+  #        awx-task-xxx (4/4), awx-postgres-15-0 (1/1)
+  # DB: PostgreSQL wird vom Operator verwaltet (app_db_type=none im Cred!)
+  #      → Postgres-Suffix manuell, da Operator eigene DB erstellt
+  # Nicht geprüft: awx-migration-xxx (Completed, einmalig)
+  awx:
+    check_suffixes:
+      - "-operator"
+      - "-web"
+      - "-task"
+      - "-postgres"
+    min_running: 4
+
+  # ── Ollama (K3s Deployment + MariaDB) ───────────────────
+  # Pods: ollama-xxx (1/1), ollama-mariadb-0 (1/1)
+  # DB: MariaDB (app_db_type=mariadb → wird automatisch geprüft!)
+  ollama:
+    check_suffixes: []
+    min_running: 1
+
+  # ── Open WebUI (K3s Deployment, SQLite) ─────────────────
+  # Pods: open-webui-xxx (1/1)
+  # DB: keine (app_db_type=none)
+  open-webui:
+    check_suffixes: []
+    min_running: 1
+
+  # ── Qdrant (K3s Deployment, eigene DB) ──────────────────
+  # Pods: qdrant-xxx (1/1)
+  # DB: keine extern (app_db_type=none, Qdrant IST die DB)
+  qdrant:
+    check_suffixes: []
+    min_running: 1
+
+  # ── Directus (K3s/Minikube + MariaDB) ──────────────────
+  # Pods: directus-xxx (1/1), directus-mariadb-0 (1/1)
+  # DB: MariaDB (app_db_type=mariadb → wird automatisch geprüft!)
+  directus:
+    check_suffixes: []
+    min_running: 1
+
+  # ── Bookstack (Docker oder K3s + MariaDB) ──────────────
+  # Container/Pods: bookstack-xxx, bookstack-mariadb-0
+  # DB: MariaDB (app_db_type=mariadb → wird automatisch geprüft!)
+  bookstack:
+    check_suffixes: []
+    min_running: 1
+
+  # ── Odoo (K3s + PostgreSQL) ────────────────────────────
+  # Pods: odoo-xxx (1/1), odoo-postgres-0 (1/1)
+  # DB: PostgreSQL (app_db_type=postgresql → wird automatisch geprüft!)
+  odoo:
+    check_suffixes: []
+    min_running: 1

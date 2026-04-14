@@ -1,0 +1,104 @@
+services:
+  ###########################################################################
+  # Front: nginx — verarbeitet alle Mail-Ports öffentlich
+  # Port 25 (SMTP), 587 (Submission), 993 (IMAPS)
+  ###########################################################################
+  front:
+    image: ghcr.io/mailu/nginx:2.0
+    container_name: mailu_front
+    restart: unless-stopped
+    env_file: mailu.env
+    ports:
+      # Bindung an localhost:8080 (oder Ihre Variable), damit der Host-Nginx 
+      # die Anfragen vom VPN sicher an den Container weiterleiten kann.
+      - "127.0.0.1:{{ app_port | default('8080') }}:80"
+      - "25:25"
+      - "587:587"
+      - "993:993"
+    volumes:
+      - /opt/mailu/overrides/nginx:/overrides:ro
+    depends_on:
+      - admin
+    networks:
+      - mailu_net
+
+  ###########################################################################
+  # Redis: Zwischenspeicher für Rspamd und Admin
+  ###########################################################################
+  redis:
+    image: redis:7-alpine
+    container_name: mailu_redis
+    restart: unless-stopped
+    volumes:
+      - /opt/mailu/redis:/data
+    networks:
+      - mailu_net
+
+  ###########################################################################
+  # Admin-UI: Intern über mailu_net erreichbar
+  # Zugriff erfolgt ausschließlich über mailu_front (nginx)
+  ###########################################################################
+  admin:
+    image: ghcr.io/mailu/admin:2.0
+    container_name: mailu_admin
+    restart: unless-stopped
+    env_file: mailu.env
+    volumes:
+      - /opt/mailu/data:/data
+      - /opt/mailu/dkim:/dkim
+    depends_on:
+      - redis
+    networks:
+      - mailu_net
+
+  ###########################################################################
+  # IMAP (Dovecot): Verwaltung der Postfächer
+  ###########################################################################
+  imap:
+    image: ghcr.io/mailu/dovecot:2.0
+    container_name: mailu_imap
+    restart: unless-stopped
+    env_file: mailu.env
+    volumes:
+      - /opt/mailu/mail:/mail
+      - /opt/mailu/overrides/dovecot:/overrides:ro
+    networks:
+      - mailu_net
+
+  ###########################################################################
+  # SMTP (Postfix): Versand von E-Mails
+  ###########################################################################
+  smtp:
+    image: ghcr.io/mailu/postfix:2.0
+    container_name: mailu_smtp
+    restart: unless-stopped
+    env_file: mailu.env
+    volumes:
+      - /opt/mailu/overrides/postfix:/overrides:ro
+      - /opt/mailu/data:/data
+    depends_on:
+      - front
+      - redis
+    networks:
+      - mailu_net
+
+  ###########################################################################
+  # Antispam (Rspamd): Filterung von unerwünschten Mails
+  ###########################################################################
+  antispam:
+    image: ghcr.io/mailu/rspamd:2.0
+    container_name: mailu_antispam
+    restart: unless-stopped
+    env_file: mailu.env
+    volumes:
+      - /opt/mailu/filter:/var/lib/rspamd
+      - /opt/mailu/overrides/rspamd:/overrides:ro
+    depends_on:
+      - front
+      - redis
+    networks:
+      - mailu_net
+
+networks:
+  mailu_net:
+    driver: bridge

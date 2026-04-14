@@ -1,0 +1,433 @@
+###########################################################################
+# 🔄 AWX-Variablen in interne Playbook-Variablen überführen
+###########################################################################
+- name: 🔄 Variablen für Playbook vereinheitlichen
+  ansible.builtin.set_fact:
+    fire_main_policy_input: "{{ fire_policy_input }}"
+    fire_main_policy_output: "{{ fire_policy_output }}"
+    fire_main_policy_forward: "{{ fire_policy_forward }}"
+    fire_in_ports: "{{ in_ports | default('22/tcp,80/tcp,443/tcp') }}"
+    fire_out_ports: "{{ out_ports | default('53/udp,123/udp,587/tcp') }}"
+    fire_for_ports: "{{ for_ports | default('53/udp,53/tcp,443/tcp') }}"
+    fire_rollback_timer: "{{ rollback_timeout | default(4) }}"
+    fire_vpn_enabled: "{{ vpn_enabled | default(false) }}"
+
+###########################################################################
+# 🧩 Debug + Validierung der Eingangsvariablen aus allen AWX-Credentials
+###########################################################################
+- name: 🧩 Debug – Eingangsvariablen aus allen AWX credentials
+  ansible.builtin.debug:
+    msg:
+      - "🧱 Eingehende Ports:                                 {{ in_ports | default('keine') }}"
+      - "📤 Ausgehende Ports:                                 {{ out_ports | default('keine') }}"
+      - "📤 Forward Ports:                                    {{ for_ports | default('keine') }}"
+      - "📥 Policy INPUT:                                     {{ fire_policy_input | default('nicht gesetzt') }}"
+      - "📤 Policy OUTPUT:                                    {{ fire_policy_output | default('nicht gesetzt') }}"
+      - "🔁 Policy FORWARD:                                   {{ fire_policy_forward | default('nicht gesetzt') }}"
+      - "⏳ Firewall-Rollback Timer (AWX-credential):          {{ rollback_timeout | default('nicht gesetzt') }}"
+      - "🔐 VPN aktiviert (AWX-credential):                     {{ vpn_enabled | default(false) }}"
+      - "🔢 Priorität der fire_chain (AWX-credential):         -170"
+      - "🔗 Table Name:                                        fire_tab"
+      - "🔗 in-Chain Name:                                     in_chain"
+      - "🔗 out-Chain Name:                                    out_chain"
+      - "🔗 for-Chain Name:                                    for_chain"
+
+###########################################################################
+# ✅ Prüfen aller eingabngsvariablen
+###########################################################################
+- block:
+    - name: ✅ Prüfung - sind grundlegende Firewall-Variablen vorhanden
+      ansible.builtin.assert:
+        that:
+          - fire_status is defined
+        fail_msg: |
+          ❌ Abbruch: Pflichtvariablen 'fire_status' fehlen!
+          🔎 Variablen müssen über AWX-Credentials übergeben werden.
+          ➜ Erwartet:
+              fire_status: aktiviert|deaktiviert|deinstalliert
+        success_msg: "✅ Basisvariablen vorhanden."
+
+    ###########################################################################
+    # 🔥 Firewall-Prüfung
+    ###########################################################################
+    - name: 🔥 Prüfung - Firewall-Variablen vollständig
+      ansible.builtin.assert:
+        that:
+          - in_ports is defined
+          - out_ports is defined
+          - in_ports | trim | length > 0
+          - (out_ports | trim | lower) == 'all' or (out_ports | trim | length > 0)
+        fail_msg: |
+          ❌ Abbruch: Firewall-Status ist 'aktiviert', aber 'in_ports' oder 'out_ports' fehlen oder sind leer!
+          ➜ Beide Variablen müssen gesetzt sein, z. B.:
+              in_ports: "22/ssh,80/tcp,443/tcp"
+              out_ports: "53/udp,80/tcp,443/tcp" oder "all"
+        success_msg: "✅ Firewall-Ports vollständig und gültig."
+
+    ###########################################################################
+    # 🚨 Sicherheits-Check
+    ###########################################################################
+    - block:
+        - name: 🧩 SSH-Port in Eingangsdefinition finden
+          ansible.builtin.set_fact:
+            _ssh_ports: >-
+              {{
+                (in_ports | default('')).
+                split(',') |
+                map('trim') |
+                select('match', '(?i)(^|/)?[0-9]+/ssh($|,)?') |
+                list
+              }}
+
+        - name: 🧩 SSH-Port-Existenz prüfen
+          ansible.builtin.set_fact:
+            _has_ssh_port: "{{ (_ssh_ports | length) > 0 }}"
+
+        - name: 🧩 Sicherheitsprüfung durchführen
+          ansible.builtin.assert:
+            that:
+              - in_ports is defined
+              - in_ports | trim | length > 0
+              - _has_ssh_port
+            fail_msg: |
+              ❌ Sicherheitsabbruch: Kein gültiger SSH-Port in den eingehenden Regeln gefunden!
+              🔒 Dieses Playbook darf NIEMALS ohne mindestens einen als SSH gekennzeichneten Port laufen.
+              ➜ Beispiele gültiger Definitionen:
+                  - 22/ssh
+                  - 2222/SSH
+                  - 192.168.10.5/22/ssh
+            success_msg: |
+              ✅ Sicherheitsprüfung bestanden – gültiger SSH-Port erkannt:
+              SSH-Port(s): {{ _ssh_ports | join(', ') }}
+
+    ###########################################################################
+    # 🧩 Protokoll-Prüfung
+    ###########################################################################
+    - block:
+        - name: 🧩 Erlaubte Protokolle definieren
+          ansible.builtin.set_fact:
+            allowed_protocols:
+              - tcp
+              - udp
+              - icmp
+              - icmpv6
+              - gre
+              - esp
+              - ah
+              - sctp
+              - dccp
+              - igmp
+              - ospf
+              - ipip
+              - vrf
+              - vrrp
+              - pptp
+              - l2tp
+              - carp
+              - igmpv2
+              - igmpv3
+              - udplite
+              - all
+              - ssh
+
+        - name: 🧩 Eingehende Ports analysieren (ohne IPs)
+          ansible.builtin.set_fact:
+            _parsed_in: >-
+              {{
+                (in_ports | default(''))
+                .split(',') |
+                map('trim') |
+                select('match', '^[^0-9]*$|^[0-9]+/.*') |
+                map('split', '/') |
+                map('last') |
+                map('lower') |
+                list
+              }}
+
+        - name: 🧩 Ausgehende Ports analysieren (ohne IPs)
+          ansible.builtin.set_fact:
+            _parsed_out: >-
+              {{
+                (out_ports | default(''))
+                .split(',') |
+                map('trim') |
+                select('match', '^[^0-9]*$|^[0-9]+/.*') |
+                map('split', '/') |
+                map('last') |
+                map('lower') |
+                list
+              }}
+
+        - name: 🧩 Forward Ports analysieren (ohne IPs)
+          ansible.builtin.set_fact:
+            _parsed_for: >-
+              {{
+                (for_ports | default(''))
+                .split(',') |
+                map('trim') |
+                select('match', '^[^0-9]*$|^[0-9]+/.*') |
+                map('split', '/') |
+                map('last') |
+                map('lower') |
+                list
+              }}
+
+        - name: 🧩 Alle Protokolle zusammenführen
+          ansible.builtin.set_fact:
+            _all_protocols: "{{ (_parsed_in + _parsed_out + _parsed_for) | unique }}"
+
+        - name: 🧩 Ungültige Protokolle herausfiltern
+          ansible.builtin.set_fact:
+            _invalid_protocols: >-
+              {{
+                _all_protocols
+                | reject('in', allowed_protocols)
+                | reject('equalto', '')
+                | list
+              }}
+
+        - name: 🧪 Debug – Analyse der erkannten Protokolle
+          ansible.builtin.debug:
+            msg:
+              - "🔍 Erkannte Protokolle (gesamt): {{ _all_protocols | join(', ') }}"
+              - "❌ Ungültige Protokolle (falls vorhanden): {{ _invalid_protocols | join(', ') if _invalid_protocols | length > 0 else 'keine' }}"
+              - "✅ Erlaubte Protokolle: {{ allowed_protocols | join(', ') }}"
+
+        - name: 🚨 Validierung der Protokolle
+          ansible.builtin.assert:
+            that:
+              - _invalid_protocols | length == 0
+            fail_msg: |
+              ❌ Abbruch: Ungültige Protokollangabe(n) erkannt!
+              Folgende Protokolle sind nicht erlaubt: {{ _invalid_protocols | join(', ') }}
+              ➜ Erlaubte Protokolle:
+                {{ allowed_protocols | join(', ') }}
+              Beispiel gültiger Einträge:
+                - 192.168.1.1/443/tcp
+                - 10.0.0.5/53/udp
+                - 172.16.0.0/24
+                - 443/tcp
+                - tcp
+            success_msg: "✅ Alle angegebenen Protokolle sind gültig."
+
+    ###########################################################################
+    # IP prüfen
+    ###########################################################################
+    - block:
+        - name: 📁 Temporäres Verzeichnis auf Zielhost anlegen
+          ansible.builtin.tempfile:
+            state: directory
+            suffix: _ipcheck
+          register: tmpdir
+
+        - name: 📄 Skript auf Zielhost kopieren
+          ansible.builtin.copy:
+            src: "{{ file_paths.validate_ips_script }}"
+            dest: "{{ tmpdir.path }}/validate_ips.py"
+            mode: "0755"
+
+        - name: 🧩 IP-Prüfung per Skript ausführen
+          ansible.builtin.command: >
+            python3 "{{ tmpdir.path }}/validate_ips.py"
+            "{{ in_ports | default('') }}"
+            "{{ out_ports | default('') }}"
+            "{{ for_ports | default('') }}"
+          register: ipcheck
+          changed_when: false
+          failed_when: ipcheck.rc not in [0, 1]
+
+        - name: 🧾 Ergebnis anzeigen
+          ansible.builtin.debug:
+            msg: "{{ ipcheck.stdout | from_json }}"
+          when: ipcheck.stdout is defined and ipcheck.stdout | length > 0
+
+        - name: 🧹 Temporäres Skriptverzeichnis löschen
+          ansible.builtin.file:
+            path: "{{ tmpdir.path }}"
+            state: absent
+
+        - name: 🚨 Abbruch, wenn ungültige IPs gefunden wurden
+          ansible.builtin.fail:
+            msg: |
+              ❌ ABBRUCH: Fehlerhafte IPv4-Adresse(n) erkannt!
+              {{ (ipcheck.stdout | from_json).invalid_ips | join(', ') }}
+          when:
+            - ipcheck is defined
+            - (ipcheck.stdout | from_json).invalid_ips is defined
+            - (ipcheck.stdout | from_json).invalid_ips | length > 0
+
+    ###########################################################################
+    # 🧩 Port-Prüfung
+    ###########################################################################
+    - block:
+        - name: 🧩 Eingehende Ports extrahieren (ignoriert IPs)
+          ansible.builtin.set_fact:
+            _ports_in: >-
+              {{
+                (in_ports | default(''))
+                .split(',') |
+                map('trim') |
+                reject('contains', '.') |
+                map('regex_search', '^[0-9]+') |
+                reject('none') |
+                map('int') |
+                list
+              }}
+
+        - name: 🧩 Ausgehende Ports extrahieren (ignoriert IPs, überspringt bei 'all')
+          ansible.builtin.set_fact:
+            _ports_out: >-
+              {{
+                []
+                if (out_ports | default('') | trim | lower) == 'all'
+                else (
+                  (out_ports | default(''))
+                  .split(',') |
+                  map('trim') |
+                  reject('contains', '.') |
+                  map('regex_search', '^[0-9]+') |
+                  reject('none') |
+                  map('int') |
+                  list
+                )
+              }}
+
+        - name: 🧩 Ausgehende Ports extrahieren (ignoriert IPs, überspringt bei 'all')
+          ansible.builtin.set_fact:
+            _ports_for: >-
+              {{
+                []
+                if (for_ports | default('') | trim | lower) == 'all'
+                else (
+                  (for_ports | default(''))
+                  .split(',') |
+                  map('trim') |
+                  reject('contains', '.') |
+                  map('regex_search', '^[0-9]+') |
+                  reject('none') |
+                  map('int') |
+                  list
+                )
+              }}
+
+        - name: 🧩 Alle Ports zusammenführen
+          ansible.builtin.set_fact:
+            _all_ports: "{{ (_ports_in + _ports_out + _ports_for) | unique | sort }}"
+
+        - name: 🧩 Ungültige Ports herausfiltern (außerhalb 1–65535)
+          ansible.builtin.set_fact:
+            _invalid_ports: >-
+              {{
+                (_all_ports | select('lt', 1) | list)
+                +
+                (_all_ports | select('gt', 65535) | list)
+              }}
+
+        - name: 🧪 Debug – Analyse der Ports
+          ansible.builtin.debug:
+            msg:
+              - "📥 Eingehende Ports: {{ _ports_in | join(', ') if _ports_in | length > 0 else 'keine' }}"
+              - "📤 Ausgehende Ports: {{ _ports_out | join(', ') if _ports_out | length > 0 else 'keine' }}"
+              - "📤 Weiterleitende Ports: {{ _ports_for | join(', ') if _ports_for | length > 0 else 'keine' }}"
+              - "🌐 Gesamt: {{ _all_ports | join(', ') if _all_ports | length > 0 else 'keine' }}"
+              - "❌ Ungültige Ports: {{ _invalid_ports | join(', ') if _invalid_ports | length > 0 else 'keine' }}"
+
+        - name: 🚨 Port-Validierung erzwingen
+          ansible.builtin.assert:
+            that:
+              - _invalid_ports | length == 0
+              - _all_ports | length > 0
+            fail_msg: |
+              ❌ Abbruch: Ungültige oder fehlende Portangaben erkannt!
+              ➜ Gültige Portnummern liegen im Bereich 1–65535.
+              Fehlerhafte Werte: {{ _invalid_ports | join(', ') }}
+              Beispiel gültiger Einträge:
+                - 192.168.1.1/443/tcp
+                - 10.0.0.5/22/ssh
+                - 443/tcp
+                - 53/udp
+            success_msg: "✅ Alle Portnummern sind gültig (1–65535 geprüft)."
+
+    ###########################################################################
+    # 🔄 Netzwerkeinträge parsen (Eingehend & Ausgehend)
+    ###########################################################################
+    - block:
+        - name: 📁 Temporäres Verzeichnis auf Zielhost anlegen (Eingehend)
+          ansible.builtin.tempfile:
+            state: directory
+            suffix: _parse_in
+          register: tmpdir_parse
+
+        - name: 📄 Parser-Skript auf Zielhost kopieren (Eingehend)
+          ansible.builtin.copy:
+            src: "{{ file_paths.parse_netvars }}"
+            dest: "{{ tmpdir_parse.path }}/parse_netvars.py"
+            mode: "0755"
+
+        - name: 🧩 AWX-Port zu fire_in_ports hinzufügen (nur wenn noch nicht enthalten)
+          ansible.builtin.set_fact:
+            fire_in_ports: >-
+              {{
+                (fire_in_ports | default('')) + ',' + (ansible_port | string) + '/ssh'
+                if (fire_in_ports | default('')) | length > 0
+                else (ansible_port | string) + '/ssh'
+              }}
+          when: (fire_in_ports | default('')) is not search('(^|,)\\s*' ~ (ansible_port | string) ~ '/(ssh|tcp)\\b')
+
+        - name: 🧩 Parser-Skript ausführen (Eingehend)
+          ansible.builtin.command: >
+            python3 "{{ tmpdir_parse.path }}/parse_netvars.py" "{{ fire_in_ports }}"
+          register: parsed_in
+          changed_when: false
+          failed_when: parsed_in.rc not in [0, 1]
+
+        - name: 🔧 Parser-Ausgabe übernehmen (Eingehend)
+          ansible.builtin.set_fact:
+            fire_in_parsed: "{{ parsed_in.stdout | from_json }}"
+
+        - name: 🧾 Debug – Parserergebnis anzeigen (Eingehend)
+          ansible.builtin.debug:
+            msg: "{{ fire_in_parsed }}"
+
+    ###########################################################################
+    # 🧩 Parser – Ausgehend
+    ###########################################################################
+    - block:
+        - name: 🧩 Parser-Skript ausführen (Ausgehend)
+          ansible.builtin.command: >
+            python3 "{{ tmpdir_parse.path }}/parse_netvars.py" "{{ fire_out_ports }}"
+          register: parsed_out
+          changed_when: false
+          failed_when: parsed_out.rc not in [0, 1]
+
+        - name: 🔧 Parser-Ausgabe übernehmen (Ausgehend)
+          ansible.builtin.set_fact:
+            fire_out_parsed: "{{ parsed_out.stdout | from_json }}"
+
+        - name: 🧾 Debug – Parserergebnis anzeigen (Ausgehend)
+          ansible.builtin.debug:
+            msg: "{{ fire_out_parsed }}"
+
+    ###########################################################################
+    # 🧩 Parser – Weiterleitend
+    ###########################################################################
+    - block:
+        - name: 🧩 Parser-Skript ausführen (forward)
+          ansible.builtin.command: >
+            python3 "{{ tmpdir_parse.path }}/parse_netvars.py" "{{ fire_for_ports }}"
+          register: parsed_for
+          changed_when: false
+          failed_when: parsed_for.rc not in [0, 1]
+
+        - name: 🔧 Parser-Ausgabe übernehmen (forward)
+          ansible.builtin.set_fact:
+            fire_for_parsed: "{{ parsed_for.stdout | from_json }}"
+
+        - name: 🧾 Debug – Parserergebnis anzeigen (forward)
+          ansible.builtin.debug:
+            msg: "{{ fire_for_parsed }}"
+
+        - name: 🧹 Temporäres Parser-Verzeichnis löschen (forward)
+          ansible.builtin.file:
+            path: "{{ tmpdir_parse.path }}"
+            state: absent

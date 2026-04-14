@@ -1,0 +1,221 @@
+# INFRASTRUKTUR ANALYSE BERICHT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Host    :** {{ inventory_hostname }}
+**OS      :** {{ ansible_distribution }} {{ ansible_distribution_version }} ({{ ansible_distribution_release }})
+**Kernel  :** {{ ansible_kernel }}
+**Datum   :** {{ ansible_date_time.iso8601 }}
+**Modus   :** READ-ONLY (keine Änderungen am System)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 1. KURZÜBERSICHT
+
+| Gesamtstatus | Module | Apps OK | Apps Warnung | Apps Fehler |
+|---|---|---|---|---|
+| {{ '❌ FEHLER' if gesamt_status == 'FEHLER' else '⚠️ WARNUNG' if gesamt_status == 'WARNUNG' else '✅ OK' }} | {{ alle_module_status | select('equalto', 'OK') | list | length }}/{{ alle_module_status | length }} OK | {{ app_ok }} | {{ app_warnung }} | {{ app_fehler }} |
+
+---
+
+{% set fehler_items = [] %}
+{% set warnung_items = [] %}
+
+{% for modul_name, modul_data in [
+  ('System-Info', system_info_results),
+  ('Pakete', pakete_results),
+  ('Services', services_results),
+  ('Benutzer', benutzer_results),
+  ('Netzwerk', netzwerk_results),
+  ('Ressourcen', ressourcen_results),
+  ('Logs', logs_results),
+  ('Sicherheit', sicherheit_results),
+  ('Container', container_results),
+  ('Hardware', hardware_results)
+] %}
+{% for detail in modul_data.details | default([]) %}
+{% if detail.status == 'FEHLER' %}{% set _ = fehler_items.append({'modul': modul_name, 'name': detail.name, 'wert': detail.wert, 'hinweis': detail.hinweis}) %}{% endif %}
+{% if detail.status == 'WARNUNG' %}{% set _ = warnung_items.append({'modul': modul_name, 'name': detail.name, 'wert': detail.wert, 'hinweis': detail.hinweis}) %}{% endif %}
+{% endfor %}
+{% endfor %}
+
+## 2. KRITISCHE FEHLER (sofort beheben!)
+
+{% if fehler_items | length == 0 %}
+✅ Keine kritischen Fehler gefunden.
+{% else %}
+{% for item in fehler_items %}
+### ❌ {{ item.modul }} — {{ item.name }}
+- **Wert:** {{ item.wert }}
+{% if item.hinweis %}
+- **Maßnahme:** {{ item.hinweis }}
+{% endif %}
+
+{% endfor %}
+{% endif %}
+
+---
+
+## 3. WARNUNGEN (zeitnah beheben)
+
+{% if warnung_items | length == 0 %}
+✅ Keine Warnungen.
+{% else %}
+{% for item in warnung_items %}
+### ⚠️ {{ item.modul }} — {{ item.name }}
+- **Wert:** {{ item.wert }}
+{% if item.hinweis %}
+- **Maßnahme:** {{ item.hinweis }}
+{% endif %}
+
+{% endfor %}
+{% endif %}
+
+---
+
+## 4. SYSTEM-GRUNDLAGEN
+
+### 4.1 Systeminfo
+| Prüfpunkt | Status | Wert |
+|---|---|---|
+{% for detail in system_info_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅' if detail.status == 'OK' else '⚠️' if detail.status == 'WARNUNG' else '❌' }} | {{ detail.wert }} |
+{% endfor %}
+
+### 4.2 Pakete
+| Prüfpunkt | Status | Wert |
+|---|---|---|
+{% for detail in pakete_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅' if detail.status == 'OK' else '⚠️' if detail.status == 'WARNUNG' else '❌' }} | {{ detail.wert }} |
+{% endfor %}
+
+### 4.3 Services
+| Prüfpunkt | Status | Wert |
+|---|---|---|
+{% for detail in services_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅' if detail.status == 'OK' else '⚠️' if detail.status == 'WARNUNG' else '❌' }} | {{ detail.wert }} |
+{% endfor %}
+
+{% if services_results.services_failed | default([]) | length > 0 %}
+**Fehlgeschlagene Services:**
+```
+{% for svc in services_results.services_failed %}
+{{ svc }}
+{% endfor %}
+```
+{% endif %}
+
+---
+
+## 5. BENUTZER & SICHERHEIT
+
+### 5.1 Benutzer & Berechtigungen
+| Prüfpunkt | Status | Wert |
+|---|---|---|
+{% for detail in benutzer_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅' if detail.status == 'OK' else '⚠️' if detail.status == 'WARNUNG' else '❌' }} | {{ detail.wert }} |
+{% endfor %}
+
+### 5.2 Sicherheit
+| Prüfpunkt | Status | Wert |
+|---|---|---|
+{% for detail in sicherheit_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅' if detail.status == 'OK' else '⚠️' if detail.status == 'WARNUNG' else '❌' }} | {{ detail.wert }} |
+{% endfor %}
+
+---
+
+## 6. NETZWERK & RESSOURCEN
+
+### 6.1 Netzwerk
+| Prüfpunkt | Status | Wert |
+|---|---|---|
+{% for detail in netzwerk_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅' if detail.status == 'OK' else '⚠️' if detail.status == 'WARNUNG' else '❌' }} | {{ detail.wert }} |
+{% endfor %}
+
+### 6.2 Ressourcen
+| Prüfpunkt | Status | Wert |
+|---|---|---|
+{% for detail in ressourcen_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅' if detail.status == 'OK' else '⚠️' if detail.status == 'WARNUNG' else '❌' }} | {{ detail.wert }} |
+{% endfor %}
+
+---
+
+## 7. LOGS & CONTAINER
+
+### 7.1 Logs
+| Prüfpunkt | Status | Wert |
+|---|---|---|
+{% for detail in logs_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅' if detail.status == 'OK' else '⚠️' if detail.status == 'WARNUNG' else '❌' }} | {{ detail.wert }} |
+{% endfor %}
+
+### 7.2 Container
+| Prüfpunkt | Status | Wert |
+|---|---|---|
+{% for detail in container_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅' if detail.status == 'OK' else '⚠️' if detail.status == 'WARNUNG' else '❌' }} | {{ detail.wert }} |
+{% endfor %}
+
+---
+
+## 8. APP-TESTS
+
+### 8.1 Zusammenfassung
+
+| Status | Anzahl |
+|---|---|
+| ✅ OK | {{ app_ok }} |
+| ⚠️ WARNUNG | {{ app_warnung }} |
+| ❌ FEHLER | {{ app_fehler }} |
+| Gesamt | {{ app_results | length }} |
+
+### 8.2 Details aller getesteten Apps
+
+{% for app in app_results | sort(attribute='status') %}
+#### {{ '❌' if app.status == 'FEHLER' else '⚠️' if app.status == 'WARNUNG' else '✅' }} {{ app.app }} ({{ 'Spezialtest' if app.spezialtest else 'Generisch' }})
+
+| Prüfpunkt | Status | Wert | Hinweis |
+|---|---|---|---|
+{% for detail in app.details | default([]) %}
+| {{ detail.name }} | {{ '✅' if detail.status == 'OK' else '⚠️' if detail.status == 'WARNUNG' else '❌' }} | {{ detail.wert }} | {{ detail.hinweis | default('') }} |
+{% endfor %}
+
+{% endfor %}
+
+---
+
+## 9. HARDWARE
+
+| Prüfpunkt | Status | Wert |
+|---|---|---|
+{% for detail in hardware_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅' if detail.status == 'OK' else '⚠️' if detail.status == 'WARNUNG' else '❌' }} | {{ detail.wert }} |
+{% endfor %}
+
+---
+
+## 10. EMPFEHLUNGEN
+
+{% set empfehlungen = [] %}
+{% for item in fehler_items %}
+{% if item.hinweis %}{% set _ = empfehlungen.append({'prioritaet': '🔴 KRITISCH', 'bereich': item.modul, 'massnahme': item.hinweis}) %}{% endif %}
+{% endfor %}
+{% for item in warnung_items %}
+{% if item.hinweis %}{% set _ = empfehlungen.append({'prioritaet': '🟡 MITTEL', 'bereich': item.modul, 'massnahme': item.hinweis}) %}{% endif %}
+{% endfor %}
+
+{% if empfehlungen | length == 0 %}
+✅ Keine Handlungsempfehlungen — System in gutem Zustand.
+{% else %}
+| Priorität | Bereich | Maßnahme |
+|---|---|---|
+{% for emp in empfehlungen %}
+| {{ emp.prioritaet }} | {{ emp.bereich }} | {{ emp.massnahme }} |
+{% endfor %}
+{% endif %}
+
+---
+
+*Bericht erstellt am {{ ansible_date_time.iso8601 }} — READ-ONLY Analyse — keine Änderungen am System vorgenommen*

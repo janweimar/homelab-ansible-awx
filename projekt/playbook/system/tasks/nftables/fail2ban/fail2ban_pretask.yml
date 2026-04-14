@@ -1,0 +1,109 @@
+---
+###########################################################################
+# Fail2Ban + nftables Pre-Task - fail2ban_pretask.yml
+# Vorbereitung: Cleanup, Verzeichnisse, nftables Basiskonfiguration
+###########################################################################
+
+# ============================================================
+# CLEANUP - Alte jail.local + jail.d komplett loeschen
+# ============================================================
+- name: Loesche /etc/fail2ban/jail.local - fail2ban_pretask.yml
+  ansible.builtin.file:
+    path: /etc/fail2ban/jail.local
+    state: absent
+
+- name: Loesche /etc/fail2ban/jail.d komplett - fail2ban_pretask.yml
+  ansible.builtin.file:
+    path: /etc/fail2ban/jail.d
+    state: absent
+
+- name: Erstelle /etc/fail2ban/jail.d neu - fail2ban_pretask.yml
+  ansible.builtin.file:
+    path: /etc/fail2ban/jail.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# ============================================================
+# CLEANUP - Alten Systemd-Override loeschen (falls vorhanden)
+# ============================================================
+- name: Loesche alten fail2ban systemd override - fail2ban_pretask.yml
+  ansible.builtin.file:
+    path: /etc/systemd/system/fail2ban.service.d
+    state: absent
+  register: f2b_systemd_cleanup
+
+- name: Systemd daemon-reload nach Override-Cleanup - fail2ban_pretask.yml
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: f2b_systemd_cleanup.changed
+
+# ============================================================
+# CLEANUP - Custom Actions loeschen
+# ============================================================
+- name: Loesche alte custom Action-Dateien - fail2ban_pretask.yml
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/fail2ban/action.d/nftables_custom.conf
+    - /etc/fail2ban/action.d/nftables-allports_custom.conf
+    - /etc/fail2ban/action.d/nftables-multiport_custom.conf
+
+# ============================================================
+# CLEANUP - Custom Filter loeschen
+# ============================================================
+- name: Loesche alte custom Odoo-Filter - fail2ban_pretask.yml
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/fail2ban/filter.d/odoo.conf
+    - /etc/fail2ban/filter.d/odoo-syslog.conf
+    - /etc/fail2ban/filter.d/odoo-404.conf
+    - /etc/fail2ban/filter.d/odoo-404-syslog.conf
+
+# ============================================================
+# NFTABLES - Basiskonfiguration
+# ============================================================
+- name: Alte /etc/nftables.conf löschen - fail2ban_pretask.yml
+  ansible.builtin.file:
+    path: /etc/nftables.conf
+    state: absent
+
+- name: Neue nftables.conf kopieren - fail2ban_pretask.yml
+  ansible.builtin.copy:
+    src: templates/nftable_config.j2
+    dest: /etc/nftables.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Ordner /etc/nftables.d sicherstellen - fail2ban_pretask.yml
+  ansible.builtin.file:
+    path: /etc/nftables.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# ============================================================
+# NFTABLES - Platzhalter-Dateien sicherstellen
+# ============================================================
+- name: Sicherstelle 00_geoIP_ruleset.nft existiert - fail2ban_pretask.yml
+  ansible.builtin.file:
+    path: /etc/nftables.d/00_geoIP_ruleset.nft
+    state: touch
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Sicherstelle 10_firewall_ruleset.nft existiert - fail2ban_pretask.yml
+  ansible.builtin.file:
+    path: /etc/nftables.d/10_firewall_ruleset.nft
+    state: touch
+    owner: root
+    group: root
+    mode: "0644"
+

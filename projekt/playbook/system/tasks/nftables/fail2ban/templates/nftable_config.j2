@@ -1,0 +1,5 @@
+#!/usr/sbin/nft -f
+
+include "/etc/nftables.d/00_geoIP_ruleset.nft";
+include "/etc/nftables.d/10_firewall_ruleset.nft";
+include "/etc/nftables.d/20_f2b_ruleset.nft";

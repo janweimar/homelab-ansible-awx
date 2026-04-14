@@ -1,0 +1,81 @@
+---
+###########################################################################
+# 🧹 kube_app_cleanup.yml
+# Wiederverwendbarer Kubernetes App Cleanup
+###########################################################################
+# Benötigte Variablen:
+#   app_name:   Name der App (= Namespace)
+#   kube_user:  Linux-User für kubectl
+#
+# Löscht den kompletten Namespace inkl. aller Ressourcen.
+#
+# Aufruf:
+#   - name: App aufräumen
+#     ansible.builtin.include_tasks: "{{ task_paths.kube_app_cleanup }}"
+###########################################################################
+
+- name: 🧹 Prüfe ob Namespace {{ app_name }} existiert - kube_app_cleanup.yml
+  ansible.builtin.command: kubectl get namespace {{ app_name }}
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _ns_check
+  failed_when: false
+  changed_when: false
+
+- block:
+    - name: 🧹 Alle Ressourcen löschen - kube_app_cleanup.yml
+      ansible.builtin.command: kubectl delete all --all -n {{ app_name }}
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      failed_when: false
+      changed_when: true
+
+    - name: 🧹 PVCs löschen - kube_app_cleanup.yml
+      ansible.builtin.command: kubectl delete pvc --all -n {{ app_name }}
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      failed_when: false
+      changed_when: true
+
+    - name: 🧹 Secrets löschen - kube_app_cleanup.yml
+      ansible.builtin.command: kubectl delete secrets --all -n {{ app_name }}
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      failed_when: false
+      changed_when: true
+
+    - name: 🧹 Namespace löschen - kube_app_cleanup.yml
+      ansible.builtin.command: kubectl delete namespace {{ app_name }}
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      failed_when: false
+      changed_when: true
+
+    - name: ⏳ Warte bis Namespace gelöscht ist - kube_app_cleanup.yml
+      ansible.builtin.command: kubectl get namespace {{ app_name }}
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      register: _ns_gone
+      until: _ns_gone.rc != 0
+      retries: 30
+      delay: 10
+      failed_when: false
+      changed_when: false
+
+  when: _ns_check.rc == 0
+
+- name: 📊 Cleanup Status - kube_app_cleanup.yml
+  ansible.builtin.debug:
+    msg: "{{ '🧹 Namespace ' + app_name + ' gelöscht' if _ns_check.rc == 0 else '✅ Kein alter Namespace — saubere Installation' }}"

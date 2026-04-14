@@ -1,0 +1,13 @@
+# NETZWERK-KONFIGURATION - SYSTEM KONFIGURATION
+
+## ⚙️ DEPLOYED KONFIGURATION
+
+- **nload:** Installiert (Netzwerk-Traffic Monitoring)
+- **IPv4/IPv6 Priorisierung:** {{ 'IPv4 bevorzugt' if gai_conf_template | default('ip4_gai_conf.j2') == 'ip4_gai_conf.j2' else 'Standard' }}
+- **gai.conf Template:** {{ gai_conf_template | default('ip4_gai_conf.j2') }}
+- **gai.conf Pfad:** {{ file_paths.gai_conf[ansible_default_ipv4.address] }}
+- **System-Update:** {{ 'Durchgeführt' if update_system | default(true) else 'Übersprungen' }}
+
+---
+
+**Status:** ✅ Netzwerk-Konfiguration deployed

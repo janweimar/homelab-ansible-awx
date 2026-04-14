@@ -1,0 +1,16 @@
+---
+###########################################################################
+# ⏸️ openclaw_stop.yml
+# OpenClaw Gateway stoppen
+###########################################################################
+
+- name: ⏸️ OpenClaw Gateway stoppen - openclaw_stop.yml
+  ansible.builtin.systemd:
+    name: openclaw-gateway
+    state: stopped
+  failed_when: false
+  when: app_deploy_type | default('nativ') == 'nativ'
+
+- name: 📊 DEBUG Stop abgeschlossen - openclaw_stop.yml
+  ansible.builtin.debug:
+    msg: "⏸️ {{ app_name }} gestoppt ({{ app_deploy_type | default('nativ') }})"

@@ -1,0 +1,112 @@
+---
+###########################################################################
+# 🛡️  Spezialtest: ModSecurity + CRS
+# =========================================================================
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+- name: "MOD | Paket installiert"
+  ansible.builtin.command: dpkg -s libnginx-mod-http-modsecurity
+  register: reg_mod_pkg
+  changed_when: false
+  failed_when: false
+
+- name: "MOD | modsecurity.conf prüfen"
+  ansible.builtin.stat:
+    path: /etc/nginx/modsecurity.conf
+  register: reg_mod_conf
+
+- name: "MOD | SecRuleEngine Status"
+  ansible.builtin.shell: grep -i 'SecRuleEngine' /etc/nginx/modsecurity.conf 2>/dev/null | grep -v '^#' | awk '{print $2}'
+  register: reg_mod_engine
+  changed_when: false
+  failed_when: false
+
+- name: "MOD | CRS Verzeichnis prüfen"
+  ansible.builtin.stat:
+    path: /etc/nginx/crs
+  register: reg_mod_crs
+
+- name: "MOD | CRS Regeln zählen"
+  ansible.builtin.shell: find /etc/nginx/crs/rules/ -name "*.conf" 2>/dev/null | wc -l
+  register: reg_mod_regeln_anzahl
+  changed_when: false
+  failed_when: false
+
+- name: "MOD | crs-setup.conf prüfen"
+  ansible.builtin.stat:
+    path: /etc/nginx/crs/crs-setup.conf
+  register: reg_mod_crs_setup
+
+- name: "MOD | Audit-Log Pfad prüfen"
+  ansible.builtin.shell: grep -i 'SecAuditLog ' /etc/nginx/modsecurity.conf 2>/dev/null | grep -v '^#' | awk '{print $2}'
+  register: reg_mod_auditlog_pfad
+  changed_when: false
+  failed_when: false
+
+- name: "MOD | Audit-Log Datei prüfen"
+  ansible.builtin.stat:
+    path: "{{ reg_mod_auditlog_pfad.stdout | default('/var/log/nginx/modsec_audit.log') | trim }}"
+  register: reg_mod_auditlog
+
+- name: "MOD | Nginx Modul geladen prüfen"
+  ansible.builtin.shell: nginx -V 2>&1 | grep -c modsecurity
+  register: reg_mod_nginx_modul
+  changed_when: false
+  failed_when: false
+
+- name: "MOD | Ergebnis in app_results speichern"
+  ansible.builtin.set_fact:
+    app_results: >-
+      {{
+        app_results + [{
+          'app': 'libnginx-mod-http-modsecurity',
+          'typ': 'spezial',
+          'status': (
+            'FEHLER' if (reg_mod_regeln_anzahl.stdout | int) == 0
+            else 'FEHLER' if not reg_mod_auditlog.stat.exists
+            else 'WARNUNG' if reg_mod_engine.stdout | upper == 'DETECTIONONLY'
+            else 'OK'
+          ),
+          'details': [
+            {
+              'name': 'Paket installiert',
+              'status': 'OK' if reg_mod_pkg.rc == 0 else 'FEHLER',
+              'wert': 'installiert' if reg_mod_pkg.rc == 0 else 'NICHT installiert',
+              'hinweis': ''
+            },
+            {
+              'name': 'modsecurity.conf vorhanden',
+              'status': 'OK' if reg_mod_conf.stat.exists else 'FEHLER',
+              'wert': 'vorhanden' if reg_mod_conf.stat.exists else 'FEHLT',
+              'hinweis': 'modsecurity.conf fehlt!' if not reg_mod_conf.stat.exists else ''
+            },
+            {
+              'name': 'SecRuleEngine',
+              'status': 'OK' if reg_mod_engine.stdout | upper == 'ON' else 'WARNUNG',
+              'wert': reg_mod_engine.stdout | default('nicht gesetzt'),
+              'hinweis': 'ModSecurity im Detection-Only Modus — blockiert nicht!' if reg_mod_engine.stdout | upper == 'DETECTIONONLY' else ''
+            },
+            {
+              'name': 'CRS Regeln',
+              'status': 'OK' if (reg_mod_regeln_anzahl.stdout | int) > 30 else 'FEHLER',
+              'wert': reg_mod_regeln_anzahl.stdout | trim + ' Regeln',
+              'hinweis': '0 CRS Regeln geladen — Include rules/*.conf in modsecurity.conf prüfen!' if (reg_mod_regeln_anzahl.stdout | int) == 0 else ''
+            },
+            {
+              'name': 'Audit-Log',
+              'status': 'OK' if reg_mod_auditlog.stat.exists else 'FEHLER',
+              'wert': reg_mod_auditlog_pfad.stdout | default('/var/log/nginx/modsec_audit.log') | trim,
+              'hinweis': 'Audit-Log fehlt!' if not reg_mod_auditlog.stat.exists else ''
+            },
+            {
+              'name': 'Nginx Modul geladen',
+              'status': 'OK' if (reg_mod_nginx_modul.stdout | int) > 0 else 'FEHLER',
+              'wert': 'geladen' if (reg_mod_nginx_modul.stdout | int) > 0 else 'NICHT geladen',
+              'hinweis': 'ModSecurity Modul nicht in nginx geladen!' if (reg_mod_nginx_modul.stdout | int) == 0 else ''
+            }
+          ],
+          'spezialtest': true
+        }]
+      }}
+  when: reg_mod_pkg.rc == 0

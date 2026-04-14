@@ -1,0 +1,18 @@
+# AUTO-UPDATE - SYSTEM KONFIGURATION
+
+## 🔄 DEPLOYED UPDATE-CONFIG
+
+- **Status:** {{ allg_status }}
+- **OS-Family:** {{ ansible_facts.os_family }}
+- **Auto-Update Intervall:** alle {{ auto_update_interval | default('1') }} Tag(e)
+- **Reboot-Zeit:** {{ auto_update_reboot_time | default('02:00') }}
+- **Mail-Empfaenger:** {{ admin_email }}
+{% if ansible_os_family == 'Debian' %}
+- **Methode:** unattended-upgrades + apt-listchanges
+{% elif ansible_os_family in ['RedHat', 'Suse'] %}
+- **Methode:** dnf-automatic
+{% endif %}
+
+---
+
+**Status:** ✅ Auto-Update konfiguriert

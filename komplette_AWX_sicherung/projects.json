@@ -1,0 +1,136 @@
+[
+  {
+    "id": 8,
+    "type": "project",
+    "url": "/api/v2/projects/8/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "credential": "/api/v2/credentials/4/",
+      "last_job": "/api/v2/project_updates/2203/",
+      "teams": "/api/v2/projects/8/teams/",
+      "playbooks": "/api/v2/projects/8/playbooks/",
+      "inventory_files": "/api/v2/projects/8/inventories/",
+      "update": "/api/v2/projects/8/update/",
+      "project_updates": "/api/v2/projects/8/project_updates/",
+      "scm_inventory_sources": "/api/v2/projects/8/scm_inventory_sources/",
+      "schedules": "/api/v2/projects/8/schedules/",
+      "activity_stream": "/api/v2/projects/8/activity_stream/",
+      "notification_templates_started": "/api/v2/projects/8/notification_templates_started/",
+      "notification_templates_success": "/api/v2/projects/8/notification_templates_success/",
+      "notification_templates_error": "/api/v2/projects/8/notification_templates_error/",
+      "access_list": "/api/v2/projects/8/access_list/",
+      "object_roles": "/api/v2/projects/8/object_roles/",
+      "copy": "/api/v2/projects/8/copy/",
+      "organization": "/api/v2/organizations/2/",
+      "default_environment": "/api/v2/execution_environments/1/",
+      "last_update": "/api/v2/project_updates/2203/"
+    },
+    "summary_fields": {
+      "organization": {
+        "id": 2,
+        "name": "Homelab_organization",
+        "description": "Gesamtes Projekt (Linux Family)"
+      },
+      "default_environment": {
+        "id": 1,
+        "name": "AWX EE (24.6.1)",
+        "description": "",
+        "image": "quay.io/ansible/awx-ee:24.6.1"
+      },
+      "credential": {
+        "id": 4,
+        "name": "z_GitHub Personal Access Token",
+        "description": "GitHub Personal Access Token",
+        "kind": "scm",
+        "cloud": false,
+        "kubernetes": false,
+        "credential_type_id": 2
+      },
+      "last_job": {
+        "id": 2203,
+        "name": "Homelab_Ansible_project",
+        "description": "Homelab_Ansible_project",
+        "finished": "2026-04-13T21:30:26.948699Z",
+        "status": "successful",
+        "failed": false
+      },
+      "last_update": {
+        "id": 2203,
+        "name": "Homelab_Ansible_project",
+        "description": "Homelab_Ansible_project",
+        "status": "successful",
+        "failed": false
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "object_roles": {
+        "admin_role": {
+          "description": "Can manage all aspects of the project",
+          "name": "Admin",
+          "id": 58
+        },
+        "use_role": {
+          "description": "Can use the project in a job template",
+          "name": "Use",
+          "id": 59
+        },
+        "update_role": {
+          "description": "May update the project",
+          "name": "Update",
+          "id": 60
+        },
+        "read_role": {
+          "description": "May view settings for the project",
+          "name": "Read",
+          "id": 61
+        }
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true,
+        "start": true,
+        "schedule": true,
+        "copy": true
+      }
+    },
+    "created": "2026-03-08T11:07:12.020244Z",
+    "modified": "2026-04-01T09:08:30.080789Z",
+    "name": "Homelab_Ansible_project",
+    "description": "Homelab_Ansible_project",
+    "local_path": "_8__homelab_ansible_project",
+    "scm_type": "git",
+    "scm_url": "https://github.com/maxmustermann/ansible.git",
+    "scm_branch": "main",
+    "scm_refspec": "",
+    "scm_clean": true,
+    "scm_track_submodules": false,
+    "scm_delete_on_update": false,
+    "credential": 4,
+    "timeout": 0,
+    "scm_revision": "fc3120b9c3c8c07c41c163ec9eefbdcb81de8c1c",
+    "last_job_run": "2026-04-13T21:30:26.948699Z",
+    "last_job_failed": false,
+    "next_job_run": null,
+    "status": "successful",
+    "organization": 2,
+    "scm_update_on_launch": false,
+    "scm_update_cache_timeout": 0,
+    "allow_override": false,
+    "custom_virtualenv": null,
+    "default_environment": 1,
+    "signature_validation_credential": null,
+    "last_update_failed": false,
+    "last_updated": "2026-04-13T21:30:26.948699Z"
+  }
+]

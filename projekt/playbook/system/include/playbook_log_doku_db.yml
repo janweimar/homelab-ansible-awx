@@ -1,0 +1,70 @@
+---
+###########################################################################
+# Playbook Log/Dokumentation in Datenbank schreiben
+# Wird von playbook_log_doku.yml aufgerufen
+###########################################################################
+# Benötigte Variablen:
+#   log_temp_path: Pfad zur temporären Log-Datei
+#   log_db_type: mysql/mariadb/postgresql
+#   log_db_host: IP oder Hostname
+#   log_db_port: Port (optional)
+#   log_db_name: Datenbankname
+#   log_db_user: Benutzername
+#   log_db_password: Passwort
+#   log_db_table: Tabellenname
+###########################################################################
+
+- name: 📖 Lese Dokumentation-Inhalt
+  ansible.builtin.slurp:
+    src: "{{ log_temp_path }}"
+  register: log_content_raw
+
+- name: 🗄️ Schreibe in MySQL/MariaDB
+  community.mysql.mysql_query:
+    login_host: "{{ log_db_host }}"
+    login_port: "{{ log_db_port | default(3306) }}"
+    login_user: "{{ log_db_user }}"
+    login_password: "{{ log_db_password }}"
+    login_db: "{{ log_db_name }}"
+    query: >
+      INSERT INTO {{ log_db_table }}
+      (hostname, ip_address, os_family, os_distribution, os_version, playbook_date, log_content)
+      VALUES (%s, %s, %s, %s, %s, %s, %s)
+    positional_args:
+      - "{{ ansible_hostname }}"
+      - "{{ ansible_default_ipv4.address }}"
+      - "{{ ansible_os_family }}"
+      - "{{ ansible_distribution }}"
+      - "{{ ansible_distribution_version }}"
+      - "{{ ansible_date_time.iso8601 }}"
+      - "{{ log_content_raw.content | b64decode }}"
+  delegate_to: localhost
+  become: false
+  when: log_db_type | lower == 'mysql' or log_db_type | lower == 'mariadb'
+
+- name: 🗄️ Schreibe in PostgreSQL
+  community.postgresql.postgresql_query:
+    login_host: "{{ log_db_host }}"
+    port: "{{ log_db_port | default(5432) }}"
+    login_user: "{{ log_db_user }}"
+    login_password: "{{ log_db_password }}"
+    db: "{{ log_db_name }}"
+    query: >
+      INSERT INTO {{ log_db_table }}
+      (hostname, ip_address, os_family, os_distribution, os_version, playbook_date, log_content)
+      VALUES (%(hostname)s, %(ip)s, %(os_family)s, %(os_dist)s, %(os_ver)s, %(pb_date)s, %(content)s)
+    named_args:
+      hostname: "{{ ansible_hostname }}"
+      ip: "{{ ansible_default_ipv4.address }}"
+      os_family: "{{ ansible_os_family }}"
+      os_dist: "{{ ansible_distribution }}"
+      os_ver: "{{ ansible_distribution_version }}"
+      pb_date: "{{ ansible_date_time.iso8601 }}"
+      content: "{{ log_content_raw.content | b64decode }}"
+  delegate_to: localhost
+  become: false
+  when: log_db_type | lower == 'postgresql'
+
+- name: ✅ Datenbank-Speicherung erfolgreich
+  ansible.builtin.debug:
+    msg: "Dokumentation in DB gespeichert: {{ log_db_host }}/{{ log_db_name }}.{{ log_db_table }}"

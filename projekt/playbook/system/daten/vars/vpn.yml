@@ -1,0 +1,56 @@
+# WireGuard spezifische Variablen
+vpn_interface: wg0
+vpn_port: 51820
+vpn_subnet: "10.200.0.0/24"
+vpn_server_ip: "10.200.0.1"
+
+# Server (aus generate_wg_keys.sh)
+vpn_server_public_key: "vpn_public_key_einfügen="
+vpn_server_endpoint: "<ip_vpn_server>"
+
+# Client-Liste
+vpn_clients:
+  - name: "vpn_server"
+    ansible_host: "<ip_vpn_server>"
+    vpn_ip: "10.200.0.1"
+    public_key: "vpn_public_key_einfügen="
+
+  - name: "win10_max"
+    ansible_host: "lokal"
+    vpn_ip: "10.200.0.10"
+    public_key: "win10_public_key_einfügen="
+
+  - name: "android_max"
+    ansible_host: "lokal"
+    vpn_ip: "10.200.0.11"
+    public_key: "android_public_key_einfügen="
+
+  - name: "wazuh_manager"
+    ansible_host: "<ip_wazuh_server>"
+    vpn_ip: "10.200.0.20"
+    public_key: "wazuh_public_key_einfügen="
+
+  - name: "mail_server"
+    ansible_host: "<ip_mail_server>"
+    vpn_ip: "10.200.0.21"
+    public_key: "mail_public_key_einfügen="
+
+  - name: "repo_jump_server"
+    ansible_host: "<ip_repo_server>"
+    vpn_ip: "10.200.0.22"
+    public_key: "repo_public_key_einfügen="
+
+  - name: "ai_server"
+    ansible_host: "<ip_ai_server>"
+    vpn_ip: "10.200.0.23"
+    public_key: "ai_public_key_einfügen="
+
+  - name: "odoo_server"
+    ansible_host: "<ip_odoo_server>"
+    vpn_ip: "10.200.0.24"
+    public_key: "odoo_public_key_einfügen="
+
+  - name: "awx_server"
+    ansible_host: "<ip_awx_server>"
+    vpn_ip: "10.200.0.25"
+    public_key: "awx_public_key_einfügen="

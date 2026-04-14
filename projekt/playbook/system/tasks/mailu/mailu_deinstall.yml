@@ -1,0 +1,34 @@
+---
+###########################################################################
+# mailu_deinstall.yml
+# Mailu Mail-Server — Deinstallation
+###########################################################################
+
+- name: Mailu Container und Volumes entfernen - mailu_deinstall.yml
+  ansible.builtin.command:
+    cmd: docker compose down -v
+    chdir: /opt/mailu
+  changed_when: true
+  failed_when: false
+
+- name: Mailu Verzeichnis entfernen - mailu_deinstall.yml
+  ansible.builtin.file:
+    path: /opt/mailu
+    state: absent
+
+- name: Entferne nginx Domain vHost - mailu_deinstall.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ urls[ansible_host][_app_base_name | default(app_name)].domain | default('') }}.conf"
+    state: absent
+  failed_when: false
+  when: urls[ansible_host][_app_base_name | default(app_name)].domain | default('') | length > 0
+
+- name: Entferne nginx VPN vHost - mailu_deinstall.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ app_name }}_vpn.conf"
+    state: absent
+  failed_when: false
+
+- name: Restart nginx - mailu_deinstall.yml
+  ansible.builtin.command: "{{ command.nginx_restart[ansible_os_family] }}"
+  failed_when: false

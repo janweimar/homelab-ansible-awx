@@ -1,0 +1,68 @@
+# AWX EXECUTION ENVIRONMENT - SYSTEM KONFIGURATION
+
+## INSTALLATIONS-STATUS
+
+{% if allg_status | default('') == "aktiviert" %}
+**Status:** ✅ EE Image erfolgreich gebaut
+
+### Deployed Image-Details
+- **Image:** `{{ server_urls.awx_ee.registry | default('nicht konfiguriert') }}/{{ ee_image_name | default('awx-ee') }}:{{ ee_image_tag | default('latest') }}`
+- **Container-Runtime:** {{ container_runtime | default('docker') }}
+- **Build-Verzeichnis:** `{{ paths.awx_ee_build_dir[ansible_os_family] }}`
+- **Registry Push:** {{ 'Ja' if (push_to_registry | default(false) | bool) else 'Nein (nur lokal)' }}
+
+### Registry-URLs
+- **Registry:** `{{ server_urls.awx_ee.url | default('nicht konfiguriert') }}`
+- **Domain:** `{{ server_urls.awx_ee.domain | default('nicht konfiguriert') }}`
+- **Port (intern):** `{{ server_urls.awx_ee.port | default('5000') }}`
+
+{% elif allg_status | default('') == "deinstalliert" %}
+**Status:** ❌ AWX EE deinstalliert
+- Image entfernt
+- Build-Verzeichnis entfernt
+- ansible-builder deinstalliert
+
+{% else %}
+**Status:** ⚠️ Unbekannt ({{ allg_status | default('LEER') }})
+{% endif %}
+
+---
+
+{% if ee_config | default({}) and ee_config.images is defined %}
+## DEPLOYED KONFIGURATION
+
+### Basis-Image
+- **Image:** `{{ ee_config.images.base_image.name }}`
+- **Python:** {{ ee_config.dependencies.python_interpreter.package_system }}
+- **Ansible Core:** {{ ee_config.dependencies.ansible_core.package_pip }}
+- **Ansible Runner:** {{ ee_config.dependencies.ansible_runner.package_pip }}
+
+### Enthaltene Collections
+{% set galaxy_parsed = ee_config.dependencies.galaxy | from_yaml %}
+{% for col in galaxy_parsed.collections %}
+- `{{ col.name }}`
+{% endfor %}
+
+### Python-Pakete
+{% for pkg in ee_config.dependencies.python.strip().split('\n') %}
+{% if pkg.strip() | length > 0 %}
+- `{{ pkg.strip() }}`
+{% endif %}
+{% endfor %}
+
+### System-Pakete
+{% for pkg in ee_config.dependencies.system.strip().split('\n') %}
+{% if pkg.strip() | length > 0 %}
+- `{{ pkg.strip() }}`
+{% endif %}
+{% endfor %}
+
+{% else %}
+## KONFIGURATION
+
+⚠️ EE-Konfiguration nicht verfügbar (Pretask wurde nicht ausgeführt).
+{% endif %}
+
+---
+
+**Status:** ✅ AWX Execution Environment {{ 'deployed' if allg_status == 'aktiviert' else 'removed' }}

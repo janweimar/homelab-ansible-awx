@@ -1,0 +1,1397 @@
+# Failsafe IPs for firewall rules
+# enthalten:
+# - in (Whitelist für eingehenden Traffic)
+# - out (Whitelist für ausgehenden Traffic)
+# - for (Forwarding-Regeln)
+# - nat (NAT/Masquerade – nur VPN-Server)
+# - f2b (Ignore-Liste für fail2ban)
+#
+# Server-Inventar (7 Cloud VPS):
+# 1. VPN Server       - <ip_vpn_server>:10010 / <ip6_vpn_server>
+# 2. Wazuh Manager    - <ip_wazuh_server>:10020    / <ip6_wazuh_server>
+# 3. Mail Server      - <ip_mail_server>:10030  / <ip6_mail_server>
+# 4. Repo/Jump Server - <ip_repo_server>:10040    / <ip6_repo_server>
+# 5. AI Server        - <ip_ai_server>:10050   / <ip6_ai_server>
+# 6. Odoo Server      - <ip_odoo_server>:10060 / <ip6_odoo_server>
+# 7. AWX Server       - <ip_awx_server>:10070 / <ip6_awx_server>
+# + Windows Server    - 217.156.122.248 (legacy)
+#
+# ┌────────────────────────────────────────────────────────────────────┐
+# │ VPN-SPEZIFISCH: Alles was nur für WireGuard VPN nötig ist,       │
+# │ wird unter dem Key 'vpn:' eingetragen und nur bei                │
+# │ vpn_enabled: true aktiviert (Credential-Bool).                   │
+# │                                                                    │
+# │ VPN-Einträge umfassen:                                            │
+# │  • 10.200.0.0/24       – WireGuard Subnet                       │
+# │  • iifname/oifname wg0 – WireGuard Interface                    │
+# │  • Port 51820          – WireGuard Listening Port                │
+# │  • for: vpn:           – Forwarding für VPN-Clients             │
+# │  • nat:                – Masquerading für VPN-Clients            │
+# │                                                                    │
+# │ VPN-ROLLEN:                                                       │
+# │  • VPN-Server (Gateway): hat for/nat/port 51820                  │
+# │  • VPN-Peer (Client):    nur Subnet + wg0 Interface             │
+# └────────────────────────────────────────────────────────────────────┘
+
+##########################################################################
+##                                                                      ##
+##   VPN SERVER – <ip_vpn_server> (WireGuard Gateway)                  ##
+##                                                                      ##
+##########################################################################
+<ip_vpn_server>:
+  in:
+    global:
+      ipv4:
+        # Loopback & Private Ranges
+        - 127.0.0.0/8 # IPv4 Loopback
+        - 169.254.0.0/16 # IPv4 Link-Local
+        - 10.0.0.0/8 # Private IPv4
+        - 172.16.0.0/12 # Private IPv4
+        - 192.168.0.0/16 # Private IPv4
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private Ranges
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-Local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+      interfaces:
+        - iifname lo # Loopback-Interface
+
+      ports: []
+
+    debian:
+      ipv4: []
+      ipv6: []
+
+    # [VPN-Server] WireGuard Gateway – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet
+      ipv6: []
+      interfaces:
+        - iifname wg0 # WireGuard Interface
+      ports:
+        - 51820 # WireGuard Listening Port (UDP)
+
+  ############################################################################
+  out:
+    global:
+      ipv4:
+        # Loopback & Private Ranges
+        - 127.0.0.0/8 # IPv4 Loopback
+        - 169.254.0.0/16 # IPv4 Link-Local
+        - 10.0.0.0/8 # Private IPv4
+        - 172.16.0.0/12 # Private IPv4
+        - 192.168.0.0/16 # Private IPv4
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private Ranges
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-Local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+      interfaces:
+        - oifname lo # Loopback-Interface
+
+    debian:
+      ipv4: []
+
+      ipv6:
+        # Canonical IPv6 Mirrors
+        - 2620:2d:4000::/48
+        - 2620:2d:4001::/48
+        - 2620:2d:4002::/48
+
+        # Loopback & Link-Local
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Admin/Whitelist
+        - <ip6_repo_server> # Repo/Jump Server
+
+    # [VPN-Server] WireGuard Gateway – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet
+      ipv6: []
+      interfaces:
+        - oifname wg0 # WireGuard Interface
+
+  ############################################################################
+  # [VPN-Server] Forwarding – leitet VPN-Client-Traffic ins Internet weiter
+  ############################################################################
+  for:
+    global:
+      ipv4: []
+      ipv6: []
+
+    debian:
+      ipv4: []
+      ipv6: []
+
+    # [VPN-Server] Gateway-Forwarding – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet darf forwarden
+      ipv6: []
+      interfaces:
+        - iifname wg0 oifname eth0 # VPN-Clients ins Internet
+        - iifname eth0 oifname wg0 # Antworten zurück
+
+  ############################################################################
+  # [VPN-Server] NAT – Masquerading damit VPN-Clients mit Server-IP
+  # ins Internet gehen – nur bei vpn_enabled: true
+  ############################################################################
+  nat:
+    masquerade:
+      - ip saddr 10.200.0.0/24 oifname eth0 # VPN-Clients NAT
+
+  ############################################################################
+  f2b:
+    ignore:
+      ipv4:
+        # Loopback
+        - 127.0.0.0/8 # Loopback
+        - 192.168.100.0/24 # Admin-VPN (legacy)
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private
+        - ::1 # Loopback
+        - fc00::/7 # ULA
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+    # [VPN-Server] Ignore VPN-Subnet – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet
+
+##########################################################################
+##                                                                      ##
+##   REPO/JUMP SERVER – <ip_repo_server>                                   ##
+##   (WireGuard-Peer/Client, KEIN VPN-Gateway → kein for/nat)         ##
+##                                                                      ##
+##########################################################################
+<ip_repo_server>:
+  in:
+    global:
+      ipv4:
+        # Loopback & Private Ranges
+        - 127.0.0.0/8 # IPv4 Loopback
+        - 169.254.0.0/16 # IPv4 Link-Local
+        - 10.0.0.0/8 # Private IPv4
+        - 172.16.0.0/12 # Private IPv4
+        - 192.168.0.0/16 # Private IPv4
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private Ranges
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-Local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+      interfaces:
+        - iifname lo # Loopback-Interface
+
+      ports:
+        - 53 # DNS (UDP+TCP)
+        - 123 # NTP
+
+    debian:
+      ipv4: []
+      ipv6: []
+
+    # [VPN-Peer/Client] WireGuard Peer – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet (Peer-Traffic empfangen)
+      ipv6: []
+      interfaces:
+        - iifname wg0 # WireGuard Interface (als Peer)
+
+  ############################################################################
+  out:
+    global:
+      ipv4:
+        # Loopback & Private Ranges
+        - 127.0.0.0/8 # IPv4 Loopback
+        - 169.254.0.0/16 # IPv4 Link-Local
+        - 10.0.0.0/8 # Private IPv4
+        - 172.16.0.0/12 # Private IPv4
+        - 192.168.0.0/16 # Private IPv4
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private Ranges
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-Local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+      interfaces:
+        - oifname lo # Loopback-Interface
+
+    debian:
+      ipv4: []
+
+      ipv6:
+        # Canonical IPv6 Mirrors
+        - 2620:2d:4000::/48
+        - 2620:2d:4001::/48
+        - 2620:2d:4002::/48
+
+        # Loopback & Link-Local
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Admin/Whitelist
+        - <ip6_repo_server> # Repo/Jump Server
+
+    # [VPN-Peer/Client] WireGuard Peer – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet (Peer-Traffic senden)
+      ipv6: []
+      interfaces:
+        - oifname wg0 # WireGuard Interface (als Peer)
+
+  ############################################################################
+  # Repo-Server: K3s/Docker Forwarding für Container-Traffic
+  ############################################################################
+  for:
+    global:
+      ipv4:
+        - 172.17.0.0/16 # docker0 Subnet
+        - 192.168.203.0/24 # Mailu Docker Subnet
+        - 10.42.0.0/16 # K3s Pod-Subnet (Flannel)
+        - 10.43.0.0/16 # K3s Service-Subnet
+      ipv6: []
+
+    debian:
+      ipv4: []
+      ipv6: []
+
+    # [VPN-Peer/Client] Kein Gateway-Forwarding
+    vpn:
+      ipv4: []
+      ipv6: []
+
+  ############################################################################
+  # Repo-Server braucht KEIN NAT (ist kein VPN-Gateway)
+  # nat: Abschnitt bewusst NICHT vorhanden
+  ############################################################################
+
+  ############################################################################
+  f2b:
+    ignore:
+      ipv4:
+        # Loopback
+        - 127.0.0.0/8 # Loopback
+        - 192.168.100.0/24 # Admin-VPN (legacy)
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private
+        - ::1 # Loopback
+        - fc00::/7 # ULA
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+    # [VPN-Peer/Client] Ignore VPN-Subnet – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet
+
+##########################################################################
+##                                                                      ##
+##   WAZUH MANAGER – <ip_wazuh_server>                                      ##
+##   (WireGuard-Peer/Client, KEIN VPN-Gateway → kein for/nat)         ##
+##                                                                      ##
+##########################################################################
+<ip_wazuh_server>:
+  in:
+    global:
+      ipv4:
+        # Loopback & Private Ranges
+        - 127.0.0.0/8 # IPv4 Loopback
+        - 169.254.0.0/16 # IPv4 Link-Local
+        - 10.0.0.0/8 # Private IPv4
+        - 172.16.0.0/12 # Private IPv4
+        - 192.168.0.0/16 # Private IPv4
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private Ranges
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-Local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+      interfaces:
+        - iifname lo # Loopback-Interface
+
+      ports: []
+
+    debian:
+      ipv4: []
+      ipv6: []
+
+    # [VPN-Peer/Client] WireGuard Peer – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet (Peer-Traffic empfangen)
+      ipv6: []
+      interfaces:
+        - iifname wg0 # WireGuard Interface (als Peer)
+
+  ############################################################################
+  out:
+    global:
+      ipv4:
+        # Loopback & Private Ranges
+        - 127.0.0.0/8 # IPv4 Loopback
+        - 169.254.0.0/16 # IPv4 Link-Local
+        - 10.0.0.0/8 # Private IPv4
+        - 172.16.0.0/12 # Private IPv4
+        - 192.168.0.0/16 # Private IPv4
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private Ranges
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-Local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+      interfaces:
+        - oifname lo # Loopback-Interface
+
+    debian:
+      ipv4: []
+
+      ipv6:
+        # Canonical IPv6 Mirrors
+        - 2620:2d:4000::/48
+        - 2620:2d:4001::/48
+        - 2620:2d:4002::/48
+
+        # Loopback & Link-Local
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Admin/Whitelist
+        - <ip6_repo_server> # Repo/Jump Server
+
+    # [VPN-Peer/Client] WireGuard Peer – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet (Peer-Traffic senden)
+      ipv6: []
+      interfaces:
+        - oifname wg0 # WireGuard Interface (als Peer)
+
+  ############################################################################
+  for:
+    global:
+      ipv4:
+        - 172.17.0.0/16 # docker0 Subnet
+        - 10.42.0.0/16 # K3s Pod-Subnet (Flannel)
+        - 10.43.0.0/16 # K3s Service-Subnet
+      ipv6: []
+
+    debian:
+      ipv4: []
+      ipv6: []
+
+    # [VPN-Peer/Client] VPN→nginx Forwarding (Web-Zugriff über VPN)
+    vpn:
+      ipv4: []
+      ipv6: []
+      interfaces:
+        - iifname wg0 # VPN-Traffic zu nginx forwarden
+
+  ############################################################################
+  # Wazuh Manager braucht KEIN NAT (ist kein VPN-Gateway)
+  ############################################################################
+
+  ############################################################################
+  f2b:
+    ignore:
+      ipv4:
+        # Loopback
+        - 127.0.0.0/8 # Loopback
+        - 192.168.100.0/24 # Admin-VPN (legacy)
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private
+        - ::1 # Loopback
+        - fc00::/7 # ULA
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+    # [VPN-Peer/Client] Ignore VPN-Subnet – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet
+
+##########################################################################
+##                                                                      ##
+##   MAIL SERVER – <ip_mail_server>                                      ##
+##   (WireGuard-Peer/Client, KEIN VPN-Gateway → kein for/nat)         ##
+##                                                                      ##
+##########################################################################
+<ip_mail_server>:
+  in:
+    global:
+      ipv4:
+        # Loopback & Private Ranges
+        - 127.0.0.0/8 # IPv4 Loopback
+        - 169.254.0.0/16 # IPv4 Link-Local
+        - 10.0.0.0/8 # Private IPv4
+        - 172.16.0.0/12 # Private IPv4
+        - 192.168.0.0/16 # Private IPv4
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private Ranges
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-Local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+      interfaces:
+        - iifname lo # Loopback-Interface
+
+      ports: []
+
+    debian:
+      ipv4: []
+      ipv6: []
+
+    # [VPN-Peer/Client] WireGuard Peer – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet (Peer-Traffic empfangen)
+      ipv6: []
+      interfaces:
+        - iifname wg0 # WireGuard Interface (als Peer)
+
+  ############################################################################
+  out:
+    global:
+      ipv4:
+        # Loopback & Private Ranges
+        - 127.0.0.0/8 # IPv4 Loopback
+        - 169.254.0.0/16 # IPv4 Link-Local
+        - 10.0.0.0/8 # Private IPv4
+        - 172.16.0.0/12 # Private IPv4
+        - 192.168.0.0/16 # Private IPv4
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private Ranges
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-Local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+      interfaces:
+        - oifname lo # Loopback-Interface
+
+    debian:
+      ipv4: []
+
+      ipv6:
+        # Canonical IPv6 Mirrors
+        - 2620:2d:4000::/48
+        - 2620:2d:4001::/48
+        - 2620:2d:4002::/48
+
+        # Loopback & Link-Local
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Admin/Whitelist
+        - <ip6_repo_server> # Repo/Jump Server
+
+    # [VPN-Peer/Client] WireGuard Peer – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet (Peer-Traffic senden)
+      ipv6: []
+      interfaces:
+        - oifname wg0 # WireGuard Interface (als Peer)
+
+  ############################################################################
+  for:
+    global:
+      ipv4:
+        - 172.17.0.0/16 # docker0 Subnet
+        - 10.42.0.0/16 # K3s Pod-Subnet (Flannel)
+        - 10.43.0.0/16 # K3s Service-Subnet
+      ipv6: []
+
+    debian:
+      ipv4: []
+      ipv6: []
+
+    # [VPN-Peer/Client] VPN→nginx Forwarding (Web-Zugriff über VPN)
+    vpn:
+      ipv4: []
+      ipv6: []
+      interfaces:
+        - iifname wg0 # VPN-Traffic zu nginx forwarden
+
+  ############################################################################
+  # Mail Server braucht KEIN NAT (ist kein VPN-Gateway)
+  ############################################################################
+
+  ############################################################################
+  f2b:
+    ignore:
+      ipv4:
+        # Loopback
+        - 127.0.0.0/8 # Loopback
+        - 192.168.100.0/24 # Admin-VPN (legacy)
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private
+        - ::1 # Loopback
+        - fc00::/7 # ULA
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+    # [VPN-Peer/Client] Ignore VPN-Subnet – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet
+
+##########################################################################
+##                                                                      ##
+##   AI SERVER – <ip_ai_server>                                         ##
+##   (WireGuard-Peer/Client + K3s, KEIN VPN-Gateway → kein nat)       ##
+##                                                                      ##
+##########################################################################
+<ip_ai_server>:
+  # Hat nginx + K3s → VPN-Forward für NodePort-Zugriff nötig
+  in:
+    global:
+      ipv4:
+        # Loopback & Private Ranges
+        - 127.0.0.0/8 # IPv4 Loopback
+        - 169.254.0.0/16 # IPv4 Link-Local
+        - 10.0.0.0/8 # Private IPv4
+        - 172.16.0.0/12 # Private IPv4
+        - 192.168.0.0/16 # Private IPv4
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private Ranges
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-Local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+      interfaces:
+        - iifname lo # Loopback-Interface
+
+      ports: []
+
+    debian:
+      ipv4: []
+      ipv6: []
+
+    # [VPN-Peer/Client] WireGuard Peer – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet (Peer-Traffic empfangen)
+      ipv6: []
+      interfaces:
+        - iifname wg0 # WireGuard Interface (als Peer)
+
+  ############################################################################
+  out:
+    global:
+      ipv4:
+        # Loopback & Private Ranges
+        - 127.0.0.0/8 # IPv4 Loopback
+        - 169.254.0.0/16 # IPv4 Link-Local
+        - 10.0.0.0/8 # Private IPv4
+        - 172.16.0.0/12 # Private IPv4
+        - 192.168.0.0/16 # Private IPv4
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private Ranges
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-Local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+      interfaces:
+        - oifname lo # Loopback-Interface
+
+    debian:
+      ipv4: []
+
+      ipv6:
+        # Canonical IPv6 Mirrors
+        - 2620:2d:4000::/48
+        - 2620:2d:4001::/48
+        - 2620:2d:4002::/48
+
+        # Loopback & Link-Local
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Admin/Whitelist
+        - <ip6_repo_server> # Repo/Jump Server
+
+    # [VPN-Peer/Client] WireGuard Peer – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet (Peer-Traffic senden)
+      ipv6: []
+      interfaces:
+        - oifname wg0 # WireGuard Interface (als Peer)
+
+  ############################################################################
+  # [Docker/K3s] Forwarding für Container-Traffic ins Internet
+  # IPv4-Subnets reichen — ct state established,related erlaubt Rückverkehr
+  ############################################################################
+  for:
+    global:
+      ipv4:
+        - 172.17.0.0/16 # docker0 Subnet
+        - 10.42.0.0/16 # K3s Pod-Subnet (Flannel)
+        - 10.43.0.0/16 # K3s Service-Subnet
+      ipv6: []
+
+    debian:
+      ipv4: []
+      ipv6: []
+
+    # [VPN-Peer/Client] VPN→K3s/Docker Forwarding (NodePort-Zugriff über VPN)
+    vpn:
+      ipv4: []
+      ipv6: []
+      interfaces:
+        - iifname wg0 # VPN-Traffic zu K3s NodePorts forwarden
+
+  ############################################################################
+  # [Docker/K3s] NAT — Masquerading für Container-Traffic
+  ############################################################################
+  nat:
+    masquerade:
+      - ip saddr 172.17.0.0/16 oifname eth0 # docker0 NAT
+      - ip saddr 192.168.203.0/24 oifname eth0 # Mailu Docker Subnet NAT
+      - ip saddr 10.42.0.0/16 oifname eth0 # K3s Pod NAT
+
+  ############################################################################
+  f2b:
+    ignore:
+      ipv4:
+        # Loopback
+        - 127.0.0.0/8 # Loopback
+        - 192.168.100.0/24 # Admin-VPN (legacy)
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private
+        - ::1 # Loopback
+        - fc00::/7 # ULA
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+    # [VPN-Peer/Client] Ignore VPN-Subnet – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet
+
+##########################################################################
+##                                                                      ##
+##   ODOO SERVER – <ip_odoo_server>                                     ##
+##   (WireGuard-Peer/Client, KEIN VPN-Gateway → kein for/nat)         ##
+##                                                                      ##
+##########################################################################
+<ip_odoo_server>:
+  in:
+    global:
+      ipv4:
+        # Loopback & Private Ranges
+        - 127.0.0.0/8 # IPv4 Loopback
+        - 169.254.0.0/16 # IPv4 Link-Local
+        - 10.0.0.0/8 # Private IPv4
+        - 172.16.0.0/12 # Private IPv4
+        - 192.168.0.0/16 # Private IPv4
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private Ranges
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-Local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+      interfaces:
+        - iifname lo # Loopback-Interface
+
+      ports: []
+
+    debian:
+      ipv4: []
+      ipv6: []
+
+    # [VPN-Peer/Client] WireGuard Peer – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet (Peer-Traffic empfangen)
+      ipv6: []
+      interfaces:
+        - iifname wg0 # WireGuard Interface (als Peer)
+
+  ############################################################################
+  out:
+    global:
+      ipv4:
+        # Loopback & Private Ranges
+        - 127.0.0.0/8 # IPv4 Loopback
+        - 169.254.0.0/16 # IPv4 Link-Local
+        - 10.0.0.0/8 # Private IPv4
+        - 172.16.0.0/12 # Private IPv4
+        - 192.168.0.0/16 # Private IPv4
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private Ranges
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-Local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+      interfaces:
+        - oifname lo # Loopback-Interface
+
+    debian:
+      ipv4: []
+
+      ipv6:
+        # Canonical IPv6 Mirrors
+        - 2620:2d:4000::/48
+        - 2620:2d:4001::/48
+        - 2620:2d:4002::/48
+
+        # Loopback & Link-Local
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Admin/Whitelist
+        - <ip6_repo_server> # Repo/Jump Server
+
+    # [VPN-Peer/Client] WireGuard Peer – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet (Peer-Traffic senden)
+      ipv6: []
+      interfaces:
+        - oifname wg0 # WireGuard Interface (als Peer)
+
+  ############################################################################
+  for:
+    global:
+      ipv4:
+        - 172.17.0.0/16 # docker0 Subnet
+        - 10.42.0.0/16 # K3s Pod-Subnet (Flannel)
+        - 10.43.0.0/16 # K3s Service-Subnet
+      ipv6: []
+
+    debian:
+      ipv4: []
+      ipv6: []
+
+    # [VPN-Peer/Client] VPN→nginx/K3s Forwarding (Web-Zugriff über VPN)
+    vpn:
+      ipv4: []
+      ipv6: []
+      interfaces:
+        - iifname wg0 # VPN-Traffic zu nginx/K3s NodePorts forwarden
+
+  ############################################################################
+  # Odoo Server braucht KEIN NAT (ist kein VPN-Gateway)
+  ############################################################################
+
+  ############################################################################
+  f2b:
+    ignore:
+      ipv4:
+        # Loopback
+        - 127.0.0.0/8 # Loopback
+        - 192.168.100.0/24 # Admin-VPN (legacy)
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private
+        - ::1 # Loopback
+        - fc00::/7 # ULA
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+    # [VPN-Peer/Client] Ignore VPN-Subnet – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet
+
+##########################################################################
+##                                                                      ##
+##   AWX SERVER – <ip_awx_server>                                      ##
+##   (WireGuard-Peer/Client + K3s/Minikube, KEIN VPN-Gateway → kein nat) ##
+##                                                                      ##
+##########################################################################
+<ip_awx_server>:
+  in:
+    global:
+      ipv4:
+        # Loopback & Private Ranges
+        - 127.0.0.0/8 # IPv4 Loopback
+        - 169.254.0.0/16 # IPv4 Link-Local
+        - 10.0.0.0/8 # Private IPv4
+        - 172.16.0.0/12 # Private IPv4
+        - 192.168.0.0/16 # Private IPv4
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private Ranges
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-Local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+      interfaces:
+        - iifname lo # Loopback-Interface
+
+      ports:
+        - 25 # SMTP (Mailu — eingehend + ausgehend)
+        - 587 # Submission (Mailu — Clients senden)
+        - 993 # IMAPS (Mailu — IMAP über TLS)
+
+    debian:
+      ipv4: []
+      ipv6: []
+
+    # [VPN-Peer/Client] WireGuard Peer – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet (Peer-Traffic empfangen)
+      ipv6: []
+      interfaces:
+        - iifname wg0 # WireGuard Interface (als Peer)
+
+  ############################################################################
+  out:
+    global:
+      ipv4:
+        # Loopback & Private Ranges
+        - 127.0.0.0/8 # IPv4 Loopback
+        - 169.254.0.0/16 # IPv4 Link-Local
+        - 10.0.0.0/8 # Private IPv4
+        - 172.16.0.0/12 # Private IPv4
+        - 192.168.0.0/16 # Private IPv4
+
+        # Docker Container Subnets
+        - 172.17.0.0/16 # docker0 Subnet
+        - 192.168.203.0/24 # Mailu Docker Subnet
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private Ranges
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-Local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+      interfaces:
+        - oifname lo # Loopback-Interface
+
+    debian:
+      ipv4: []
+
+      ipv6:
+        # Canonical IPv6 Mirrors
+        - 2620:2d:4000::/48
+        - 2620:2d:4001::/48
+        - 2620:2d:4002::/48
+
+        # Loopback & Link-Local
+        - ::1 # IPv6 Loopback
+        - fe80::/10 # IPv6 Link-local
+        - fc00::/7 # IPv6 Unique Local Address (ULA)
+
+        # Admin/Whitelist
+        - <ip6_repo_server> # Repo/Jump Server
+
+    # [VPN-Peer/Client] WireGuard Peer – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet (Peer-Traffic senden)
+      ipv6: []
+      interfaces:
+        - oifname wg0 # WireGuard Interface (als Peer)
+
+  ############################################################################
+  # [K3s/Docker] Forwarding für Container-Traffic ins Internet (K3s bevorzugt!)
+  # IPv4-Subnets reichen — ct state established,related erlaubt Rückverkehr
+  ############################################################################
+  for:
+    global:
+      ipv4:
+        - 172.17.0.0/16 # docker0 Subnet
+        - 10.42.0.0/16 # K3s Pod-Subnet (Flannel)
+        - 10.43.0.0/16 # K3s Service-Subnet
+      ipv6: []
+
+    debian:
+      ipv4: []
+      ipv6: []
+
+    # [VPN-Peer/Client] VPN→K3s/Docker Forwarding (NodePort-Zugriff über VPN)
+    vpn:
+      ipv4: []
+      ipv6: []
+      interfaces:
+        - iifname wg0 # VPN-Traffic zu K3s/Docker NodePorts forwarden
+
+  ############################################################################
+  # [K3s/Docker] NAT — Masquerading für Container-Traffic (K3s bevorzugt!)
+  ############################################################################
+  nat:
+    masquerade:
+      - ip saddr 172.17.0.0/16 oifname eth0 # docker0 NAT
+      - ip saddr 10.42.0.0/16 oifname eth0 # K3s Pod NAT
+
+  ############################################################################
+  f2b:
+    ignore:
+      ipv4:
+        # Loopback
+        - 127.0.0.0/8 # Loopback
+        - 192.168.100.0/24 # Admin-VPN (legacy)
+
+        # Production Servers
+        - <ip_vpn_server> # VPN Server
+        - <ip_wazuh_server> # Wazuh Manager
+        - <ip_mail_server> # Mail Server
+        - <ip_repo_server> # Repo/Jump Server
+        - <ip_ai_server> # AI Server
+        - <ip_odoo_server> # Odoo Server
+        - <ip_awx_server> # AWX Server
+
+        # Legacy
+        - 217.156.122.248 # Windows Server
+
+      ipv6:
+        # Loopback & Private
+        - ::1 # Loopback
+        - fc00::/7 # ULA
+
+        # Production Servers
+        - <ip6_vpn_server> # VPN Server
+        - <ip6_wazuh_server> # Wazuh Manager
+        - <ip6_mail_server> # Mail Server
+        - <ip6_repo_server> # Repo/Jump Server
+        - <ip6_ai_server> # AI Server
+        - <ip6_odoo_server> # Odoo Server
+        - <ip6_awx_server> # AWX Server
+
+    # [VPN-Peer/Client] Ignore VPN-Subnet – nur bei vpn_enabled: true
+    vpn:
+      ipv4:
+        - 10.200.0.0/24 # WireGuard Subnet

@@ -1,0 +1,294 @@
+
+---
+###########################################################################
+# Odoo Kubernetes Manifest
+# Angepasst für K3s mit local-path provisioner
+# Image: odoo:19
+#
+# Aufbau nach: surekhatech.com/blog/deploy-odoo-on-kubernetes
+# ConfigMap fuer odoo.conf, Health-Probes, securityContext root fuer Verzeichnis-Rechte
+###########################################################################
+{% set _port = (app_port | default("", true) | string | trim) or "8069" %}
+{% set _db_user = app_name %}
+{% set _db_name = app_name %}
+{% set _db_host = app_name + "-db" %}
+
+# PostgreSQL Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ app_name }}-db-secret
+  namespace: {{ app_name }}
+type: Opaque
+stringData:
+  POSTGRES_DB: "{{ _db_name }}"
+  POSTGRES_USER: "{{ _db_user }}"
+  POSTGRES_PASSWORD: "{{ app_db_password }}"
+---
+# PostgreSQL PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ app_name }}-db-pvc
+  namespace: {{ app_name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-path
+---
+# PostgreSQL StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ app_name }}-postgresql
+  namespace: {{ app_name }}
+spec:
+  serviceName: {{ app_name }}-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ app_name }}-postgresql
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}-postgresql
+    spec:
+      containers:
+        - name: postgresql
+          image: postgres:16-alpine
+{% if app_no_update | default(false) | bool %}
+          imagePullPolicy: IfNotPresent
+{% endif %}
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: {{ app_name }}-db-secret
+          resources:
+            requests:
+              memory: "{{ app_resources[app_name + "-db"].memory_request }}"
+              cpu: "{{ app_resources[app_name + "-db"].cpu_request }}"
+            limits:
+              memory: "{{ app_resources[app_name + "-db"].memory_limit }}"
+              cpu: "{{ app_resources[app_name + "-db"].cpu_limit }}"
+          volumeMounts:
+            - name: db-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U {{ _db_user }}"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U {{ _db_user }}"]
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 10
+      volumes:
+        - name: db-data
+          persistentVolumeClaim:
+            claimName: {{ app_name }}-db-pvc
+---
+# PostgreSQL Headless Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ app_name }}-db
+  namespace: {{ app_name }}
+spec:
+  selector:
+    app: {{ app_name }}-postgresql
+  ports:
+    - port: 5432
+      targetPort: 5432
+  clusterIP: None
+---
+# Odoo ConfigMap (odoo.conf)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ app_name }}-config
+  namespace: {{ app_name }}
+data:
+  odoo.conf: |
+    [options]
+    addons_path = /mnt/extra-addons,/usr/lib/python3/dist-packages/odoo/addons
+    data_dir = /var/lib/odoo
+    admin_passwd = {{ app_admin_password | default('admin') }}
+    db_host = {{ _db_host }}.{{ app_name }}.svc.cluster.local
+    db_port = 5432
+    db_user = {{ _db_user }}
+    db_password = {{ app_db_password }}
+    db_name = {{ _db_name }}
+    db_maxconn = 64
+    db_template = template1
+    dbfilter = .*
+    list_db = False
+    log_level = info
+    logfile = /var/log/odoo/odoo.log
+    xmlrpc_port = {{ _port }}
+    xmlrpc_interface =
+    longpolling_port = 8072
+    workers = 0
+    max_cron_threads = 2
+    limit_memory_hard = 1677721600
+    limit_memory_soft = 629145600
+    limit_request = 8192
+    limit_time_cpu = 600
+    limit_time_real = 1200
+    csv_internal_sep = ,
+    smtp_server = localhost
+    smtp_port = 25
+    smtp_ssl = False
+    smtp_user = False
+    smtp_password = False
+    email_from = False
+---
+# Odoo Data PVC (Filestore)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ app_name }}-data-pvc
+  namespace: {{ app_name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-path
+---
+# Odoo Logs PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ app_name }}-logs-pvc
+  namespace: {{ app_name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: local-path
+---
+# Odoo Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ app_name }}
+  namespace: {{ app_name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ app_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}
+    spec:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+      containers:
+        - name: odoo
+          image: odoo:19
+{% if app_no_update | default(false) | bool %}
+          imagePullPolicy: IfNotPresent
+{% endif %}
+          ports:
+            - containerPort: {{ _port | int }}
+            - containerPort: 8072
+          env:
+            - name: HOST
+              value: "{{ _db_host }}.{{ app_name }}.svc.cluster.local"
+            - name: PORT
+              value: "5432"
+            - name: USER
+              value: "{{ _db_user }}"
+            - name: PASSWORD
+              value: "{{ app_db_password }}"
+          resources:
+            requests:
+              memory: "{{ app_resources[app_name].memory_request }}"
+              cpu: "{{ app_resources[app_name].cpu_request }}"
+            limits:
+              memory: "{{ app_resources[app_name].memory_limit }}"
+              cpu: "{{ app_resources[app_name].cpu_limit }}"
+          volumeMounts:
+            - name: odoo-data
+              mountPath: /var/lib/odoo
+            - name: odoo-config
+              mountPath: /etc/odoo/odoo.conf
+              subPath: odoo.conf
+            - name: odoo-logs
+              mountPath: /var/log/odoo
+            - name: odoo-addons
+              mountPath: /mnt/extra-addons
+      volumes:
+        - name: odoo-config
+          configMap:
+            name: {{ app_name }}-config
+        - name: odoo-data
+          persistentVolumeClaim:
+            claimName: {{ app_name }}-data-pvc
+        - name: odoo-logs
+          persistentVolumeClaim:
+            claimName: {{ app_name }}-logs-pvc
+        - name: odoo-addons
+          emptyDir: {}
+---
+# Odoo Service (NodePort)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ app_name }}-service
+  namespace: {{ app_name }}
+spec:
+  type: NodePort
+  selector:
+    app: {{ app_name }}
+  ports:
+    - name: http
+      port: {{ _port | int }}
+      targetPort: {{ _port | int }}
+    - name: longpolling
+      port: 8072
+      targetPort: 8072
+---
+# Odoo Custom Addons PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ app_name }}-custom-addons-pvc
+  namespace: {{ app_name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: local-path
+---
+# Odoo Enterprise Addons PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ app_name }}-enterprise-addons-pvc
+  namespace: {{ app_name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 3Gi
+  storageClassName: local-path

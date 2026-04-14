@@ -1,0 +1,268 @@
+---
+###########################################################################
+# 🚀 awx_kube_task.yml
+# AWX Deployment auf K3s/Minikube/K8s — Kustomize Operator + AWX Instance
+###########################################################################
+# Wird vom universellen pb_setup_app_deploy.yml aufgerufen.
+# nginx wird dort gehandelt — hier nur Kubernetes-Deployment.
+#
+# Installationsmethode: Kustomize (offizielle Methode)
+#   https://github.com/ansible/awx-operator
+#   Erstellt kustomization.yml → kubectl apply -k .
+#
+# Nutzt wiederverwendbare Common Tasks:
+#   - kube_app_cleanup:     Namespace + Ressourcen aufräumen
+#   - kube_app_wait_ready:  Warten bis alle Pods Ready
+#
+# AWX-Besonderheit:
+#   - DB (PostgreSQL) wird vom Operator verwaltet — NICHT db_deploy!
+#   - Braucht helm_app_versionen aus kube_stack_versionen.yml
+###########################################################################
+
+# ============================================================
+# 0) AWX Profil laden + Variablen
+# ============================================================
+- name: 📦 Lade AWX Profil - awx_kube_task.yml
+  ansible.builtin.set_fact:
+    helm_app: "{{ helm_app_versionen[_app_base_name | default(app_name)].awx_stable }}"
+    _kube_env:
+      HOME: "/home/{{ kube_user }}"
+      KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+
+- name: 📊 DEBUG AWX Profil - awx_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "🚀 AWX Kustomize Deployment"
+      - "=========================================="
+      - "Methode:    Kustomize (offizielle Methode)"
+      - "Operator:   {{ helm_app.operator_version }}"
+      - "AWX:        {{ helm_app.awx_version }}"
+      - "Namespace:  {{ app_name }}"
+      - "EE Image:   {{ helm_app.ee_image | default('Standard') }}"
+      - "=========================================="
+
+# ============================================================
+# 1) Aufräumen — alte Installation entfernen
+# ============================================================
+- name: 🔍 Prüfe ob AWX Namespace existiert - awx_kube_task.yml
+  ansible.builtin.command: kubectl get namespace {{ app_name }}
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  register: _awx_ns_check
+  failed_when: false
+  changed_when: false
+
+- block:
+    - name: 🧹 AWX Instance löschen - awx_kube_task.yml
+      ansible.builtin.command: kubectl delete awx --all -n {{ app_name }}
+      become_user: "{{ kube_user }}"
+      environment: "{{ _kube_env }}"
+      failed_when: false
+      changed_when: true
+
+    # Helm Release entfernen (falls von alter Installation vorhanden)
+    - name: 🧹 Helm Release entfernen (falls vorhanden) - awx_kube_task.yml
+      ansible.builtin.command: helm uninstall {{ app_name }}-operator -n {{ app_name }}
+      environment:
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      failed_when: false
+      changed_when: true
+
+  when: _awx_ns_check.rc == 0
+
+- name: 🧹 Namespace aufräumen (Common Task) - awx_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_cleanup }}"
+
+# ============================================================
+# 2) DNS sicherstellen
+# ============================================================
+- name: 🌐 Ermittle echte DNS-Server - awx_kube_task.yml
+  ansible.builtin.shell: resolvectl status 2>/dev/null | grep 'DNS Servers' | head -1 | awk '{print $NF}'
+  register: _real_dns
+  changed_when: false
+  failed_when: false
+
+- name: 🌐 Setze DNS-Server in resolv.conf - awx_kube_task.yml
+  ansible.builtin.copy:
+    content: |
+      nameserver {{ _real_dns.stdout | default('8.8.8.8') }}
+      nameserver 8.8.8.8
+      nameserver 1.1.1.1
+    dest: /etc/resolv.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: 🌐 Prüfe DNS - awx_kube_task.yml
+  ansible.builtin.command: host github.com
+  register: _dns_test
+  retries: 3
+  delay: 3
+  until: _dns_test.rc == 0
+  changed_when: false
+
+# ============================================================
+# 3) AWX Operator via Kustomize installieren
+# ============================================================
+- name: 📁 Kustomize-Verzeichnis erstellen - awx_kube_task.yml
+  ansible.builtin.file:
+    path: "/home/{{ kube_user }}/awx-deployment"
+    state: directory
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0755"
+
+- name: 📝 Kustomization.yml erstellen - awx_kube_task.yml
+  ansible.builtin.copy:
+    content: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+
+      resources:
+        - github.com/ansible/awx-operator/config/default?ref={{ helm_app.operator_version }}
+
+      namespace: {{ app_name }}
+
+      images:
+        - name: quay.io/ansible/awx-operator
+          newTag: {{ helm_app.operator_version }}
+    dest: "/home/{{ kube_user }}/awx-deployment/kustomization.yml"
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0644"
+
+- name: 📊 DEBUG Kustomization - awx_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "📝 Kustomization: /home/{{ kube_user }}/awx-deployment/kustomization.yml"
+      - "🔗 Quelle: github.com/ansible/awx-operator/config/default?ref={{ helm_app.operator_version }}"
+      - "🏷️ Image Tag: {{ helm_app.operator_version }}"
+
+- name: 📁 Namespace erstellen - awx_kube_task.yml
+  ansible.builtin.command: kubectl create namespace {{ app_name }}
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  register: _ns_create
+  failed_when:
+    - _ns_create.rc != 0
+    - "'already exists' not in _ns_create.stderr"
+  changed_when: "'created' in _ns_create.stdout"
+
+- name: 🚀 AWX Operator deployen (Kustomize) - awx_kube_task.yml
+  ansible.builtin.command: kubectl apply -k /home/{{ kube_user }}/awx-deployment/
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  register: _kustomize_result
+  changed_when: "'created' in _kustomize_result.stdout or 'configured' in _kustomize_result.stdout"
+
+- name: 📊 DEBUG Kustomize Ergebnis - awx_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ Kustomize Apply:"
+      - "{{ _kustomize_result.stdout_lines | default([]) }}"
+
+# ============================================================
+# 4) kube-rbac-proxy Image Patch (gcr.io existiert nicht mehr!)
+# ============================================================
+- name: 🔧 Patch kube-rbac-proxy Image (gcr.io → registry.k8s.io) - awx_kube_task.yml
+  ansible.builtin.command: >
+    kubectl set image deployment/awx-operator-controller-manager
+    kube-rbac-proxy=registry.k8s.io/kubebuilder/kube-rbac-proxy:v0.15.0
+    -n {{ app_name }}
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  register: _patch_result
+  changed_when: "'image updated' in _patch_result.stdout"
+  failed_when: false
+
+# ============================================================
+# 5) Warten bis Operator ready
+# ============================================================
+- name: ⏳ Warte auf AWX Operator (max 10 Min) - awx_kube_task.yml
+  ansible.builtin.command: >
+    kubectl wait --for=condition=Available
+    deployment/awx-operator-controller-manager
+    -n {{ app_name }}
+    --timeout=600s
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  changed_when: false
+
+- name: 📊 DEBUG Operator Ready - awx_kube_task.yml
+  ansible.builtin.debug:
+    msg: "✅ AWX Operator ist ready — deploye AWX Instance"
+
+# ============================================================
+# 6) AWX Instance deployen
+# ============================================================
+- name: 📁 Manifests-Verzeichnis sicherstellen - awx_kube_task.yml
+  ansible.builtin.file:
+    path: "/home/{{ kube_user }}/manifests"
+    state: directory
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0755"
+
+- name: 📝 AWX Instance Manifest erstellen - awx_kube_task.yml
+  ansible.builtin.template:
+    src: playbook/system/tasks/awx/templates/awx_kube_instance.yml.j2
+    dest: "/home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml"
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0644"
+
+- name: 🚀 AWX Instance deployen - awx_kube_task.yml
+  ansible.builtin.command: >
+    kubectl apply -f /home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  register: _instance_result
+  changed_when: "'configured' in _instance_result.stdout or 'created' in _instance_result.stdout"
+
+- name: 📊 DEBUG Instance Deploy - awx_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ AWX Instance Manifest applied"
+      - "{{ _instance_result.stdout | default('') }}"
+      - "⏳ Warte auf AWX Pods (kann 5-10 Min dauern)..."
+
+# ============================================================
+# 7) Warten bis ALLE Pods Ready — Common Task
+# ============================================================
+- name: ⏳ Warte auf alle Pods - awx_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_wait_ready }}"
+  vars:
+    _app_pod_label: "{{ app_name }}-web"
+    _expected_ready: 3
+
+# ============================================================
+# 8) Admin-Passwort auslesen
+# ============================================================
+- name: 🔑 Admin-Passwort auslesen - awx_kube_task.yml
+  ansible.builtin.command: >
+    kubectl get secret {{ app_name }}-admin-password
+    -n {{ app_name }}
+    -o jsonpath='{.data.password}'
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  register: _admin_pw_b64
+  failed_when: false
+  changed_when: false
+  no_log: true
+
+- name: 📊 AWX Zugang - awx_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "🚀 AWX Deployment abgeschlossen"
+      - "=========================================="
+      - "Admin-Passwort auslesen:"
+      - "  sudo -u {{ kube_user }} kubectl get secret {{ app_name }}-admin-password -n {{ app_name }} -o jsonpath='{.data.password}' | base64 -d"
+      - "=========================================="
+
+# ============================================================
+# 9) domain_port setzen (Common Task — K3s/Minikube/K8s)
+# ============================================================
+- name: 🔌 Setze domain_port für nginx - awx_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_set_domain_port }}"

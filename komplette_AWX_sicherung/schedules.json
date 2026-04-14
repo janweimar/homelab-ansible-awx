@@ -1,0 +1,206 @@
+[
+  {
+    "rrule": "DTSTART:20260308T002241Z RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=SU",
+    "id": 1,
+    "type": "schedule",
+    "url": "/api/v2/schedules/1/",
+    "related": {
+      "labels": "/api/v2/schedules/1/labels/",
+      "credentials": "/api/v2/schedules/1/credentials/",
+      "instance_groups": "/api/v2/schedules/1/instance_groups/",
+      "unified_jobs": "/api/v2/schedules/1/jobs/",
+      "unified_job_template": "/api/v2/system_job_templates/1/"
+    },
+    "summary_fields": {
+      "unified_job_template": {
+        "id": 1,
+        "name": "Cleanup Job Details",
+        "description": "Remove job history",
+        "unified_job_type": "system_job",
+        "job_type": "cleanup_jobs"
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true
+      }
+    },
+    "created": "2026-03-08T00:22:41.296820Z",
+    "modified": "2026-03-08T00:22:41.296820Z",
+    "name": "Cleanup Job Schedule",
+    "description": "Automatically Generated Schedule",
+    "extra_data": {
+      "days": "120"
+    },
+    "inventory": null,
+    "scm_branch": null,
+    "job_type": null,
+    "job_tags": null,
+    "skip_tags": null,
+    "limit": null,
+    "diff_mode": null,
+    "verbosity": null,
+    "execution_environment": null,
+    "forks": null,
+    "job_slice_count": null,
+    "timeout": null,
+    "unified_job_template": 1,
+    "enabled": true,
+    "dtstart": "2026-03-08T00:22:41Z",
+    "dtend": null,
+    "next_run": "2026-04-19T00:22:41Z",
+    "timezone": "UTC",
+    "until": ""
+  },
+  {
+    "rrule": "DTSTART:20260308T002241Z RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=TU",
+    "id": 2,
+    "type": "schedule",
+    "url": "/api/v2/schedules/2/",
+    "related": {
+      "labels": "/api/v2/schedules/2/labels/",
+      "credentials": "/api/v2/schedules/2/credentials/",
+      "instance_groups": "/api/v2/schedules/2/instance_groups/",
+      "unified_jobs": "/api/v2/schedules/2/jobs/",
+      "unified_job_template": "/api/v2/system_job_templates/2/"
+    },
+    "summary_fields": {
+      "unified_job_template": {
+        "id": 2,
+        "name": "Cleanup Activity Stream",
+        "description": "Remove activity stream history",
+        "unified_job_type": "system_job",
+        "job_type": "cleanup_activitystream"
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true
+      }
+    },
+    "created": "2026-03-08T00:22:41.296820Z",
+    "modified": "2026-03-08T00:22:41.296820Z",
+    "name": "Cleanup Activity Schedule",
+    "description": "Automatically Generated Schedule",
+    "extra_data": {
+      "days": "355"
+    },
+    "inventory": null,
+    "scm_branch": null,
+    "job_type": null,
+    "job_tags": null,
+    "skip_tags": null,
+    "limit": null,
+    "diff_mode": null,
+    "verbosity": null,
+    "execution_environment": null,
+    "forks": null,
+    "job_slice_count": null,
+    "timeout": null,
+    "unified_job_template": 2,
+    "enabled": true,
+    "dtstart": "2026-03-10T00:22:41Z",
+    "dtend": null,
+    "next_run": "2026-04-21T00:22:41Z",
+    "timezone": "UTC",
+    "until": ""
+  },
+  {
+    "rrule": "DTSTART:20260308T002357Z RRULE:FREQ=WEEKLY;INTERVAL=1",
+    "id": 4,
+    "type": "schedule",
+    "url": "/api/v2/schedules/4/",
+    "related": {
+      "labels": "/api/v2/schedules/4/labels/",
+      "credentials": "/api/v2/schedules/4/credentials/",
+      "instance_groups": "/api/v2/schedules/4/instance_groups/",
+      "unified_jobs": "/api/v2/schedules/4/jobs/",
+      "unified_job_template": "/api/v2/system_job_templates/4/"
+    },
+    "summary_fields": {
+      "unified_job_template": {
+        "id": 4,
+        "name": "Cleanup Expired Sessions",
+        "description": "Cleans out expired browser sessions",
+        "unified_job_type": "system_job",
+        "job_type": "cleanup_sessions"
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true
+      }
+    },
+    "created": "2026-03-08T00:23:57.727012Z",
+    "modified": "2026-03-08T00:23:57.727012Z",
+    "name": "Cleanup Expired Sessions",
+    "description": "Cleans out expired browser sessions",
+    "extra_data": {},
+    "inventory": null,
+    "scm_branch": null,
+    "job_type": null,
+    "job_tags": null,
+    "skip_tags": null,
+    "limit": null,
+    "diff_mode": null,
+    "verbosity": null,
+    "execution_environment": null,
+    "forks": null,
+    "job_slice_count": null,
+    "timeout": null,
+    "unified_job_template": 4,
+    "enabled": true,
+    "dtstart": "2026-03-08T00:23:57Z",
+    "dtend": null,
+    "next_run": "2026-04-19T00:23:57Z",
+    "timezone": "UTC",
+    "until": ""
+  },
+  {
+    "rrule": "DTSTART:20260308T002357Z RRULE:FREQ=WEEKLY;INTERVAL=1",
+    "id": 5,
+    "type": "schedule",
+    "url": "/api/v2/schedules/5/",
+    "related": {
+      "labels": "/api/v2/schedules/5/labels/",
+      "credentials": "/api/v2/schedules/5/credentials/",
+      "instance_groups": "/api/v2/schedules/5/instance_groups/",
+      "unified_jobs": "/api/v2/schedules/5/jobs/",
+      "unified_job_template": "/api/v2/system_job_templates/5/"
+    },
+    "summary_fields": {
+      "unified_job_template": {
+        "id": 5,
+        "name": "Cleanup Expired OAuth 2 Tokens",
+        "description": "Cleanup expired OAuth 2 access and refresh tokens",
+        "unified_job_type": "system_job",
+        "job_type": "cleanup_tokens"
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true
+      }
+    },
+    "created": "2026-03-08T00:23:57.847696Z",
+    "modified": "2026-03-08T00:23:57.847696Z",
+    "name": "Cleanup Expired OAuth 2 Tokens",
+    "description": "Removes expired OAuth 2 access and refresh tokens",
+    "extra_data": {},
+    "inventory": null,
+    "scm_branch": null,
+    "job_type": null,
+    "job_tags": null,
+    "skip_tags": null,
+    "limit": null,
+    "diff_mode": null,
+    "verbosity": null,
+    "execution_environment": null,
+    "forks": null,
+    "job_slice_count": null,
+    "timeout": null,
+    "unified_job_template": 5,
+    "enabled": true,
+    "dtstart": "2026-03-08T00:23:57Z",
+    "dtend": null,
+    "next_run": "2026-04-19T00:23:57Z",
+    "timezone": "UTC",
+    "until": ""
+  }
+]

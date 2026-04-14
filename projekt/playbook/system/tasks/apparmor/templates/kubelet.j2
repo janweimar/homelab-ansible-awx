@@ -1,0 +1,47 @@
+# AppArmor Profile für Kubelet
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/bin/kubelet {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  
+  # Capabilities
+  capability sys_admin,
+  capability sys_chroot,
+  capability sys_ptrace,
+  capability dac_override,
+  capability setuid,
+  capability setgid,
+  capability net_admin,
+  capability net_bind_service,
+  
+  # Netzwerk
+  network inet stream,
+  network inet6 stream,
+  network unix stream,
+  
+  # Kubelet Binary
+  /usr/bin/kubelet mr,
+  
+  # Container Runtime
+  /usr/bin/containerd rix,
+  /usr/bin/runc rix,
+  
+  # Konfiguration
+  /etc/kubernetes/** r,
+  /var/lib/kubelet/** rw,
+  
+  # Runtime
+  /run/containerd/** rw,
+  
+  # Proc/Sys
+  @{PROC}/** r,
+  /sys/** r,
+  
+  # Temp
+  /tmp/** rw,
+}

@@ -1,0 +1,25 @@
+- name: 📊 Debug – Logging-Konfiguration anzeigen
+  ansible.builtin.debug:
+    msg:
+      - "📊 === LOGGING KONFIGURATION ==="
+      - "💾 Datenbank:"
+      - "   - log_save_db:       {{ log_save_db | default('nicht gesetzt') }}"
+      - "   - log_db_host:       {{ log_db_host | default('nicht gesetzt') }}"
+      - "   - log_db_name:       {{ log_db_name | default('nicht gesetzt') }}"
+      - "   - log_db_port:       {{ log_db_port | default('nicht gesetzt') }}"
+      - "   - log_db_type:       {{ log_db_type | default('nicht gesetzt') }}"
+      - "   - log_db_user:       {{ log_db_user | default('nicht gesetzt') }}"
+      - "   - log_db_table:      {{ log_db_table | default('nicht gesetzt') }}"
+      - "   - log_db_password:   {{ '********' if log_db_password is defined else 'nicht gesetzt' }}"
+      - "📁 Client:"
+      - "   - log_save_client:      {{ log_save_client | default('nicht gesetzt') }}"
+      - "   - log_save_client_path: {{ log_save_client_path | default(doku_paths.log_doku_client_default, true) }}"
+      - "🖥️ AWX:"
+      - "   - log_save_awx:      {{ log_save_awx | default('nicht gesetzt') }}"
+      - "   - log_save_awx_path: {{ log_save_awx_path | default('nicht gesetzt') }}"
+      - "📧 Email:"
+      - "   - log_send_email:    {{ log_send_email | default('nicht gesetzt') }}"
+      - "   - log_email_address: {{ log_email_address | default('nicht gesetzt') }}"
+      - "📄 Templates:"
+      - "   - gai_conf_template: {{ gai_conf_template | default('nicht gesetzt') }}"
+  

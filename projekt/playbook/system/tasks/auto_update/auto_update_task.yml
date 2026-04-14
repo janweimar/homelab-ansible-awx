@@ -1,0 +1,95 @@
+---
+###########################################################################
+# 🔄 Auto-Update Konfiguration
+# Datei: auto_update_task.yml
+# Zweck: Automatische Sicherheitsupdates konfigurieren (Multi-OS)
+###########################################################################
+
+# =========================================================================
+# 1. Debian/Ubuntu: unattended-upgrades konfigurieren
+# =========================================================================
+- name: Deploye 20auto-upgrades Konfiguration - auto_update_task.yml
+  ansible.builtin.template:
+    src: templates/20auto-upgrades.j2
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+    backup: yes
+  when: ansible_os_family == "Debian"
+
+- name: Deploye 50unattended-upgrades Konfiguration - auto_update_task.yml
+  ansible.builtin.template:
+    src: templates/50unattended-upgrades.j2
+    dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+    backup: yes
+  when: ansible_os_family == "Debian"
+
+# =========================================================================
+# 2. Debian/Ubuntu: apt-listchanges fuer Mail-Versand konfigurieren
+# =========================================================================
+- name: Deploye apt-listchanges Konfiguration - auto_update_task.yml
+  ansible.builtin.template:
+    src: templates/listchanges.conf.j2
+    dest: /etc/apt/listchanges.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: yes
+  when: ansible_os_family == "Debian"
+
+# =========================================================================
+# 3. RedHat/SUSE: dnf-automatic konfigurieren
+# =========================================================================
+- name: Deploye dnf-automatic Konfiguration - auto_update_task.yml
+  ansible.builtin.template:
+    src: templates/dnf-automatic.conf.j2
+    dest: /etc/dnf/automatic.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: yes
+  when: ansible_os_family in ["RedHat", "Suse"]
+
+# =========================================================================
+# 4. Reboot-Check
+# =========================================================================
+- name: Prüfe ob Neustart erforderlich ist - auto_update_task.yml
+  ansible.builtin.stat:
+    path: "{{ paths.reboot_required[ansible_os_family] }}"
+  register: reboot_flag
+
+- name: Systemneustart (falls erforderlich) - auto_update_task.yml
+  ansible.builtin.reboot:
+    msg: "Systemneustart nach Auto-Update Konfiguration"
+    pre_reboot_delay: 5
+    reboot_timeout: 600
+    post_reboot_delay: 10
+  when: reboot_flag.stat.exists
+
+# =========================================================================
+# 5. Dry-Run Test
+# =========================================================================
+- name: Teste unattended-upgrades (Dry-Run) - auto_update_task.yml
+  ansible.builtin.command: unattended-upgrades --dry-run
+  register: auto_update_test
+  changed_when: false
+  failed_when: false
+  when: ansible_os_family == "Debian"
+
+# =========================================================================
+# 6. Status anzeigen
+# =========================================================================
+- name: Zeige Auto-Update Status - auto_update_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ Automatische Sicherheitsupdates konfiguriert"
+      - "OS: {{ ansible_os_family }}"
+      - "Intervall: alle {{ auto_update_interval | default('1') }} Tag(e)"
+      - "Reboot-Zeit: {{ auto_update_reboot_time | default('02:00') }}"
+      - "Mail-Empfaenger: {{ admin_email }}"
+      - "Blacklist: {{ package_blacklist[ansible_host] | default([]) | join(', ') | default('keine') }}"
+      - "apt-listchanges: {{ 'konfiguriert' if ansible_os_family == 'Debian' else 'nicht relevant' }}"

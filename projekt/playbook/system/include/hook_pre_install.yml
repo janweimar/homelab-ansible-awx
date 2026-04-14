@@ -1,0 +1,25 @@
+---
+###########################################################################
+# Hook: Pre-Install (vor Installation)
+# Wird in allen Playbooks VOR der eigentlichen Installation ausgeführt
+###########################################################################
+# Hier können allgemeine Vorbereitungen rein, die für ALLE Playbooks gelten
+# z.B. Backup-Checks, Speicherplatz prüfen, etc.
+###########################################################################
+
+# Beispiel: Speicherplatz prüfen
+- name: 🔧 Hook Pre-Install - Speicherplatz prüfen
+  ansible.builtin.shell: df -h / | tail -1 | awk '{print $5}' | sed 's/%//'
+  register: disk_usage
+  changed_when: false
+  when: check_disk_space | default(false) | bool
+
+- name: ⚠️ Warnung bei wenig Speicherplatz
+  ansible.builtin.debug:
+    msg: "WARNUNG: Festplatte ist zu {{ disk_usage.stdout }}% belegt!"
+  when:
+    - check_disk_space | default(false) | bool
+    - disk_usage.stdout | int > 85
+
+# Platzhalter für zukünftige globale Pre-Install Tasks
+# - name: ...

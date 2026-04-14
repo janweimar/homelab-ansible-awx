@@ -1,0 +1,37 @@
+- name: ⚫ F2b deinstalliert
+  block:
+    - name: f2b Datei löschen (immer)
+      ansible.builtin.file:
+        path: /etc/nftables/f2b.nft
+        state: absent
+
+    - name: Fail2ban deinstalliert (immer)
+      ansible.builtin.package:
+        name: fail2ban
+        state: absent
+
+    - name: Paketabhängigkeiten prüfen für nftables (wird es noch benötigt?)
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: nft_files_info
+      loop:
+        - /etc/nftables.d/00_geoIP_ruleset.nft
+        - /etc/nftables.d/10_firewall_ruleset.nft
+        - /etc/nftables.d/20_f2b_ruleset.nft
+
+    - name: Debug-Ausgabe für geprüfte Dateien
+      ansible.builtin.debug:
+        msg: >
+          Datei: {{ item.stat.path | default(item.invocation.module_args.path) }},
+          Existiert: {{ item.stat.exists | default(false) }},
+          Größe: {{ item.stat.size | default(0) }} Bytes
+      loop: "{{ nft_files_info.results }}"
+
+    - name: nftables + Abhängigkeiten deinstalliert wenn beide leer
+      ansible.builtin.package:
+        name: "{{ nft_packages[ansible_os_family] }}"
+        state: absent
+      when: >
+        nft_files_info.results | map(attribute='stat.size') | sum == 0
+
+  when: allg_status == "deinstalliert"

@@ -1,0 +1,26 @@
+[DEFAULT]
+bantime  = {{ default_bantime }}
+findtime = {{ default_findtime }}
+maxretry = {{ default_maxretry }}
+# Loopback + Jumpserver als Failsafe
+ignoreip = {{ ignore_ips_v4 | default([]) | join(' ') }} {{ ignore_ips_v6 | default([]) | join(' ') }}
+
+# E-Mail Benachrichtigung bei Ban
+destemail = {{ admin_email }}
+sender    = {{ smtp_user }}
+mta       = sendmail
+
+# Protokoll-Defaults (noetig fuer Action-Interpolation)
+protocol = tcp
+chain    = input
+port     = 0:65535
+
+# Actions
+banaction = nftables_custom
+banaction_allports = nftables_custom
+
+# Ban + E-Mail mit Whois + Logzeilen
+action = %(banaction)s[port="%(port)s", protocol="%(protocol)s"]
+         %(mta)s-whois-lines[sender="%(sender)s", dest="%(destemail)s", logpath="%(logpath)s"]
+backend  = systemd
+actionstart_on_demand = false

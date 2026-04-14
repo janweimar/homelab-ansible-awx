@@ -1,0 +1,192 @@
+---
+###########################################################################
+# 🛡️ suricata_task.yml
+# Suricata IDS/IPS Konfiguration
+###########################################################################
+# AWX Credential Variablen:
+#   suricata_mode:       ids (passiv) / ips (inline blocking)
+#   suricata_traffic:    all (gesamter Traffic) / web (nur Port 80/443)
+#   suricata_interface:  Netzwerk-Interface (z.B. eth0)
+#   suricata_home_net:   Geschütztes Netz (z.B. 10.200.0.0/24)
+#   suricata_rule_update: true/false — Rules aktualisieren
+###########################################################################
+
+# ============================================================
+# 1) Variablen setzen
+# ============================================================
+- name: 🔧 Setze Suricata Variablen - suricata_task.yml
+  ansible.builtin.set_fact:
+    _suricata_mode: "{{ suricata_mode | default('ids') }}"
+    _suricata_traffic: "{{ suricata_traffic | default('web') }}"
+    _suricata_interface: "{{ suricata_interface | default('eth0') }}"
+    _suricata_home_net: "{{ suricata_home_net | default('[10.200.0.0/24]') }}"
+    _suricata_rule_update: "{{ suricata_rule_update | default(true) | bool }}"
+
+- name: 📊 DEBUG Suricata Konfiguration - suricata_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "🛡️ Suricata Konfiguration"
+      - "=========================================="
+      - "Modus:     {{ _suricata_mode | upper }}"
+      - "Traffic:   {{ _suricata_traffic }} {{ '(nur Port 80/443)' if _suricata_traffic == 'web' else '(gesamter Traffic)' }}"
+      - "Interface: {{ _suricata_interface }}"
+      - "HOME_NET:  {{ _suricata_home_net }}"
+      - "Rules:     {{ 'Update' if _suricata_rule_update else 'Kein Update' }}"
+      - "=========================================="
+
+# ============================================================
+# 2) Verzeichnisse sicherstellen
+# ============================================================
+- name: 📁 Suricata Verzeichnisse erstellen - suricata_task.yml
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /etc/suricata
+    - /etc/suricata/rules
+    - /var/log/suricata
+    - /var/lib/suricata
+    - /var/lib/suricata/rules
+
+# ============================================================
+# 3) Suricata Konfiguration erstellen
+# ============================================================
+- name: 📝 Erstelle suricata.yaml - suricata_task.yml
+  ansible.builtin.template:
+    src: playbook/system/tasks/suricata/templates/suricata.yaml.j2
+    dest: /etc/suricata/suricata.yaml
+    owner: root
+    group: root
+    mode: "0640"
+    backup: yes
+
+# ============================================================
+# 4) Rules aktualisieren (suricata-update)
+# ============================================================
+- block:
+    - name: 📥 Suricata Rules aktualisieren - suricata_task.yml
+      ansible.builtin.command: suricata-update
+      register: _suricata_update
+      changed_when: "'signatures added' in _suricata_update.stdout"
+
+    - name: 📊 DEBUG Rules Update - suricata_task.yml
+      ansible.builtin.debug:
+        msg:
+          - "📥 Suricata Rules Update:"
+          - "{{ _suricata_update.stdout_lines | default([]) | last | default('Keine Ausgabe') }}"
+
+  when: _suricata_rule_update | bool
+
+# ============================================================
+# 5) IPS-Modus: nftables NFQUEUE Regel
+# ============================================================
+- block:
+    - name: 🛡️ Prüfe ob nftables NFQUEUE Regel existiert - suricata_task.yml
+      ansible.builtin.shell: >
+        nft list ruleset 2>/dev/null | grep -c 'queue num 0'
+      register: _nfqueue_check
+      changed_when: false
+      failed_when: false
+
+    - name: 🛡️ Erstelle nftables NFQUEUE (all) - suricata_task.yml
+      ansible.builtin.shell: |
+        nft add table inet suricata
+        nft add chain inet suricata forward '{ type filter hook forward priority 10 ; policy accept ; }'
+        nft add rule inet suricata forward queue num 0
+      when:
+        - _nfqueue_check.stdout | default('0') | int == 0
+        - _suricata_traffic != 'web'
+      register: _nfqueue_result_all
+      changed_when: _nfqueue_result_all.rc | default(1) == 0
+
+    - name: 🛡️ Erstelle nftables NFQUEUE (web only) - suricata_task.yml
+      ansible.builtin.shell: |
+        nft add table inet suricata
+        nft add chain inet suricata forward '{ type filter hook forward priority 10 ; policy accept ; }'
+        nft add rule inet suricata forward tcp dport 80 queue num 0
+        nft add rule inet suricata forward tcp dport 443 queue num 0
+      when:
+        - _nfqueue_check.stdout | default('0') | int == 0
+        - _suricata_traffic == 'web'
+      register: _nfqueue_result_web
+      changed_when: _nfqueue_result_web.rc | default(1) == 0
+
+    - name: 📊 DEBUG IPS NFQUEUE - suricata_task.yml
+      ansible.builtin.debug:
+        msg: "🛡️ IPS-Modus: nftables NFQUEUE aktiv — Traffic wird inline geprüft"
+
+  when: _suricata_mode == 'ips'
+
+# ============================================================
+# 6) IDS-Modus: NFQUEUE entfernen (falls vorhanden)
+# ============================================================
+- block:
+    - name: 🔍 Prüfe ob Suricata nftables Tabelle existiert - suricata_task.yml
+      ansible.builtin.shell: >
+        nft list tables 2>/dev/null | grep -c 'inet suricata'
+      register: _suricata_table_check
+      changed_when: false
+      failed_when: false
+
+    - name: 🧹 Entferne nftables NFQUEUE (IDS braucht kein inline) - suricata_task.yml
+      ansible.builtin.command: nft delete table inet suricata
+      when: _suricata_table_check.stdout | default('0') | int > 0
+      failed_when: false
+
+  when: _suricata_mode == 'ids'
+
+# ============================================================
+# 7) Suricata Config testen
+# ============================================================
+- name: 🧪 Teste Suricata Konfiguration - suricata_task.yml
+  ansible.builtin.command: suricata -T -c /etc/suricata/suricata.yaml
+  register: _suricata_test
+  changed_when: false
+  failed_when: false
+
+- name: 📊 DEBUG Suricata Config Test - suricata_task.yml
+  ansible.builtin.debug:
+    msg: "{{ '✅ Suricata Config OK' if _suricata_test.rc == 0 else '❌ Suricata Config Fehler — prüfe /etc/suricata/suricata.yaml' }}"
+
+- name: ❌ Abbruch bei fehlerhafter Suricata Config - suricata_task.yml
+  ansible.builtin.fail:
+    msg: >
+      Suricata Konfigurationstest fehlgeschlagen!
+      {{ _suricata_test.stderr_lines | default([]) | join('\n') }}
+  when: _suricata_test.rc != 0
+
+# ============================================================
+# 8) Cronjob für automatische Rule-Updates
+# ============================================================
+- name: 🕒 Erstelle Cronjob für Rule-Updates - suricata_task.yml
+  ansible.builtin.cron:
+    name: "Suricata Rules Update"
+    minute: "30"
+    hour: "3"
+    job: "suricata-update && systemctl restart suricata"
+    user: root
+    state: "{{ 'present' if _suricata_rule_update | bool else 'absent' }}"
+
+# ============================================================
+# 9) Ergebnis
+# ============================================================
+- name: ✅ Suricata konfiguriert - suricata_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "🛡️ Suricata {{ _suricata_mode | upper }} konfiguriert"
+      - "=========================================="
+      - "Modus:     {{ _suricata_mode | upper }}"
+      - "Traffic:   {{ _suricata_traffic }} {{ '(nur Port 80/443)' if _suricata_traffic == 'web' else '(gesamter Traffic)' }}"
+      - "Interface: {{ _suricata_interface }}"
+      - "HOME_NET:  {{ _suricata_home_net }}"
+      - "Config:    /etc/suricata/suricata.yaml"
+      - "Logs:      /var/log/suricata/"
+      - "Rules:     /var/lib/suricata/rules/"
+      - "Cronjob:   {{ '03:30 Uhr (täglich)' if _suricata_rule_update else 'deaktiviert' }}"
+      - "{{ '🛡️ IPS: nftables NFQUEUE aktiv' if _suricata_mode == 'ips' else '🔍 IDS: Passiver Modus (af-packet)' }}"
+      - "=========================================="

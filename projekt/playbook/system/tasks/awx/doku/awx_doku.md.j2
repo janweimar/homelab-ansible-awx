@@ -1,0 +1,35 @@
+# AWX - SYSTEM KONFIGURATION
+
+## 🧱 Status
+
+- **Status:** {{ allg_status }}
+- **Host:** {{ ansible_host }}
+- **OS:** {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
+
+---
+
+## ⚙️ Konfiguration
+
+| Einstellung | Wert |
+|-------------|------|
+| Deploy-Typ | {{ app_deploy_type | default('n/a') }} |
+| Port | {{ app_port | default('n/a') }} |
+| Domain | {{ urls[ansible_host][app_name].domain | default('n/a') }} |
+| SSL | {{ nginx_ssl | default(false) }} |
+| nginx Integration | {{ app_nginx_integration | default(false) }} |
+
+---
+
+## 📦 Helm
+
+| Einstellung | Wert |
+|-------------|------|
+| Operator | {{ helm_app.operator_version | default('n/a') }} |
+| AWX Version | {{ helm_app.awx_version | default('n/a') }} |
+| Namespace | {{ app_name | default('awx') }} |
+| EE Image | {{ helm_app.ee_image | default('Standard') }} |
+
+---
+
+**Zeitstempel:** {{ ansible_date_time.iso8601 | default('n/a') }}
+**Status:** ✅ AWX konfiguriert

@@ -1,0 +1,153 @@
+---
+###########################################################################
+# 🧱 open-webui_kube_task.yml
+# Open WebUI Deployment auf K3s — Chat Frontend für Ollama
+###########################################################################
+# Wird vom universellen pb_setup_app_deploy.yml aufgerufen.
+# nginx wird dort gehandelt — hier nur Kubernetes-Deployment.
+#
+# Open WebUI verbindet sich intern mit Ollama:
+#   http://ollama-service.ollama.svc.cluster.local:11434
+#
+# DB: SQLite (intern im Container, PVC für Persistenz)
+#
+# Externe Datenquellen (cluster-intern):
+#   - Qdrant: qdrant-service.qdrant.svc.cluster.local:6333
+#   - MariaDB: mariadb-service.mariadb.svc.cluster.local:3306
+#
+# Nutzt wiederverwendbare Common Tasks:
+#   - kube_app_cleanup:     Namespace + Ressourcen aufräumen
+#   - kube_app_wait_ready:  Warten bis alle Pods Ready
+###########################################################################
+
+# ============================================================
+# 0) DEBUG — Eingangsvariablen anzeigen
+# ============================================================
+- name: 📊 DEBUG Eingangsvariablen - open-webui_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "🌐 Open WebUI Kubernetes Deployment"
+      - "=========================================="
+      - "app_name:        {{ app_name }}"
+      - "app_deploy_type: {{ app_deploy_type }}"
+      - "app_port:        {{ app_port | default('8080') }}"
+      - "kube_user:       {{ kube_user }}"
+      - "Domain:          {{ urls[ansible_host][app_name].domain | default('NICHT GESETZT') }}"
+      - "DB:              SQLite (intern)"
+      - "Ollama:          http://ollama-service.ollama.svc.cluster.local:11434"
+      - "=========================================="
+
+# ============================================================
+# 1) Aufräumen — alte Installation entfernen
+# ============================================================
+- name: 🧹 Alte Installation aufräumen - open-webui_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_cleanup }}"
+
+# ============================================================
+# 2) Open WebUI deployen
+# ============================================================
+- name: 📁 Namespace erstellen - open-webui_kube_task.yml
+  ansible.builtin.command: kubectl create namespace {{ app_name }}
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _ns_ensure
+  failed_when:
+    - _ns_ensure.rc != 0
+    - "'already exists' not in _ns_ensure.stderr"
+  changed_when: "'created' in _ns_ensure.stdout"
+
+- name: 📁 Manifests-Verzeichnis sicherstellen - open-webui_kube_task.yml
+  ansible.builtin.file:
+    path: "/home/{{ kube_user }}/manifests"
+    state: directory
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0755"
+
+- name: 📝 Open WebUI App-Manifest erstellen - open-webui_kube_task.yml
+  ansible.builtin.template:
+    src: playbook/system/tasks/open-webui/templates/open-webui_kube_manifests.yml.j2
+    dest: "/home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml"
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0644"
+
+- name: 🚀 Open WebUI deployen - open-webui_kube_task.yml
+  ansible.builtin.command: kubectl apply -f /home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _deploy_result
+  changed_when: "'created' in _deploy_result.stdout or 'configured' in _deploy_result.stdout"
+
+- name: 📊 DEBUG Deploy Ergebnis - open-webui_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ Open WebUI Manifest applied"
+      - "{{ _deploy_result.stdout_lines | default([]) }}"
+
+# ============================================================
+# 3) Warten bis Pod Ready — common Task
+# ============================================================
+- name: ⏳ Warte auf alle Pods - open-webui_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_wait_ready }}"
+  vars:
+    _app_pod_label: "{{ app_name }}"
+    _expected_ready: 1
+
+# ============================================================
+# 4) Prüfe ob Open WebUI Ollama erreicht
+# ============================================================
+- name: 🔍 Ermittle Open WebUI Pod-Name - open-webui_kube_task.yml
+  ansible.builtin.shell: >
+    kubectl get pods -n {{ app_name }}
+    -l app={{ app_name }}
+    -o jsonpath='{.items[0].metadata.name}'
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _webui_pod
+  changed_when: false
+
+- name: 🧪 Teste Ollama Verbindung aus Open WebUI Pod - open-webui_kube_task.yml
+  ansible.builtin.shell: >
+    kubectl exec -n {{ app_name }} {{ _webui_pod.stdout }} --
+    curl -s -o /dev/null -w '%{http_code}'
+    http://ollama-service.ollama.svc.cluster.local:11434/api/tags
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _ollama_check
+  changed_when: false
+  failed_when: false
+
+- name: 📊 DEBUG Ollama Verbindung - open-webui_kube_task.yml
+  ansible.builtin.debug:
+    msg: "{{ '✅ Open WebUI → Ollama Verbindung OK (HTTP ' + _ollama_check.stdout | default('?') + ')' if _ollama_check.stdout | default('') == '200' else '⚠️ Ollama nicht erreichbar aus Open WebUI Pod — HTTP ' + _ollama_check.stdout | default('?') + '. Ist Ollama deployed?' }}"
+
+# ============================================================
+# 5) domain_port setzen (Common Task — K3s/Minikube/K8s)
+# ============================================================
+- name: 🔌 Setze domain_port für nginx - open-webui_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_set_domain_port }}"
+
+# ============================================================
+# 6) Zugangsinfo anzeigen
+# ============================================================
+- name: ✅ Open WebUI bereit - open-webui_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "✅ Open WebUI läuft!"
+      - "=========================================="
+      - "🌐 Zugriff: http://10.200.0.23:{{ app_port | default('8080') }}"
+      - "🧊 Ollama: {{ '✅ verbunden' if _ollama_check.stdout | default('') == '200' else '⚠️ nicht erreichbar' }}"
+      - "💾 DB: SQLite (intern)"
+      - "👤 Erster Login erstellt Admin-Account"
+      - "=========================================="

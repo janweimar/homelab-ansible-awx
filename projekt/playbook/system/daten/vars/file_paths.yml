@@ -1,0 +1,512 @@
+---
+######################################################################################
+# nginx Pfade / Templates
+######################################################################################
+nginx_paths:
+  <ip_wazuh_server>:
+    nginx_conf: playbook/system/tasks/nginx/templates/nginx.conf.j2
+    modsecurity: playbook/system/tasks/nginx/templates/modsecurity.conf.j2
+    vHost_certbot_temp: playbook/system/tasks/nginx/templates/vhost-certbot-temp.conf.j2
+    nginx:
+      vHost_80: playbook/system/tasks/nginx/templates/vhost-http.conf.j2
+      vHost_443: playbook/system/tasks/nginx/templates/vhost-https.conf.j2
+      app_vhost: playbook/system/tasks/nginx/templates/app-vhost.conf.j2
+    wazuh:
+      80:
+        vHost_80: playbook/system/tasks/wazuh/templates/wazuh-vhost-http.conf.j2
+      443:
+        vHost_80: playbook/system/tasks/wazuh/templates/wazuh-vhost-http_redir.conf.j2
+        vHost_443: playbook/system/tasks/wazuh/templates/wazuh-vhost-https.conf.j2
+
+  <ip_ai_server>:
+    # AI Server
+    nginx_conf: playbook/system/tasks/nginx/templates/nginx.conf.j2
+    modsecurity: playbook/system/tasks/nginx/templates/modsecurity.conf.j2
+    vHost_certbot_temp: playbook/system/tasks/nginx/templates/vhost-certbot-temp.conf.j2
+    nginx:
+      vHost_80: playbook/system/tasks/nginx/templates/vhost-http.conf.j2
+      vHost_443: playbook/system/tasks/nginx/templates/vhost-https.conf.j2
+      app_vhost: playbook/system/tasks/nginx/templates/app-vhost.conf.j2
+
+  <ip_awx_server>:
+    # AWX Server
+    nginx_conf: playbook/system/tasks/nginx/templates/nginx.conf.j2
+    modsecurity: playbook/system/tasks/nginx/templates/modsecurity.conf.j2
+    vHost_certbot_temp: playbook/system/tasks/nginx/templates/vhost-certbot-temp.conf.j2
+    nginx:
+      vHost_80: playbook/system/tasks/nginx/templates/vhost-http.conf.j2
+      vHost_443: playbook/system/tasks/nginx/templates/vhost-https.conf.j2
+      app_vhost: playbook/system/tasks/nginx/templates/app-vhost.conf.j2
+
+  <ip_odoo_server>:
+    # Odoo Server
+    nginx_conf: playbook/system/tasks/nginx/templates/nginx.conf.j2
+    modsecurity: playbook/system/tasks/nginx/templates/modsecurity.conf.j2
+    vHost_certbot_temp: playbook/system/tasks/nginx/templates/vhost-certbot-temp.conf.j2
+    nginx:
+      vHost_80: playbook/system/tasks/nginx/templates/vhost-http.conf.j2
+      vHost_443: playbook/system/tasks/nginx/templates/vhost-https.conf.j2
+      app_vhost: playbook/system/tasks/nginx/templates/app-vhost.conf.j2
+
+  <ip_repo_server>:
+    # Global - für alle
+    nginx_conf: playbook/system/tasks/nginx/templates/nginx.conf.j2
+    modsecurity: playbook/system/tasks/nginx/templates/modsecurity.conf.j2
+    vHost_certbot_temp: playbook/system/tasks/nginx/templates/vhost-certbot-temp.conf.j2
+
+    # Pro Anwendung - nur vHosts unterschiedlich
+    nginx:
+      vHost_80: playbook/system/tasks/nginx/templates/vhost-http.conf.j2
+      vHost_443: playbook/system/tasks/nginx/templates/vhost-https.conf.j2
+      app_vhost: playbook/system/tasks/nginx/templates/app-vhost.conf.j2
+
+    bookstack:
+      80:
+        vHost_80: playbook/system/tasks/bookstack/templates/bookstack-vhost-http.conf.j2
+      443:
+        vHost_80: playbook/system/tasks/bookstack/templates/bookstack-vhost-http_redir.conf.j2
+        vHost_443: playbook/system/tasks/bookstack/templates/bookstack-vhost-https.conf.j2
+
+    repo_server:
+      aptly_conf: playbook/system/tasks/repo_server/templates/aptly_conf.j2
+      cgitrc: playbook/system/tasks/repo_server/templates/cgitrc_cgit.j2
+      80:
+        vHost_80: playbook/system/tasks/repo_server/templates/repo-vhost-http.conf.j2
+      443:
+        vHost_80: playbook/system/tasks/repo_server/templates/repo-vhost-http_redir.conf.j2
+        vHost_443: playbook/system/tasks/repo_server/templates/repo-vhost-https.conf.j2
+
+    awx_ee:
+      80:
+        vHost_80: playbook/system/tasks/awx/awx_ee/templates/awx_ee-vhost-http.conf.j2
+      443:
+        vHost_80: playbook/system/tasks/awx/awx_ee/templates/awx_ee-vhost-http_redir.conf.j2
+        vHost_443: playbook/system/tasks/awx/awx_ee/templates/awx_ee-vhost-https.conf.j2
+
+###############################################################################
+# File Paths - Server-spezifische Dateien
+# Pro Server individuelle Konfiguration (SSH-Keys, Zertifikate, etc.)
+###############################################################################
+file_paths:
+  key_gpg_paths: playbook/system/templates/key_gpg/.gnupg/
+  wireguard_keys_path: playbook/system/templates/wireguard_keys/
+  # firewall nftables
+  wazuh_install_sh: playbook/system/skript/wazuh-install.sh
+  validate_ips_script: playbook/system/skript/validate_ips.py
+  parse_netvars: playbook/system/skript/parse_netvars.py
+  nftable_config_j2: playbook/system/tasks/nftables/templates/nftable_config.j2
+
+  # geoip nftables
+  nft_geoip_script: playbook/system/skript/nft_geoip.py
+  dbip_country_lite_csv: playbook/system/daten/dbip-country-lite.csv
+  location_csv: playbook/system/daten/location.csv
+
+  #########################################################################################
+  ### server ports
+  #########################################################################################
+  server_port:
+    <ip_vpn_server>: 10010
+    <ip_wazuh_server>: 10020
+    <ip_mail_server>: 10030
+    <ip_repo_server>: 10040
+    <ip_ai_server>: 10050
+    <ip_odoo_server>: 10060
+    <ip_awx_server>: 10070
+    PLATZHALTER_IP: 10080
+
+  #########################################################################################
+  ### keys
+  #########################################################################################
+  ssh_pub_key:
+    <ip_vpn_server>:
+      max: playbook/system/tasks/add_user_ssh/templates/id_ed25519_vpn_max.pub
+    <ip_wazuh_server>:
+      max: playbook/system/tasks/add_user_ssh/templates/id_ed25519_wazuh_max.pub
+    <ip_mail_server>:
+      max: playbook/system/tasks/add_user_ssh/templates/id_ed25519_mail_max.pub
+    <ip_repo_server>:
+      max: playbook/system/tasks/add_user_ssh/templates/id_ed25519_repo_max.pub
+    <ip_ai_server>:
+      max: playbook/system/tasks/add_user_ssh/templates/id_ed25519_ai_max.pub
+    <ip_odoo_server>:
+      max: playbook/system/tasks/add_user_ssh/templates/id_ed25519_odoo_max.pub
+    <ip_awx_server>:
+      max: playbook/system/tasks/add_user_ssh/templates/id_ed25519_awx_max.pub
+    PLATZHALTER_IP:
+      max: playbook/system/tasks/add_user_ssh/templates/id_ed25519_sim_max.pub
+
+  ssh_conf:
+    <ip_vpn_server>: playbook/system/tasks/add_user_ssh/templates/sshd_config_secure.j2
+    <ip_wazuh_server>: playbook/system/tasks/add_user_ssh/templates/sshd_config_secure.j2
+    <ip_mail_server>: playbook/system/tasks/add_user_ssh/templates/sshd_config_secure.j2
+    <ip_repo_server>: playbook/system/tasks/add_user_ssh/templates/sshd_config_secure.j2
+    <ip_ai_server>: playbook/system/tasks/add_user_ssh/templates/sshd_config_secure.j2
+    <ip_odoo_server>: playbook/system/tasks/add_user_ssh/templates/sshd_config_secure.j2
+    <ip_awx_server>: playbook/system/tasks/add_user_ssh/templates/sshd_config_secure.j2
+    PLATZHALTER_IP: playbook/system/tasks/add_user_ssh/templates/sshd_config_secure.j2
+  cloud_init_ssh:
+    <ip_vpn_server>: playbook/system/tasks/add_user_ssh/templates/cloud_init_ssh.j2
+    <ip_wazuh_server>: playbook/system/tasks/add_user_ssh/templates/cloud_init_ssh.j2
+    <ip_mail_server>: playbook/system/tasks/add_user_ssh/templates/cloud_init_ssh.j2
+    <ip_repo_server>: playbook/system/tasks/add_user_ssh/templates/cloud_init_ssh.j2
+    <ip_ai_server>: playbook/system/tasks/add_user_ssh/templates/cloud_init_ssh.j2
+    <ip_odoo_server>: playbook/system/tasks/add_user_ssh/templates/cloud_init_ssh.j2
+    <ip_awx_server>: playbook/system/tasks/add_user_ssh/templates/cloud_init_ssh.j2
+    PLATZHALTER_IP: playbook/system/tasks/add_user_ssh/templates/cloud_init_ssh.j2
+
+  # Banner für SSH-Login
+  banner:
+    <ip_vpn_server>: playbook/system/daten/banner/banner_vpn.txt
+    <ip_wazuh_server>: playbook/system/daten/banner/banner_wazuh.txt
+    <ip_mail_server>: playbook/system/daten/banner/banner_mail.txt
+    <ip_repo_server>: playbook/system/daten/banner/banner_repo.txt
+    <ip_ai_server>: playbook/system/daten/banner/banner_ai.txt
+    <ip_odoo_server>: playbook/system/daten/banner/banner_odoo.txt
+    <ip_awx_server>: playbook/system/daten/banner/banner_awx.txt
+    PLATZHALTER_IP: playbook/system/daten/banner/banner_sim.txt
+
+  # net_conf
+  gai_conf:
+    <ip_vpn_server>: playbook/system/tasks/net_conf/templates/ip4_gai_conf.j2
+    <ip_wazuh_server>: playbook/system/tasks/net_conf/templates/ip4_gai_conf.j2
+    <ip_mail_server>: playbook/system/tasks/net_conf/templates/ip4_gai_conf.j2
+    <ip_repo_server>: playbook/system/tasks/net_conf/templates/ip4_gai_conf.j2
+    <ip_ai_server>: playbook/system/tasks/net_conf/templates/ip4_gai_conf.j2
+    <ip_odoo_server>: playbook/system/tasks/net_conf/templates/ip4_gai_conf.j2
+    <ip_awx_server>: playbook/system/tasks/net_conf/templates/ip4_gai_conf.j2
+    PLATZHALTER_IP: playbook/system/tasks/net_conf/templates/ip4_gai_conf.j2
+######################################################################################
+# Dokumentations-Pfade für Playbooks
+######################################################################################
+doku_paths_pb:
+  # hier können playbook-spezifische Dokumentations-Templates definiert werden
+  doku_pb:
+    awx_ee_doku:
+      # Pfad zum Template für dieses Playbook
+      pb_template_doku: playbook/system/tasks/awx/awx_ee/doku/awx_ee_doku.md.j2
+      # Pfad zur README
+      pb_readme: playbook/system/tasks/awx/awx_ee/doku/README_AWX_EE.md
+      # bookstack Link zur online Doku
+      link_doku: "https://docs.example.com/ansible/playbooks/awx_ee.html"
+      # sonstige Infos
+      sonstiges_doku:
+      # Pfad zur md Datei
+      doku_pb_md:
+    containerd_doku:
+      # Pfad zum Template für dieses Playbook
+      pb_template_doku: playbook/system/tasks/containerd_include/doku/containerd_doku.md.j2
+      # Pfad zur README
+      pb_readme: playbook/system/tasks/containerd_include/doku/README_CONTAINERD.md
+      # bookstack Link zur online Doku
+      link_doku: "https://docs.example.com/ansible/playbooks/containerd.html"
+      # sonstige Infos
+      sonstiges_doku:
+      # Pfad zur md Datei
+      doku_pb_md:
+    bookstack_doku:
+      # Pfad zum Template für dieses Playbook
+      pb_template_doku: playbook/system/tasks/bookstack/doku/bookstack_doku.md.j2
+      # Pfad zur README
+      pb_readme: playbook/system/tasks/bookstack/doku/README_BOOKSTACK.md
+      # bookstack Link zur online Doku
+      link_doku: "https://docs.example.com/ansible/playbooks/bookstack.html"
+      # sonstige Infos
+      sonstiges_doku:
+      # Pfad zur md Datei
+      doku_pb_md:
+    aptly_publish:
+      pb_template_doku: playbook/system/tasks/repo_server_aptly/doku/aptly_publish_doku.md.j2
+      pb_readme: playbook/system/tasks/repo_server_aptly/doku/README_APTLY_PUBLISH.md
+      link_doku: "https://docs.example.com/ansible/playbooks/aptly_publish.html"
+      sonstiges_doku:
+      doku_pb_md:
+    # pb_conf_add_user_add_ssh_key_secure.yml
+    add_user_ssh:
+      # Pfad zum Template für dieses Playbook
+      pb_template_doku: playbook/system/tasks/add_user_ssh/doku/add_user_ssh_doku.md.j2
+      # Pfad zur README
+      pb_readme: playbook/system/tasks/add_user_ssh/doku/README_ADD_USER_SSH.md
+      # bookstack Link zur online Doku
+      link_doku: "https://docs.example.com/ansible/playbooks/add_user_ssh.html"
+      # sonstige Infos
+      sonstiges_doku:
+      # Pfad zur md Datei
+      doku_pb_md:
+    net_conf:
+      pb_template_doku: playbook/system/tasks/net_conf/doku/net_conf_DOKU.md.j2
+      pb_readme: playbook/system/tasks/net_conf/doku/README_NET_CONF.md
+      link_doku:
+      # sonstige Infos
+      sonstiges_doku:
+      # Pfad zur md Datei
+      doku_pb_md:
+    firewall_nftables_doku:
+      pb_template_doku: playbook/system/tasks/nftables/firewall/doku/firewall_nftables_doku.md.j2
+      pb_readme: playbook/system/tasks/nftables/firewall/doku/README_FIREWALL_NFTABLES.md
+      link_doku:
+      # sonstige Infos
+      sonstiges_doku:
+      # Pfad zur md Datei
+      doku_pb_md:
+    geoblock_nftables_doku:
+      pb_template_doku: playbook/system/tasks/nftables/geoip/doku/geoblock_nftables_doku.md.j2
+      pb_readme: playbook/system/tasks/nftables/geoip/doku/README_GEOBLOCK_NFTABLES.md
+      link_doku:
+      # sonstige Infos
+      sonstiges_doku:
+      # Pfad zur md Datei
+      doku_pb_md:
+    add_repo_client:
+      pb_template_doku: playbook/system/tasks/add_repo_client/doku/add_repo_client.md.j2
+      pb_readme: playbook/system/tasks/add_repo_client/doku/README_ADD_REPO_CLIENT.md
+      link_doku:
+      # sonstige Infos
+      sonstiges_doku:
+      # Pfad zur md Datei
+      doku_pb_md:
+    apparmor:
+      pb_template_doku: playbook/system/tasks/apparmor/doku/apparmor_doku.md.j2
+      pb_readme: playbook/system/tasks/apparmor/doku/README_APPARMOR.md
+      link_doku:
+      # sonstige Infos
+      sonstiges_doku:
+      # Pfad zur md Datei
+      doku_pb_md:
+    audit_doku:
+      pb_template_doku: playbook/system/tasks/audit/doku/audit_doku.md.j2
+      pb_readme: playbook/system/tasks/audit/doku/README_AUDIT.md
+      link_doku:
+      # sonstige Infos
+      sonstiges_doku:
+      # Pfad zur md Datei
+      doku_pb_md:
+    repo_server_doku:
+      pb_template_doku: playbook/system/tasks/repo_server/doku/repo_server_doku.md.j2
+      pb_readme: playbook/system/tasks/repo_server/doku/README_REPO_SERVER.md
+      link_doku:
+      # sonstige Infos
+      sonstiges_doku:
+      # Pfad zur md Datei
+      doku_pb_md:
+    cgit_publishing:
+      pb_template_doku: playbook/system/tasks/repo_server_cgit/doku/cgit_publishing_doku.md.j2
+      pb_readme: playbook/system/tasks/repo_server_cgit/doku/README_CGIT_PUBLISHING.md
+      link_doku:
+      # sonstige Infos
+      sonstiges_doku:
+      # Pfad zur md Datei
+      doku_pb_md:
+    helm_charts:
+      pb_template_doku: playbook/system/tasks/repo_server_helm/doku/helm_charts_doku.md.j2
+      pb_readme: playbook/system/tasks/repo_server_helm/doku/README_HELM_CHARTS.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    aptly_mirrors:
+      pb_template_doku: playbook/system/tasks/repo_server_aptly/doku/aptly_mirrors_doku.md.j2
+      pb_readme: playbook/system/tasks/repo_server_aptly/doku/README_APTLY_MIRRORS.md
+      link_doku:
+      # sonstige Infos
+      sonstiges_doku:
+      # Pfad zur md Datei
+      doku_pb_md:
+    fail2ban_doku:
+      pb_template_doku: playbook/system/tasks/nftables/fail2ban/doku/fail2ban_doku.md.j2
+      pb_readme: playbook/system/tasks/nftables/fail2ban/doku/README_FAIL2BAN.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    suricata_doku:
+      pb_template_doku: playbook/system/tasks/suricata/doku/suricata_doku.md.j2
+      pb_readme: playbook/system/tasks/suricata/doku/README_SURICATA.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    cronjobs_doku:
+      pb_template_doku: playbook/system/tasks/cronjobs/doku/cronjobs_doku.md.j2
+      pb_readme: playbook/system/tasks/cronjobs/doku/README_CRONJOBS.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    cgit_update_doku:
+      pb_template_doku: playbook/system/tasks/repo_server_cgit_update/doku/cgit_update_doku.md.j2
+      pb_readme: playbook/system/tasks/repo_server_cgit_update/doku/README_CGIT_UPDATE.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    auto_update_doku:
+      pb_template_doku: playbook/system/tasks/auto_update/doku/auto_update_doku.md.j2
+      pb_readme: playbook/system/tasks/auto_update/doku/README_AUTO_UPDATE.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    alerting_doku:
+      pb_template_doku: playbook/system/tasks/alerting/doku/alerting_doku.md.j2
+      pb_readme: playbook/system/tasks/alerting/doku/README_ALERTING.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    logrotate_doku:
+      pb_template_doku: playbook/system/tasks/logrotate/doku/logrotate_doku.md.j2
+      pb_readme: playbook/system/tasks/logrotate/doku/README_LOGROTATE.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    msmtp_doku:
+      pb_template_doku: playbook/system/tasks/msmtp/doku/msmtp_doku.md.j2
+      pb_readme: playbook/system/tasks/msmtp/doku/README_MSMTP.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    vpn_server_doku:
+      pb_template_doku: playbook/system/tasks/wireguard/doku/vpn_server_doku.md.j2
+      pb_readme: playbook/system/tasks/wireguard/doku/README_VPN_SERVER.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    vpn_client_doku:
+      pb_template_doku: playbook/system/tasks/wireguard/doku/vpn_client_doku.md.j2
+      pb_readme: playbook/system/tasks/wireguard/doku/README_VPN_CLIENT.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    rkhunter_doku:
+      pb_template_doku: playbook/system/tasks/rkhunter/doku/rkhunter_doku.md.j2
+      pb_readme: playbook/system/tasks/rkhunter/doku/README_RKHUNTER.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    wazuh_agent_doku:
+      pb_template_doku: playbook/system/tasks/wazuh/doku/wazuh_agent_doku.md.j2
+      pb_readme: playbook/system/tasks/wazuh/doku/README_WAZUH_AGENT.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    wazuh_manager_doku:
+      pb_template_doku: playbook/system/tasks/wazuh/doku/wazuh_manager_doku.md.j2
+      pb_readme: playbook/system/tasks/wazuh/doku/README_WAZUH_MANAGER.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    deploy_helm_doku:
+      pb_template_doku: playbook/system/tasks/deploy_helm/doku/deploy_helm_doku.md.j2
+      pb_readme: playbook/system/tasks/deploy_helm/doku/README_DEPLOY_HELM.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    kubernet_doku:
+      pb_template_doku: playbook/system/tasks/k8s/doku/kubernet_doku.md.j2
+      pb_readme: playbook/system/tasks/k8s/doku/README_KUBERNET.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    minikube_doku:
+      pb_template_doku: playbook/system/tasks/minikube/doku/minikube_doku.md.j2
+      pb_readme: playbook/system/tasks/minikube/doku/README_MINIKUBE.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    k3s_doku:
+      pb_template_doku: playbook/system/tasks/k3s/doku/k3s_doku.md.j2
+      pb_readme: playbook/system/tasks/k3s/doku/README_K3S.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    qdrant_doku:
+      pb_template_doku: playbook/system/tasks/qdrant/doku/qdrant_doku.md.j2
+      pb_readme: playbook/system/tasks/qdrant/doku/README_QDRANT.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    open_webui_doku:
+      pb_template_doku: playbook/system/tasks/open-webui/doku/open_webui_doku.md.j2
+      pb_readme: playbook/system/tasks/open-webui/doku/README_OPEN_WEBUI.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    ollama_doku:
+      pb_template_doku: playbook/system/tasks/ollama/doku/ollama_doku.md.j2
+      pb_readme: playbook/system/tasks/ollama/doku/README_OLLAMA.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    directus_doku:
+      pb_template_doku: playbook/system/tasks/directus/doku/directus_doku.md.j2
+      pb_readme: playbook/system/tasks/directus/doku/README_DIRECTUS.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    odoo_doku:
+      pb_template_doku: playbook/system/tasks/odoo/doku/odoo_doku.md.j2
+      pb_readme: playbook/system/tasks/odoo/doku/README_ODOO.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    mariadb_webui_doku:
+      pb_template_doku: playbook/system/tasks/mariadb_webui/doku/mariadb_webui_doku.md.j2
+      pb_readme: playbook/system/tasks/mariadb_webui/doku/README_MARIADB_WEBUI.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    stalwart_doku:
+      pb_template_doku: playbook/system/tasks/stalwart/doku/stalwart_doku.md.j2
+      pb_readme: playbook/system/tasks/stalwart/doku/PB_INST_STALWART_DOKU.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    mailu_doku:
+      pb_template_doku: playbook/system/tasks/mailu/doku/mailu_doku.md.j2
+      pb_readme: playbook/system/tasks/mailu/doku/PB_INST_MAILU_DOKU.md
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+    awx_doku:
+      pb_template_doku: playbook/system/tasks/awx/doku/awx_doku.md.j2
+      pb_readme:
+      link_doku:
+      sonstiges_doku:
+      doku_pb_md:
+######################################################################################
+# File paths nach playbooks
+######################################################################################
+
+#######################################################################################
+# Doku Pfade (Templates für Playbook-Übersichten)
+#######################################################################################
+doku_paths:
+  # Default-Pfade für Playbook-Dokumentation global
+  log_doku_client_default: /var/log/ansible/playbook_doku
+  log_doku_awx_default: /var/lib/awx/playbook_doku
+
+  # Ordner für READMEs
+  readme_dir: /usr/local/share/doc/
+
+  # Allgemeine Templates (Header/Footer für alle Playbooks)
+  doku_template_md_j2:
+    playbook/system/include/doku/doku_template.md.j2
+    # "{{ include doku_paths.doku_template_md_j2 }}"
+
+######################################################################################
+# Test-Report Pfade
+######################################################################################
+test_report_dir: /var/log/system_test
+
+######################################################################################
+# AppArmor Profile Zuordnung
+# Pro Server: welche Profile in welchem Modus (enforce/complain)
+######################################################################################
+apparmor_d:
+  # Repo-Server <ip_repo_server>
+  <ip_repo_server>:
+    complain:
+      - playbook/system/tasks/apparmor/templates/docker.j2
+      - playbook/system/tasks/apparmor/templates/nginx_cgit_aptly_docker.j2
+      - playbook/system/tasks/apparmor/templates/aptly.j2
+      - playbook/system/tasks/apparmor/templates/cgit.j2
+      - playbook/system/tasks/apparmor/templates/fcgiwrap.j2
+      - playbook/system/tasks/apparmor/templates/fail2ban.j2
+      - playbook/system/tasks/apparmor/templates/auditd.j2
+      - playbook/system/tasks/apparmor/templates/sshd.j2
+      - playbook/system/tasks/apparmor/templates/cron.j2
+
+    enforce: []

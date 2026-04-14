@@ -1,0 +1,46 @@
+---
+###########################################################################
+# 📧 msmtp Konfiguration
+# Datei: msmtp_task.yml
+# Zweck: msmtp als Sendmail-Ersatz konfigurieren und testen
+###########################################################################
+
+- name: Deploye msmtprc Konfiguration - msmtp_task.yml
+  ansible.builtin.template:
+    src: templates/msmtprc.j2
+    dest: /etc/msmtprc
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Setze msmtp als sendmail-Alternative - msmtp_task.yml
+  ansible.builtin.command:
+    cmd: update-alternatives --install /usr/sbin/sendmail sendmail /usr/bin/msmtp 30
+    creates: /var/lib/dpkg/alternatives/sendmail
+
+- name: Aktiviere msmtp als Standard-sendmail - msmtp_task.yml
+  ansible.builtin.command:
+    cmd: update-alternatives --set sendmail /usr/bin/msmtp
+
+- name: Sudoers - sendmail ohne Passwort - msmtp_task.yml
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers.d/msmtp_sendmail
+    line: "{{ msmtp_sudoers_user }} ALL=(ALL) NOPASSWD: /usr/sbin/sendmail"
+    create: true
+    owner: root
+    group: root
+    mode: "0440"
+    validate: "visudo -cf %s"
+
+- name: Sende Test-Mail - msmtp_task.yml
+  ansible.builtin.shell: |
+    printf 'Subject: [{{ urls[ansible_host].msmtp.subject_prefix }}] msmtp Test\nFrom: {{ msmtp_from }}\nTo: {{ msmtp_test_to }}\n\nmsmtp funktioniert auf {{ inventory_hostname }}\n' \
+    | msmtp -a {{ msmtp_account }} {{ msmtp_test_to }}
+  register: msmtp_test_result
+  changed_when: false
+  failed_when: msmtp_test_result.rc != 0
+
+- name: Zeige Test-Mail Ergebnis - msmtp_task.yml
+  ansible.builtin.debug:
+    msg: "✅ Test-Mail erfolgreich gesendet an {{ msmtp_test_to }}"
+  when: msmtp_test_result.rc == 0

@@ -1,0 +1,20 @@
+---
+###########################################################################
+# Pre-Tasks für Netzwerk-Konfiguration
+# Wird vor der Hauptkonfiguration ausgeführt
+###########################################################################
+
+###########################################################################
+# 1. System-Update durchführen
+###########################################################################
+- name: 🔄 System Update durchführen
+  ansible.builtin.include_tasks: "{{ include_paths.repos_update_aktualisieren }}"
+  when: update_system | default(true) | bool
+
+###########################################################################
+# 2. Validierung der Variablen
+###########################################################################
+#- name: ✅ Prüfe ob Variable definiert ist
+#  ansible.builtin.fail:
+#    msg: "Variable 'xxx' muss definiert sein!"
+#  when: xxx is not defined or xxx | length == 0

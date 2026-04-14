@@ -1,0 +1,17 @@
+###########################################################################
+# ⚙️ Status nach Installation abfragen
+###########################################################################
+- name: 🔄 Status nach Installation abfragen
+  ansible.builtin.command: "{{ services[item].status[ansible_os_family] }}"
+  loop: >-
+    {{ (var_pack_name | list)
+       if var_pack_name is iterable and (var_pack_name is not string)
+       else [var_pack_name] }}
+  register: service_status
+  when: status | default(true)
+  changed_when: false
+  ignore_errors: true
+
+- name: 🧪 Ergebnis Status
+  ansible.builtin.debug:
+    var: service_status.results

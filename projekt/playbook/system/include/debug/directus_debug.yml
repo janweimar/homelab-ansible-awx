@@ -1,0 +1,16 @@
+---
+- name: "📋 Debug: Directus Variablen - directus_debug.yml"
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "Directus Konfiguration"
+      - "=========================================="
+      - "allg_status:       {{ allg_status }}"
+      - "deploy_type:       {{ app_deploy_type | default('docker') }}"
+      - "db_type:           {{ app_db_type | default('nicht gesetzt') }}"
+      - "app_port:          {{ app_port | default('8055') }}"
+      - "admin_email:       {{ app_admin_email | default('nicht gesetzt') }}"
+      - "kube_user:         {{ kube_user | default('nicht gesetzt') }}"
+      - "domain:            {{ urls[ansible_host].directus.domain | default('nicht gesetzt') }}"
+      - "nginx_integration: {{ app_nginx_integration | default(false) }}"
+      - "=========================================="

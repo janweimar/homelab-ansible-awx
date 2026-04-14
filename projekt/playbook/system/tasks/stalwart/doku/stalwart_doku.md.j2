@@ -1,0 +1,32 @@
+## Stalwart Mail Server Deployment Dokumentation
+
+**Datum:** {{ ansible_date_time.iso8601 }}
+**Server:** {{ ansible_host }} ({{ ansible_hostname }})
+**App:** {{ app_name }}
+**Deploy-Typ:** {{ app_deploy_type }}
+**Port Admin-GUI:** {{ app_port | default('8080') }}
+**Domain:** {{ urls[ansible_host][app_name].domain | default('nicht konfiguriert') }}
+**Mail-Domain:** {{ urls[ansible_host].stalwart.mail_domain | default('nicht konfiguriert') }}
+**Hostname:** {{ urls[ansible_host].stalwart.hostname | default('nicht konfiguriert') }}
+**SSL:** {{ app_ssl | default(false) }}
+**VPN-only GUI:** {{ app_vpn_only | default(false) }}
+**Status:** {{ allg_status }}
+
+### Ports
+| Port | Protokoll  | Erreichbarkeit |
+|------|------------|----------------|
+| 25   | SMTP       | öffentlich     |
+| 587  | Submission | öffentlich     |
+| 465  | SMTPS      | öffentlich     |
+| 143  | IMAP       | öffentlich     |
+| 993  | IMAPS      | öffentlich     |
+| {{ app_port | default('8080') }} | Admin-GUI | VPN-only (nginx) |
+
+### DNS-Einträge (nach Installation setzen!)
+```
+MX    allgemeinhobby.de.     10  mail.allgemeinhobby.de.
+A     mail.allgemeinhobby.de. →  {{ ansible_host }}
+TXT   allgemeinhobby.de.     "v=spf1 mx ~all"
+TXT   _dmarc.allgemeinhobby.de. "v=DMARC1; p=quarantine; rua=mailto:postmaster@allgemeinhobby.de"
+# DKIM-Record: Im Admin-GUI unter Management → Domains → allgemeinhobby.de abrufen
+```

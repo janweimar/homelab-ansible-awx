@@ -1,0 +1,37 @@
+# CGIT PUBLISHING - SYSTEM KONFIGURATION
+
+## 📂 Status
+
+- **Status:** {{ allg_status }}
+- **Host:** {{ ansible_host }}
+- **OS:** {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
+
+---
+
+## 📋 Synchronisierte Repositories
+
+{% if cgit_repos is defined and cgit_repos | length > 0 %}
+| Name | URL |
+|------|-----|
+{% for repo in cgit_repos %}
+| {{ repo.name }} | {{ repo.url | default('n/a') }} |
+{% endfor %}
+
+**Gesamt:** {{ cgit_repos | length }} Repositories
+{% else %}
+_Keine Repositories definiert (cgit_repos nicht gesetzt)._
+{% endif %}
+
+---
+
+## 📁 Verzeichnisse
+
+| Verzeichnis | Pfad |
+|-------------|------|
+| git Basis | {{ paths.git_base[ansible_os_family] | default('/srv/git') }} |
+| cgit Config | {{ paths.cgit_config[ansible_os_family] | default('/etc/cgitrc') }} |
+
+---
+
+**Zeitstempel:** {{ ansible_date_time.iso8601 | default('n/a') }}
+**Status:** ✅ cgit Publishing konfiguriert

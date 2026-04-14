@@ -1,0 +1,126 @@
+[
+  {
+    "id": 4,
+    "type": "execution_environment",
+    "url": "/api/v2/execution_environments/4/",
+    "related": {
+      "created_by": "/api/v2/users/1/",
+      "modified_by": "/api/v2/users/1/",
+      "activity_stream": "/api/v2/execution_environments/4/activity_stream/",
+      "unified_job_templates": "/api/v2/execution_environments/4/unified_job_templates/",
+      "copy": "/api/v2/execution_environments/4/copy/",
+      "organization": "/api/v2/organizations/2/"
+    },
+    "summary_fields": {
+      "organization": {
+        "id": 2,
+        "name": "Homelab_organization",
+        "description": "Gesamtes Projekt (Linux Family)"
+      },
+      "created_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "modified_by": {
+        "id": 1,
+        "username": "admin",
+        "first_name": "max",
+        "last_name": "mustermann"
+      },
+      "user_capabilities": {
+        "edit": true,
+        "delete": true,
+        "copy": true
+      }
+    },
+    "created": "2026-03-30T09:40:29.944007Z",
+    "modified": "2026-03-30T09:40:29.944025Z",
+    "name": "repo_EE",
+    "description": "",
+    "organization": 2,
+    "image": "repo.allgemeinhobby.de/awx-custom-ee:24",
+    "managed": false,
+    "credential": null,
+    "pull": "missing"
+  },
+  {
+    "id": 3,
+    "type": "execution_environment",
+    "url": "/api/v2/execution_environments/3/",
+    "related": {
+      "activity_stream": "/api/v2/execution_environments/3/activity_stream/",
+      "unified_job_templates": "/api/v2/execution_environments/3/unified_job_templates/",
+      "copy": "/api/v2/execution_environments/3/copy/"
+    },
+    "summary_fields": {
+      "user_capabilities": {
+        "edit": true,
+        "delete": false,
+        "copy": true
+      }
+    },
+    "created": "2026-03-08T00:26:09.571390Z",
+    "modified": "2026-03-08T00:26:09.583484Z",
+    "name": "Control Plane Execution Environment",
+    "description": "",
+    "organization": null,
+    "image": "quay.io/ansible/awx-ee:24.6.1",
+    "managed": true,
+    "credential": null,
+    "pull": ""
+  },
+  {
+    "id": 2,
+    "type": "execution_environment",
+    "url": "/api/v2/execution_environments/2/",
+    "related": {
+      "activity_stream": "/api/v2/execution_environments/2/activity_stream/",
+      "unified_job_templates": "/api/v2/execution_environments/2/unified_job_templates/",
+      "copy": "/api/v2/execution_environments/2/copy/"
+    },
+    "summary_fields": {
+      "user_capabilities": {
+        "edit": true,
+        "delete": true,
+        "copy": true
+      }
+    },
+    "created": "2026-03-08T00:26:09.550433Z",
+    "modified": "2026-03-08T00:26:09.562292Z",
+    "name": "AWX EE (latest)",
+    "description": "",
+    "organization": null,
+    "image": "quay.io/ansible/awx-ee:latest",
+    "managed": false,
+    "credential": null,
+    "pull": ""
+  },
+  {
+    "id": 1,
+    "type": "execution_environment",
+    "url": "/api/v2/execution_environments/1/",
+    "related": {
+      "activity_stream": "/api/v2/execution_environments/1/activity_stream/",
+      "unified_job_templates": "/api/v2/execution_environments/1/unified_job_templates/",
+      "copy": "/api/v2/execution_environments/1/copy/"
+    },
+    "summary_fields": {
+      "user_capabilities": {
+        "edit": true,
+        "delete": true,
+        "copy": true
+      }
+    },
+    "created": "2026-03-08T00:26:09.514516Z",
+    "modified": "2026-03-08T00:26:09.539145Z",
+    "name": "AWX EE (24.6.1)",
+    "description": "",
+    "organization": null,
+    "image": "quay.io/ansible/awx-ee:24.6.1",
+    "managed": false,
+    "credential": null,
+    "pull": ""
+  }
+]

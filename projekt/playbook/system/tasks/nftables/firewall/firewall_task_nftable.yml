@@ -1,0 +1,68 @@
+###########################################################################
+# 📁 nftable.config auf server kopieren. Ordner erstellen /etc/nftables.d
+###########################################################################
+- block:
+    - name: 📁 Alte /etc/nftables.conf löschen
+      ansible.builtin.file:
+        path: "{{ paths.nftables_conf[ansible_os_family] }}"
+        state: absent
+
+    - name: 📄 Neue nftables.conf kopieren
+      ansible.builtin.copy:
+        src: "{{ file_paths.nftable_config_j2}}"
+        dest: "{{ paths.nftables_conf[ansible_os_family] }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: 📁 Ordner /etc/nftables.d sicherstellen
+      ansible.builtin.file:
+        path: "{{ paths.nftables_d_dir[ansible_os_family] }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+###########################################################################
+# 🧽 eventuell bestehender Fallback-Job löschen
+###########################################################################
+- name: 🔄 Importieren und ausführen tasks/nftables/nftables_delete_autom_reset.yml
+  ansible.builtin.include_tasks: "{{ task_paths.nftables_delete_autom_reset }}"
+
+###########################################################################
+# 🔁 Fallback-Mechanismus – Automatischer Reset & Bereinigung am Ende
+###########################################################################
+- name: 🔄 Importieren und ausführen tasks/nftables/nftables_autom_reset.yml
+  ansible.builtin.include_tasks: "{{ task_paths.nftables_autom_reset }}"
+
+###########################################################################
+# 🌐 Trusted-IP-Datei laden
+###########################################################################
+- name: 🔄 Importieren und ausführen tasks/nftables/trusted_nftable.yml
+  ansible.builtin.include_tasks: "{{ task_paths.trusted_nftable }}"
+
+###########################################################################
+# 🔁 nftables implementieren
+###########################################################################
+- name: 🔄 Importieren und ausführen tasks/nftables/firewall/nftables_firewall_tables.yml
+  ansible.builtin.include_tasks: "{{ task_paths.nftables_firewall_tables }}"
+
+###########################################################################
+# 📜 Table-Ausgabe für Dokumentation erfassen
+###########################################################################
+- name: 📜 Lese nftables Table für Dokumentation
+  ansible.builtin.shell: |
+    nft list table inet fire_tab | sed '/^[[:space:]]*set /,/^[[:space:]]*}/d'
+  register: nft_table_raw
+  changed_when: false
+  failed_when: false
+
+- name: 📝 Setze Variable für Doku
+  ansible.builtin.set_fact:
+    nftables_table_output: "{{ nft_table_raw.stdout }}"
+
+###########################################################################
+# 🧽 Fallback-Job löschen – Playbook erfolgreich durchgelaufen
+###########################################################################
+- name: 🔄 Importieren und ausführen tasks/nftables/nftables_delete_autom_reset.yml
+  ansible.builtin.include_tasks: "{{ task_paths.nftables_delete_autom_reset }}"

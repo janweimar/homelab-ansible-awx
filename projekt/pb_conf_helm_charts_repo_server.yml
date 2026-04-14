@@ -1,0 +1,158 @@
+---
+###########################################################################
+# 🧱 pb_conf_helm_charts_repo_server.yml
+# Helm Chart Cache — Lokale Kopien von Upstream-Charts
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Unterstützte Systeme: Debian
+#
+# Credentials:
+#   0300_repo_machine_max:               SSH-Zugangsdaten (machine credential)
+#   0000_global_smtp_admin_mail:         Admin-Mail + SMTP
+#   0000_global_doku_log:                AWX API für Dokumentation
+#   0000_global_status_update:           Status-Steuerung
+#     - allg_status:                     aktiviert/deaktiviert
+#     - update_before_install:           System-Update vor Ausführung
+#
+# Beschreibung:
+#   Zieht Helm Charts aus Upstream-Repos und cached sie lokal auf dem
+#   Repo-Server. nginx liefert /helm/ als lokales Helm-Repo aus.
+#   Gleiche Logik wie Aptly (APT) und cgit (Git):
+#     - Charts werden von Upstream gezogen (helm pull)
+#     - index.yaml wird generiert (helm repo index)
+#     - In 2 Jahren genau die gleichen Chart-Versionen verfügbar
+#
+#   Chart-Liste: os_repo.yml → helm_charts
+#   Auslieferung: https://repo.allgemeinhobby.de/helm/
+#
+# Hinweise:
+#   - Voraussetzung: helm muss auf dem Repo-Server installiert sein
+#   - Neue Charts: in os_repo.yml unter helm_charts ergänzen
+#   - Workflow: Schritt nach aptly_publishing, vor Helm Deployment
+###########################################################################
+
+- name: pb_conf_helm_charts_repo_server.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+    - playbooks_paths.yml
+
+  vars:
+    var_pack_name: []
+
+    var_dependencies_list: []
+
+    var_prerequisites: []
+
+    var_inst_order: 0
+
+    var_sonder_start: []
+    var_sonder_autostart: []
+
+    unsupported_systems:
+      - RedHat
+      - Suse
+      - Archlinux
+      - FreeBSD
+
+    templates_paths_pb: helm_charts
+    pb_doku_template: helm_charts
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden & setzen
+    ###########################################################################
+    - block:
+        - name: Lade alle Variablen-Dateien aus var_list.yml - pb_conf_helm_charts_repo_server.yml
+          include_vars:
+            file: "{{ item }}"
+          loop: "{{ var_files }}"
+
+        - name: Setze server_urls fuer aktuellen Host - pb_conf_helm_charts_repo_server.yml
+          ansible.builtin.set_fact:
+            server_urls: "{{ urls[ansible_host] }}"
+
+    ###########################################################################
+    # Hook: Pre-Start (nach Variablen-Laden)
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start - pb_conf_helm_charts_repo_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Voraussetzung: [repo_server] install_helm=True in server_state.fact
+    ###########################################################################
+    - name: 📚 Lese server_state.fact - pb_conf_helm_charts_repo_server.yml
+      ansible.builtin.slurp:
+        src: /etc/ansible/facts.d/server_state.fact
+      register: _state_file_raw
+      failed_when: false
+
+    - name: 📊 Debug server_state.fact Inhalt - pb_conf_helm_charts_repo_server.yml
+      ansible.builtin.debug:
+        msg:
+          - "server_state.fact vorhanden: {{ _state_file_raw.content is defined }}"
+          - "install_helm Zeile: {{ (_state_file_raw.content | default('') | b64decode).split('\n') | select('match', '.*install_helm.*') | list }}"
+
+    - name: ❓ Prüfe ob install_helm=True in [repo_server] - pb_conf_helm_charts_repo_server.yml
+      ansible.builtin.assert:
+        that:
+          - _state_file_raw.content is defined
+          - "'install_helm=True' in (_state_file_raw.content | b64decode)"
+        fail_msg: >
+          ❌ ABBRUCH: install_helm=True nicht in server_state.fact gefunden!
+          Bitte zuerst pb_setup_repo_server.yml mit install_helm=true ausführen.
+        success_msg: "✅ install_helm=True in server_state.fact gefunden — fahre fort."
+
+    ###########################################################################
+    # Systemcheck & Prerequisites
+    ###########################################################################
+    - name: 🔄 Importiere Systemcheck - pb_conf_helm_charts_repo_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Importiere Systemcheck zwingend benötigter Komponenten - pb_conf_helm_charts_repo_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks
+    ###########################################################################
+    - block:
+        - name: 🔄 Paketmanager-Lock prüfen - pb_conf_helm_charts_repo_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+        - name: 🔄 Debug – Eingangsvariablen - pb_conf_helm_charts_repo_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.debug_start_config }}"
+
+        - name: 🔄 Importiere Playbook Debug - pb_conf_helm_charts_repo_server.yml
+          ansible.builtin.include_tasks: "{{ debug_tasks.helm_charts_debug }}"
+
+  tasks:
+    ###########################################################################
+    # HAUPTLOGIK — Charts cachen
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Hook: Pre-Install
+        ###########################################################################
+        - name: 🔧 Hook Pre-Install - pb_conf_helm_charts_repo_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        ###########################################################################
+        # Helm Charts cachen
+        ###########################################################################
+        - name: 🔄 Helm Charts cachen - pb_conf_helm_charts_repo_server.yml
+          ansible.builtin.include_tasks: "{{ task_paths.conf_helm_charts_server_task }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # Hook: end
+    ###########################################################################
+    - name: 🔧 Hook Post-Install - pb_conf_helm_charts_repo_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

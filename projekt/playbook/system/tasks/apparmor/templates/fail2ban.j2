@@ -1,0 +1,44 @@
+# AppArmor Profile für Fail2Ban
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/bin/fail2ban-server {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  #include <abstractions/python>
+  
+  # Capabilities
+  capability dac_override,
+  capability net_admin,
+  capability net_raw,
+  
+  # Netzwerk
+  network inet raw,
+  network inet6 raw,
+  
+  # Fail2Ban Binary
+  /usr/bin/fail2ban-server mr,
+  /usr/bin/python3* rix,
+  
+  # Konfiguration
+  /etc/fail2ban/** r,
+  
+  # Logs lesen
+  /var/log/** r,
+  
+  # Database
+  /var/lib/fail2ban/** rw,
+  
+  # Runtime
+  /run/fail2ban/** rw,
+  
+  # iptables/nftables
+  /usr/sbin/iptables rix,
+  /usr/sbin/nft rix,
+  
+  # Temp
+  /tmp/** rw,
+}

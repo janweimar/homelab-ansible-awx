@@ -1,0 +1,14 @@
+---
+###########################################################################
+# stalwart_stop.yml
+# Stalwart Mail Server — Pods skalieren auf 0
+###########################################################################
+
+- name: ⏸️ Stalwart auf 0 Replicas skalieren - stalwart_stop.yml
+  ansible.builtin.command: kubectl scale deployment {{ app_name }} --replicas=0 -n {{ app_name }}
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  changed_when: true
+  failed_when: false

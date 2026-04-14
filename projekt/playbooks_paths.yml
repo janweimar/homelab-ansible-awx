@@ -1,0 +1,893 @@
+# Playbooks: F:\OneDrive\Projekt\__git\ansible\projekt\pb_conf_add_sudo_user_add_ssh_key_secure.yml
+# F:\OneDrive\Projekt\__git\ansible\projekt\playbook\system\include
+include_paths:
+  # Allgemeine Includes
+  systemcheck:
+    playbook/system/include/systemcheck.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+  prereq_check:
+    playbook/system/include/prereq_check.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+  check_pkg_lock:
+    playbook/system/include/check_pkg_lock.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+  debug_start:
+    playbook/system/include/debug_start.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+  install_allg:
+    playbook/system/include/install_allg.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+  services_stop:
+    playbook/system/include/services_stop.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.services_stop }}"
+
+  services_start:
+    playbook/system/include/services_start.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.services_start }}"
+
+  services_autostart:
+    playbook/system/include/services_autostart.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.services_autostart }}"
+
+  services_reload:
+    playbook/system/include/services_reload.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.services_reload }}"
+
+  services_start_speziell:
+    playbook/system/include/services_start_speziell.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.services_start_speziell }}"
+
+  services_autostart_speziell:
+    playbook/system/include/services_autostart_speziell.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.services_autostart_speziell }}"
+
+  status_inst:
+    playbook/system/include/status_inst.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.status_inst }}"
+
+  services_is_enable:
+    playbook/system/include/services_is_enable.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.services_is_enable }}"
+
+  deinstall_allg:
+    playbook/system/include/deinstall_allg.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.deinstall_allg }}"
+
+  services_restart:
+    playbook/system/include/services_restart.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.services_restart }}"
+
+  cleanup:
+    playbook/system/include/cleanup.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.cleanup }}"
+
+  repos_update_aktualisieren:
+    playbook/system/include/repos_update_aktualisieren.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.repos_update_aktualisieren }}"
+
+  install_allg_main:
+    playbook/system/include/install_allg_main.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.install_allg_main }}"
+
+  install_allg_dep:
+    playbook/system/include/install_allg_dep.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.install_allg_dep }}"
+
+  services_test:
+    playbook/system/include/services_test.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.services_test }}"
+
+  debug_start_config:
+    playbook/system/include/debug_start_config.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.debug_start_config }}"
+
+  conf_cgit_publishing_server_task_host:
+    playbook/system/tasks/repo_server_cgit/conf_cgit_publishing_server_task_host.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.conf_cgit_publishing_server_task_host }}"
+
+  playbook_log_doku:
+    playbook/system/include/playbook_log_doku.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.playbook_log_doku }}"
+
+  playbook_log_doku_db:
+    playbook/system/include/playbook_log_doku_db.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.playbook_log_doku_db }}"
+
+  hook_pre_start:
+    playbook/system/include/hook_pre_start.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+  hook_pre_install:
+    playbook/system/include/hook_pre_install.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+  hook_end_pb:
+    playbook/system/include/hook_end_pb.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"
+
+  write_server_state:
+    playbook/system/include/write_server_state.yml
+    # ansible.builtin.include_tasks: "{{ include_paths.write_server_state }}"
+    # vars:
+    #   _state_section: vpn
+    #   _state_data:
+    #     installed: true
+    #     vpn_ip: "10.200.0.22"
+
+#######################################################################################
+# DB Pfade
+#######################################################################################
+db_path:
+  db_dump:
+    playbook/system/db/tasks/db_dump.yml
+    # ansible.builtin.include_tasks: "{{ db_path.db_dump }}"
+
+  db_restore:
+    playbook/system/db/tasks/db_restore.yml
+    # ansible.builtin.include_tasks: "{{ db_path.db_restore }}"
+
+task_paths:
+  ####################################################################################
+  # repos hinzufügen client
+  ####################################################################################
+  add_repos_client:
+    playbook/system/tasks/add_repo_client/add_repos_client.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.add_repos_client }}"
+  add_repos_client_validate:
+    playbook/system/tasks/add_repo_client/add_repos_client_validate.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.add_repos_client_validate }}"
+  add_repos_client_add_single:
+    playbook/system/tasks/add_repo_client/add_repos_client_add_single.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.add_repos_client_add_single }}"
+
+  ####################################################################################
+  # Firewall nftables
+  ####################################################################################
+  firewall_nftables_pretask:
+    playbook/system/tasks/nftables/firewall/firewall_pretask_nftable.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.firewall_nftables_pretask }}"
+  firewall_task_nftable:
+    playbook/system/tasks/nftables/firewall/firewall_task_nftable.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.firewall_task_nftable }}"
+  nftables_firewall_tables:
+    playbook/system/tasks/nftables/firewall/nftables_firewall_tables.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.nftables_firewall_tables }}"
+
+  ####################################################################################
+  # GeoIP
+  ####################################################################################
+  geoip_pretask_nftable:
+    playbook/system/tasks/nftables/geoip/geoip_pretask_nftable.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.geoip_pretask_nftable }}"
+  geoip_task_nftable:
+    playbook/system/tasks/nftables/geoip/geoip_task_nftable.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.geoip_task_nftable }}"
+  nftables_geo_modus:
+    playbook/system/tasks/nftables/geoip/nftables_geo_modus.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.nftables_geo_modus }}"
+
+  ################################################################################
+  # nftables
+  ################################################################################
+  failsafe_ips:
+    playbook/system/daten/failsafe_ips.yml
+    # "{{ task_paths.failsafe_ips }}"
+
+  nftables_delete_autom_reset:
+    playbook/system/tasks/nftables/nftables_delete_autom_reset.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.nftables_delete_autom_reset }}"
+
+  nftables_autom_reset:
+    playbook/system/tasks/nftables/nftables_autom_reset.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.nftables_autom_reset }}"
+
+  trusted_nftable:
+    playbook/system/tasks/nftables/trusted_nftable.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.trusted_nftable }}"
+
+  ####################################################################################
+  # Podman
+  ####################################################################################
+  podman_install:
+    playbook/system/tasks/podman_include/podman_install.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.podman_install }}"
+
+  ####################################################################################
+  # AWX Execution Environment
+  ####################################################################################
+  awx_ee_pretask:
+    playbook/system/tasks/awx/awx_ee/awx_ee_pretask.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.awx_ee_pretask }}"
+  awx_ee_task:
+    playbook/system/tasks/awx/awx_ee/awx_ee_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.awx_ee_task }}"
+  awx_ee_deinstall:
+    playbook/system/tasks/awx/awx_ee/awx_ee_deinstall.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.awx_ee_deinstall }}"
+
+  ####################################################################################
+  # Fail2Ban + nftables
+  ####################################################################################
+  fail2ban_pretask:
+    playbook/system/tasks/nftables/fail2ban/fail2ban_pretask.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.fail2ban_pretask }}"
+  fail2ban_task:
+    playbook/system/tasks/nftables/fail2ban/fail2ban_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.fail2ban_task }}"
+  fail2ban_deinstall:
+    playbook/system/tasks/nftables/fail2ban/fail2ban_deinstall.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.fail2ban_deinstall }}"
+
+  ####################################################################################
+  # BookStack
+  ####################################################################################
+  bookstack_pretask:
+    playbook/system/tasks/bookstack/bookstack_pretask.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.bookstack_pretask }}"
+
+  bookstack_task:
+    playbook/system/tasks/bookstack/bookstack_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.bookstack_task }}"
+
+  bookstack_backup:
+    playbook/system/tasks/bookstack/bookstack_backup.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.bookstack_backup }}"
+
+  bookstack_restore:
+    playbook/system/tasks/bookstack/bookstack_restore.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.bookstack_restore }}"
+
+  ####################################################################################
+  # Docker
+  ####################################################################################
+  docker_install:
+    playbook/system/tasks/docker_include/docker_install.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.docker_install }}"
+
+  ####################################################################################
+  # Containerd
+  ####################################################################################
+  containerd_install:
+    playbook/system/tasks/containerd_include/containerd_install.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.containerd_install }}"
+
+  ####################################################################################
+  # AppArmor
+  ####################################################################################
+  apparmor_pretask:
+    playbook/system/tasks/apparmor/apparmor_pretask.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.apparmor_pretask }}"
+  apparmor_task:
+    playbook/system/tasks/apparmor/apparmor_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.apparmor_task }}"
+
+  ####################################################################################
+  # Audit
+  ####################################################################################
+  audit_task:
+    playbook/system/tasks/audit/audit_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.audit_task }}"
+  ####################################################################################
+  # net_conf
+  ####################################################################################
+  net_conf_pretask:
+    playbook/system/tasks/net_conf/net_conf_pretask.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.net_conf_pretask }}"
+  net_conf_task:
+    playbook/system/tasks/net_conf/net_conf_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.net_conf_task }}"
+  net_conf_deactivate:
+    playbook/system/tasks/net_conf/net_conf_deactivate.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.net_conf_deactivate }}"
+  net_conf_cleanup:
+    playbook/system/tasks/net_conf/net_conf_cleanup.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.net_conf_cleanup }}"
+
+  ####################################################################################
+  # repo_server
+  ####################################################################################
+  repo_server_task:
+    playbook/system/tasks/repo_server/repo_server_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.repo_server_task }}"
+  add_repo_delete_repos:
+    playbook/system/include/add_repo_delete_repos.yml
+    # ansible.builtin.include_tasks: " {{ task_paths.add_repo_delete_repos }}"
+  add_repo_loop_control:
+    playbook/system/include/add_repo_loop_control.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.add_repo_loop_control }}"
+  remove_repos:
+    playbook/system/include/remove_repos.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.remove_repos }}"
+  generate_key_repo_server_post_task:
+    playbook/system/tasks/repo_server/generate_key_repo_server_post_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.generate_key_repo_server_post_task }}"
+  repo_server_task_check:
+    playbook/system/tasks/repo_server/repo_server_task_check.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.repo_server_task_check }}"
+  repo_server_remove_apache:
+    playbook/system/tasks/repo_server/repo_server_remove_apache.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.repo_server_remove_apache }}"
+
+  ####################################################################################
+  # repo_server_cgit
+  ####################################################################################
+  conf_cgit_publishing_localhost:
+    playbook/system/tasks/repo_server_cgit/localhost/
+    # ansible.builtin.copy src: "{{ task_paths.conf_cgit_publishing_localhost }}"
+  process_git_batch:
+    playbook/system/tasks/repo_server_cgit/process_git_batch.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.process_git_batch }}"
+  process_git_delete_batch:
+    playbook/system/tasks/repo_server_cgit/process_git_delete_batch.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.process_git_delete_batch }}"
+
+  ####################################################################################
+  # repo_server_aptly
+  ####################################################################################
+  conf_aptly_mirror_server_task:
+    playbook/system/tasks/repo_server_aptly/conf_aptly_mirror_server_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.conf_aptly_mirror_server_task }}"
+  aptly_mirror_management:
+    playbook/system/tasks/repo_server_aptly/aptly_mirror_management.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.aptly_mirror_management }}"
+  conf_aptly_publishing_server_task:
+    playbook/system/tasks/repo_server_aptly/conf_aptly_publishing_server_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.conf_aptly_publishing_server_task }}"
+  aptly_publish_management:
+    playbook/system/tasks/repo_server_aptly/aptly_publish_management.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.aptly_publish_management }}"
+  aptly_publish_deactivate:
+    playbook/system/tasks/repo_server_aptly/aptly_publish_deactivate.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.aptly_publish_deactivate }}"
+
+  ####################################################################################
+  # repo_server_helm (Helm Chart Cache)
+  ####################################################################################
+  conf_helm_charts_server_task:
+    playbook/system/tasks/repo_server_helm/conf_helm_charts_server_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.conf_helm_charts_server_task }}"
+
+  ####################################################################################
+  # Kubernetes
+  ####################################################################################
+  kubernet_pretask:
+    playbook/system/tasks/k8s/kubernet_pre_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.kubernet_pretask }}"
+  kubernet_task:
+    playbook/system/tasks/k8s/kubernet_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.kubernet_task }}"
+  # Minikube
+  minikube_pretask:
+    playbook/system/tasks/minikube/minikube_pre_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.minikube_pretask }}"
+  minikube_task:
+    playbook/system/tasks/minikube/minikube_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.minikube_task }}"
+  # K3s
+  k3s_pretask:
+    playbook/system/tasks/k3s/k3s_pre_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.k3s_pretask }}"
+  k3s_task:
+    playbook/system/tasks/k3s/k3s_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.k3s_task }}"
+
+  ####################################################################################
+  # suricata
+  ####################################################################################
+  suricata_task:
+    playbook/system/tasks/suricata/suricata_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.suricata_task }}"
+
+  ####################################################################################
+  # qdrant
+  ####################################################################################
+  qdrant_kube_task:
+    playbook/system/tasks/qdrant/qdrant_kube_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.qdrant_kube_task }}"
+  qdrant_kube_manifests:
+    playbook/system/tasks/qdrant/templates/qdrant_kube_manifests.yml.j2
+    # Template-Pfad für kube_app_deploy.yml
+  qdrant_stop:
+    playbook/system/tasks/qdrant/qdrant_stop.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.qdrant_stop }}"
+  qdrant_deinstall:
+    playbook/system/tasks/qdrant/qdrant_deinstall.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.qdrant_deinstall }}"
+
+  ####################################################################################
+  # open-webui
+  ####################################################################################
+  open_webui_kube_task:
+    playbook/system/tasks/open-webui/open-webui_kube_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.open_webui_kube_task }}"
+  open-webui_kube_manifests:
+    playbook/system/tasks/open-webui/templates/open-webui_kube_manifests.yml.j2
+    # Template-Pfad für kube_app_deploy.yml (Achtung: Key mit Bindestrich!)
+  open_webui_stop:
+    playbook/system/tasks/open-webui/open-webui_stop.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.open_webui_stop }}"
+  open_webui_deinstall:
+    playbook/system/tasks/open-webui/open-webui_deinstall.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.open_webui_deinstall }}"
+
+  ####################################################################################
+  # ollama
+  ####################################################################################
+  ollama_kube_task:
+    playbook/system/tasks/ollama/ollama_kube_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.ollama_kube_task }}"
+  ollama_kube_manifests:
+    playbook/system/tasks/ollama/templates/ollama_kube_manifests.yml.j2
+    # Template-Pfad für kube_app_deploy.yml
+  ollama_stop:
+    playbook/system/tasks/ollama/ollama_stop.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.ollama_stop }}"
+  ollama_deinstall:
+    playbook/system/tasks/ollama/ollama_deinstall.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.ollama_deinstall }}"
+
+  ####################################################################################
+  # mariadb_webui
+  ####################################################################################
+  mariadb_webui_kube_task:
+    playbook/system/tasks/mariadb_webui/mariadb_webui_kube_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.mariadb_webui_kube_task }}"
+  mariadb_webui_kube_manifests:
+    playbook/system/tasks/mariadb_webui/templates/mariadb_webui_kube_manifests.yml.j2
+    # Template-Pfad für kube_app_deploy.yml
+  mariadb_webui_stop:
+    playbook/system/tasks/mariadb_webui/mariadb_webui_stop.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.mariadb_webui_stop }}"
+  mariadb_webui_deinstall:
+    playbook/system/tasks/mariadb_webui/mariadb_webui_deinstall.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.mariadb_webui_deinstall }}"
+
+  ####################################################################################
+  # stalwart
+  ####################################################################################
+  stalwart_kube_task:
+    playbook/system/tasks/stalwart/stalwart_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.stalwart_task }}"
+  stalwart_post_task:
+    playbook/system/tasks/stalwart/stalwart_post_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.stalwart_post_task }}"
+  stalwart_bootstrap_job:
+    playbook/system/tasks/stalwart/templates/stalwart_bootstrap_job.yml.j2
+    # Template-Pfad
+  stalwart_stop:
+    playbook/system/tasks/stalwart/stalwart_stop.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.stalwart_stop }}"
+  stalwart_deinstall:
+    playbook/system/tasks/stalwart/stalwart_deinstall.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.stalwart_deinstall }}"
+  stalwart_kube_manifests:
+    playbook/system/tasks/stalwart/templates/stalwart_kube_manifests.yml.j2
+    # Template-Pfad
+
+  ####################################################################################
+  # mailu
+  ####################################################################################
+  mailu_task:
+    playbook/system/tasks/mailu/mailu_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.mailu_task }}"
+  mailu_stop:
+    playbook/system/tasks/mailu/mailu_stop.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.mailu_stop }}"
+  mailu_deinstall:
+    playbook/system/tasks/mailu/mailu_deinstall.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.mailu_deinstall }}"
+
+  ####################################################################################
+  # openclaw
+  ####################################################################################
+  openclaw_task:
+    playbook/system/tasks/openclaw/openclaw_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.openclaw_task }}"
+  openclaw_stop:
+    playbook/system/tasks/openclaw/openclaw_stop.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.openclaw_stop }}"
+  openclaw_deinstall:
+    playbook/system/tasks/openclaw/openclaw_deinstall.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.openclaw_deinstall }}"
+
+  ####################################################################################
+  # awx (universelles App-Deploy)
+  ####################################################################################
+  awx_kube_task:
+    playbook/system/tasks/awx/awx_kube_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.awx_kube_task }}"
+  awx_kube_manifests: playbook/system/tasks/awx/templates/awx_kube_instance.yml.j2
+  awx_stop:
+    playbook/system/tasks/awx/awx_stop.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.awx_stop }}"
+  awx_deinstall:
+    playbook/system/tasks/awx/awx_deinstall.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.awx_deinstall }}"
+
+  ####################################################################################
+  # directus
+  ####################################################################################
+  directus_task:
+    playbook/system/tasks/directus/directus_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.directus_task }}"
+  directus_kube_task:
+    playbook/system/tasks/common/kube_app_deploy.yml
+    # Universeller Task — Manifest wird aus directus_kube_manifests geladen
+    # ansible.builtin.include_tasks: "{{ task_paths.directus_kube_task }}"
+  directus_kube_manifests:
+    playbook/system/tasks/directus/templates/directus_kube_manifests.yml.j2
+    # Template-Pfad für kube_app_deploy.yml
+  directus_stop:
+    playbook/system/tasks/directus/directus_stop.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.directus_stop }}"
+  directus_deinstall:
+    playbook/system/tasks/directus/directus_deinstall.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.directus_deinstall }}"
+
+  ####################################################################################
+  # odoo
+  ####################################################################################
+  odoo_kube_task:
+    playbook/system/tasks/odoo/odoo_kube_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.odoo_kube_task }}"
+  odoo_kube_manifests: playbook/system/tasks/odoo/templates/odoo_kube_manifests.yml.j2
+  odoo_deinstall:
+    playbook/system/tasks/odoo/odoo_deinstall.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.odoo_deinstall }}"
+
+  ####################################################################################
+  # cronjobs
+  ####################################################################################
+  cronjobs_task:
+    playbook/system/tasks/cronjobs/cronjobs_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.cronjobs_task }}"
+
+  ####################################################################################
+  # cgit_update
+  ####################################################################################
+  cgit_update_task:
+    playbook/system/tasks/repo_server_cgit_update/cgit_update_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.cgit_update_task }}"
+
+  ####################################################################################
+  # auto_update
+  ####################################################################################
+  auto_update_task:
+    playbook/system/tasks/auto_update/auto_update_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.auto_update_task }}"
+
+  ####################################################################################
+  # alerting
+  ####################################################################################
+  alerting_task:
+    playbook/system/tasks/alerting/alerting_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.alerting_task }}"
+
+  ####################################################################################
+  # logrotate
+  ####################################################################################
+  logrotate_task:
+    playbook/system/tasks/logrotate/logrotate_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.logrotate_task }}"
+
+  ####################################################################################
+  # rkhunter
+  ####################################################################################
+  rkhunter_task:
+    playbook/system/tasks/rkhunter/rkhunter_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.rkhunter_task }}"
+
+  ####################################################################################
+  # msmtp
+  ####################################################################################
+  msmtp_pretask:
+    playbook/system/tasks/msmtp/msmtp_pretask.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.msmtp_pretask }}"
+  msmtp_task:
+    playbook/system/tasks/msmtp/msmtp_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.msmtp_task }}"
+
+  ####################################################################################
+  # Wazuh
+  ####################################################################################
+  wazuh_manager_task:
+    playbook/system/tasks/wazuh/wazuh_manager_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.wazuh_manager_task }}"
+  wazuh_agent_pretask:
+    playbook/system/tasks/wazuh/wazuh_agent_pretask.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.wazuh_agent_pretask }}"
+  wazuh_agent_task:
+    playbook/system/tasks/wazuh/wazuh_agent_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.wazuh_agent_task }}"
+
+  ####################################################################################
+  # WireGuard VPN
+  ####################################################################################
+  wireguard_server_pretask:
+    playbook/system/tasks/wireguard/wireguard_server_pretask.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.wireguard_server_pretask }}"
+  wireguard_server_task:
+    playbook/system/tasks/wireguard/wireguard_server_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.wireguard_server_task }}"
+  wireguard_server_post_task:
+    playbook/system/tasks/wireguard/wireguard_server_post_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.wireguard_server_post_task }}"
+  wireguard_client_task:
+    playbook/system/tasks/wireguard/wireguard_client_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.wireguard_client_task }}"
+
+  ###################################################################################
+  # nginx
+  ###################################################################################
+  nginx_deinstall_check:
+    playbook/system/tasks/nginx/nginx_deinstall_check.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.nginx_deinstall_check }}"
+
+  service_dep_check:
+    playbook/system/tasks/common/service_dep_check.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.service_dep_check }}"
+  skip_install_check:
+    playbook/system/tasks/common/skip_install_check.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.skip_install_check }}"
+  app_deploy_cleanup:
+    playbook/system/tasks/common/app_deploy_cleanup.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.app_deploy_cleanup }}"
+  app_deploy_state_write:
+    playbook/system/tasks/common/app_deploy_state_write.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.app_deploy_state_write }}"
+  kube_set_domain_port:
+    playbook/system/tasks/common/kube_set_domain_port.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.kube_set_domain_port }}"
+  kube_app_deploy:
+    playbook/system/tasks/common/kube_app_deploy.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.kube_app_deploy }}"
+    # vars:
+    #   _dep_service_name: nginx        # z.B. nginx, postgresql, redis
+    #   _dep_app_name: wazuh_manager    # eigene App die deinstalliert wird
+
+  # Common Tasks — Datenbank (alle Deploy-Typen)
+  db_deploy:
+    playbook/system/tasks/common/db_deploy.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.db_deploy }}"
+  db_mariadb:
+    playbook/system/tasks/common/db_mariadb.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.db_mariadb }}"
+  db_postgresql:
+    playbook/system/tasks/common/db_postgresql.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.db_postgresql }}"
+  db_mysql:
+    playbook/system/tasks/common/db_mysql.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.db_mysql }}"
+
+  port_test:
+    playbook/system/tasks/common/port_test.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.port_test }}"
+
+  # Kubernetes common tasks
+  kube_app_cleanup:
+    playbook/system/tasks/common/kube_app_cleanup.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.kube_app_cleanup }}"
+  kube_app_wait_ready:
+    playbook/system/tasks/common/kube_app_wait_ready.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.kube_app_wait_ready }}"
+
+  task_modsecurity:
+    playbook/system/tasks/nginx/task_modsecurity.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.task_modsecurity }}"
+
+  task_ssl_certs:
+    playbook/system/tasks/nginx/task_ssl_certs.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.task_ssl_certs }}"
+  nginx_configure:
+    playbook/system/tasks/nginx/nginx_configure.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.nginx_configure }}"
+  nginx_app_vhost:
+    playbook/system/tasks/nginx/nginx_app_vhost.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.nginx_app_vhost }}"
+
+  ###################################################################################
+  # Benutzer und Gruppen
+  ###################################################################################
+  add_users:
+    playbook/system/include/add_users.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.add_users }}"
+
+  config_groups:
+    playbook/system/include/config_groups.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.config_groups }}"
+
+  remove_users:
+    playbook/system/include/remove_users.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.remove_users }}"
+
+  add_user_ssh_pretask:
+    playbook/system/tasks/add_user_ssh/add_user_ssh_pretask.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.add_user_ssh_pretask }}"
+
+  add_user_task:
+    playbook/system/tasks/add_user_ssh/add_user_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.add_user_task }}"
+
+  ssh_secure_task:
+    playbook/system/tasks/add_user_ssh/ssh_secure_task.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.ssh_secure_task }}"
+
+  ####################################################################################
+  # Test Installation
+  ####################################################################################
+  test_definitions:
+    playbook/system/test_installation/test_definitions.yml
+    # "{{ task_paths.test_definitions }}"
+  test_runner:
+    playbook/system/test_installation/test_runner.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.test_runner }}"
+  test_check_installed:
+    playbook/system/test_installation/test_check_installed.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.test_check_installed }}"
+  test_modsecurity:
+    playbook/system/test_installation/tests/test_modsecurity.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.test_modsecurity }}"
+  test_nginx:
+    playbook/system/test_installation/tests/test_nginx.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.test_nginx }}"
+  test_generic:
+    playbook/system/test_installation/tests/test_generic.yml
+    # ansible.builtin.include_tasks: "{{ task_paths.test_generic }}"
+
+vars_paths:
+  ###################################################################################
+  # vars
+  # #################################################################################
+  os_packages:
+    playbook/system/daten/vars/os_packages.yml
+    # "{{ vars_paths.os_packages }}"
+
+  os_services:
+    playbook/system/daten/vars/os_services.yml
+    # "{{ vars_paths.os_services }}"
+
+  os_paths:
+    playbook/system/daten/vars/os_paths.yml
+    # "{{ vars_paths.os_paths }}"
+
+  os_users:
+    playbook/system/daten/vars/os_users.yml
+    # "{{ vars_paths.os_users }}"
+
+  os_rules:
+    playbook/system/daten/vars/os_rules.yml
+    # "{{ vars_paths.os_rules }}"
+
+  os_repo:
+    playbook/system/daten/vars/os_repo.yml
+    # "{{ vars_paths.os_repo }}"
+
+  os_command:
+    playbook/system/daten/vars/os_command.yml
+    # "{{ vars_paths.os_command }}"
+
+  supported_os:
+    playbook/system/daten/vars/supported_os.yml
+    # "{{ vars_paths.supported_os }}"
+
+  os_spezial:
+    playbook/system/daten/vars/os_spezial.yml
+    # "{{ vars_paths.os_spezial }}"
+
+  os_urls:
+    playbook/system/daten/vars/os_urls.yml
+    # "{{ vars_paths.os_urls }}"
+
+  file_paths:
+    playbook/system/daten/vars/file_paths.yml
+    # "{{ vars_paths.file_paths }}"
+
+  default_vars:
+    playbook/system/daten/vars/default_vars.yml
+    # "{{ vars_paths.default_vars }}"
+
+  vpn:
+    playbook/system/daten/vars/vpn.yml
+    # "{{ vars_paths.vpn }}"
+
+  playbook_state_map:
+    playbook/system/daten/vars/playbook_state_map.yml
+    # "{{ vars_paths.playbook_state_map }}"
+
+  service_dep:
+    playbook/system/daten/vars/service_dep.yml
+    # "{{ vars_paths.service_dep }}"
+
+  kube_stack_versionen:
+    playbook/system/daten/vars/kube_stack_versionen.yml
+    # "{{ vars_paths.kube_stack_versionen }}"
+
+  app_ports:
+    playbook/system/daten/vars/app_ports.yml
+    # "{{ vars_paths.app_ports }}"
+
+  app_resources:
+    playbook/system/daten/vars/app_resources.yml
+    # "{{ vars_paths.app_resources }}"
+
+  app:
+    playbook/system/daten/vars/app.yml
+    # "{{ vars_paths.app }}"
+
+  app_skip_checks:
+    playbook/system/daten/vars/app_skip_checks.yml
+    # "{{ vars_paths.app_skip_checks }}"
+
+  odoo_git:
+    playbook/system/daten/vars/odoo_git.yml
+    # "{{ vars_paths.odoo_git }}"
+
+######################################################################################
+# var_files Liste
+######################################################################################
+var_files:
+  - "{{ vars_paths.os_packages }}"
+  - "{{ vars_paths.os_services }}"
+  - "{{ vars_paths.os_paths }}"
+  - "{{ vars_paths.os_users }}"
+  - "{{ vars_paths.os_rules }}"
+  - "{{ vars_paths.os_repo }}"
+  - "{{ vars_paths.os_command }}"
+  - "{{ vars_paths.supported_os }}"
+  - "{{ vars_paths.os_spezial }}"
+  - "{{ vars_paths.os_urls }}"
+  - "{{ vars_paths.file_paths }}"
+  - "{{ vars_paths.default_vars }}"
+  - "{{ vars_paths.vpn }}"
+  - "{{ vars_paths.kube_stack_versionen }}"
+  - "{{ vars_paths.app_resources }}"
+  - "{{ vars_paths.app_ports }}"
+  - "{{ vars_paths.app }}"
+  - "{{ vars_paths.app_skip_checks }}"
+  - "{{ vars_paths.odoo_git }}"
+
+######################################################################################
+# Debug Pfade nach playbooks
+######################################################################################
+debug_tasks:
+  net_conf_debug:
+    playbook/system/include/debug/net_conf_debug.yml
+    # ansible.builtin.include_tasks: "{{ debug_tasks.net_conf_debug }}"
+  add_user_ssh_debug:
+    playbook/system/include/debug/add_user_ssh_debug.yml
+    # ansible.builtin.include_tasks: "{{ debug_tasks.add_user_ssh_debug }}"
+  firewall_nftables_doku:
+    playbook/system/include/debug/firewall_nftables_doku.yml
+    # ansible.builtin.include_tasks: "{{ debug_tasks.firewall_nftables_doku }}"
+  apparmor_debug:
+    playbook/system/include/debug/apparmor_debug.yml
+    # ansible.builtin.include_tasks: "{{ debug_tasks.apparmor_debug }}"
+  repo_server_debug:
+    playbook/system/include/debug/repo_server_debug.yml
+    # ansible.builtin.include_tasks: "{{ debug_tasks.repo_server_debug }}"
+  aptly_mirrors_debug:
+    playbook/system/include/debug/aptly_mirrors_debug.yml
+    # ansible.builtin.include_tasks: "{{ debug_tasks.aptly_mirrors_debug }}"
+  helm_charts_debug:
+    playbook/system/include/debug/helm_charts_debug.yml
+    # ansible.builtin.include_tasks: "{{ debug_tasks.helm_charts_debug }}"
+  awx_kube_debug:
+    playbook/system/include/debug/awx_kube_debug.yml
+    # ansible.builtin.include_tasks: "{{ debug_tasks.awx_kube_debug }}"
+  kubernet_debug:
+    playbook/system/include/debug/kubernet_debug.yml
+    # ansible.builtin.include_tasks: "{{ debug_tasks.kubernet_debug }}"
+  minikube_debug:
+    playbook/system/include/debug/minikube_debug.yml
+    # ansible.builtin.include_tasks: "{{ debug_tasks.minikube_debug }}"
+  k3s_debug:
+    playbook/system/include/debug/k3s_debug.yml
+    # ansible.builtin.include_tasks: "{{ debug_tasks.k3s_debug }}"
+  directus_debug:
+    playbook/system/include/debug/directus_debug.yml
+    # ansible.builtin.include_tasks: "{{ debug_tasks.directus_debug }}"

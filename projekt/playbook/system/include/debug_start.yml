@@ -1,0 +1,22 @@
+---
+- name: 🔄 Systeminfo zusammenfassen
+  ansible.builtin.set_fact:
+    sys_os: "{{ ansible_distribution }}"
+    sys_ver: "{{ ansible_distribution_version }}"
+    sys_major: "{{ ansible_distribution_major_version }}"
+
+- name: 🔄 Fallback für Abhängigkeiten setzen
+  ansible.builtin.set_fact:
+    safe_dependencies_list: "{{ var_dependencies_list | default([]) }}"
+
+- name: 🧩 Debug – Eingangsvariablen & Systeminformationen anzeigen
+  ansible.builtin.debug:
+    msg:
+      - "🔥 {{ var_pack_name | default('unbekannt') | capitalize }}-Status (AWX):             {{ allg_status | default('nicht gesetzt') }}"
+      - "📦 soll ein Update vor der Installation ausgeführt werden: {{ 'ja' if (update_before_install | default(false, true)) else 'nein' }}"
+      - "📦 Hauptpaket:                                             {{ var_pack_name | default('nicht gesetzt') }}"
+      - "📦 Abhängigkeiten:                                         {{ (safe_dependencies_list | default([], true) | join(', ')) or 'keine' }}"
+      - "🖥️ System:                                                 {{ sys_os | default('unbekannt') }}"
+      - "🔢 Version:                                                {{ sys_ver | default('unbekannt') }} (Major: {{ sys_major | default('unbekannt') }})"
+      - "🎯 AWX Job Template:                                       {{ awx_job_template_name | default('nicht gesetzt') }}"
+      - "🎯 Playbook-Kontext:                                       {{ templates_paths_pb | default('nicht gesetzt') }}"

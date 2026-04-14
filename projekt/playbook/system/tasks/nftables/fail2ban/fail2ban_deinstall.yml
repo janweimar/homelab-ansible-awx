@@ -1,0 +1,42 @@
+---
+###########################################################################
+# Fail2Ban + nftables Deinstallation - fail2ban_deinstall.yml
+# Entfernt Fail2Ban und prüft ob nftables noch benötigt wird
+###########################################################################
+
+# ============================================================
+# F2B Ruleset-Datei löschen
+# ============================================================
+- name: Lösche f2b Ruleset-Datei - fail2ban_deinstall.yml
+  ansible.builtin.file:
+    path: /etc/nftables.d/20_f2b_ruleset.nft
+    state: absent
+
+# ============================================================
+# Prüfe ob nftables noch von anderen Diensten benötigt wird
+# ============================================================
+- name: Prüfe nftables Abhängigkeiten (GeoIP, Firewall) - fail2ban_deinstall.yml
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: nft_files_info
+  loop:
+    - /etc/nftables.d/00_geoIP_ruleset.nft
+    - /etc/nftables.d/10_firewall_ruleset.nft
+
+- name: Debug Prüfung nftables Abhängigkeiten - fail2ban_deinstall.yml
+  ansible.builtin.debug:
+    msg: >
+      Datei: {{ item.stat.path | default(item.invocation.module_args.path) }},
+      Existiert: {{ item.stat.exists | default(false) }},
+      Größe: {{ item.stat.size | default(0) }} Bytes
+  loop: "{{ nft_files_info.results }}"
+
+# ============================================================
+# nftables deinstalliert wenn nicht mehr benötigt
+# ============================================================
+- name: nftables deinstalliert wenn keine Abhängigkeiten - fail2ban_deinstall.yml
+  ansible.builtin.package:
+    name: nftables
+    state: absent
+  when: >
+    nft_files_info.results | map(attribute='stat.size') | select('defined') | sum == 0

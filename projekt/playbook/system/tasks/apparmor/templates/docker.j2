@@ -1,0 +1,78 @@
+# AppArmor Profile für Docker
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/bin/dockerd {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+
+  # Capabilities
+  capability sys_admin,
+  capability sys_chroot,
+  capability sys_ptrace,
+  capability dac_override,
+  capability dac_read_search,
+  capability setuid,
+  capability setgid,
+  capability net_admin,
+  capability net_bind_service,
+  capability net_raw,
+  capability audit_write,
+  capability mknod,
+  capability fowner,
+  capability fsetid,
+  capability kill,
+  capability sys_module,
+
+  # Netzwerk
+  network inet stream,
+  network inet6 stream,
+  network unix stream,
+  network inet dgram,
+  network inet6 dgram,
+
+  # Docker Binary
+  /usr/bin/dockerd mr,
+  /usr/bin/docker-proxy rix,
+
+  # Containerd
+  /usr/bin/containerd rix,
+  /usr/bin/containerd-shim* rix,
+  /usr/bin/runc rix,
+  /usr/bin/crun rix,
+
+  # Konfiguration
+  /etc/docker/** r,
+
+  # Storage
+  /var/lib/docker/** rw,
+
+  # Runtime
+  /run/docker/** rw,
+  /run/docker.sock rw,
+  /run/containerd/** rw,
+
+  # Logs
+  /var/log/docker/** w,
+
+  # Proc/Sys
+  @{PROC}/** r,
+  @{PROC}/sys/kernel/keys/** r,
+  /sys/** r,
+  /sys/fs/cgroup/** rw,
+
+  # Mount
+  mount,
+  umount,
+  pivot_root,
+
+  # Temp
+  /tmp/** rw,
+  /var/tmp/** rw,
+
+  # Devices
+  /dev/** rw,
+}

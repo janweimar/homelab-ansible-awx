@@ -1,0 +1,355 @@
+---
+#####################################################################
+# 🧊 minikube_task.yml
+# Minikube Installation und Cluster-Start (VERSIONIERT)
+#####################################################################
+# Alle Versionen kommen aus kube_stack_versionen.yml:
+#   minikube_stack: "{{ minikube_versionen[minikube_stack_auswahl] }}"
+#
+# WICHTIG: become_user setzt HOME nicht korrekt!
+# Deshalb muss bei ALLEN become_user Tasks die environment-Variable
+# HOME und KUBECONFIG explizit gesetzt werden.
+#####################################################################
+
+# ============================================================
+# kube User + ACL sicherstellen
+# ============================================================
+- name: 🔍 Prüfe ob kube User existiert - minikube_task.yml
+  ansible.builtin.command: id {{ kube_user }}
+  register: _kube_user_check
+  failed_when: false
+  changed_when: false
+
+- name: 👤 Erstelle kube User - minikube_task.yml
+  ansible.builtin.user:
+    name: "{{ kube_user }}"
+    shell: /bin/bash
+    create_home: true
+    system: false
+  when: _kube_user_check.rc != 0
+
+- name: 📦 ACL Paket installieren (für become_user) - minikube_task.yml
+  ansible.builtin.apt:
+    name: acl
+    state: present
+    update_cache: false
+
+- name: 📊 DEBUG kube User - minikube_task.yml
+  ansible.builtin.debug:
+    msg: "👤 kube_user: {{ kube_user }} ({{ 'existiert bereits' if _kube_user_check.rc == 0 else 'neu erstellt' }})"
+
+# ============================================================
+# Stack-Variablen laden
+# ============================================================
+- name: 📦 Lade Minikube Stack-Konfiguration - minikube_task.yml
+  ansible.builtin.set_fact:
+    minikube_stack: "{{ minikube_versionen[minikube_stack_auswahl] }}"
+    _kube_env:
+      HOME: "/home/{{ kube_user }}"
+      KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+
+- name: 📦 Debug Stack-Auswahl - minikube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "Stack: {{ minikube_stack_auswahl }}"
+      - "Minikube: v{{ minikube_stack.minikube_version }}"
+      - "Kubernetes: v{{ minikube_stack.kubernetes_version }}"
+      - "Driver: {{ minikube_stack.driver }}"
+      - "CPUs: {{ minikube_stack.cpus }} | RAM: {{ minikube_stack.memory }} | Disk: {{ minikube_stack.disk_size }}"
+
+# ============================================================
+# Alte kubeconfig löschen (wird nach minikube start neu erstellt)
+# ============================================================
+- name: 🧹 Lösche alte kubeconfig - minikube_task.yml
+  ansible.builtin.file:
+    path: "/home/{{ kube_user }}/.kube/config"
+    state: absent
+
+# ============================================================
+# Minikube Binary installieren (versioniert!)
+# ============================================================
+- name: 🔍 Prüfe ob Minikube installiert ist - minikube_task.yml
+  ansible.builtin.command: minikube version --short
+  register: minikube_installed
+  failed_when: false
+  changed_when: false
+
+- name: 📥 Download Minikube Binary (v{{ minikube_stack.minikube_version }}) - minikube_task.yml
+  ansible.builtin.get_url:
+    url: "{{ minikube_stack.download_url }}"
+    dest: /usr/local/bin/minikube
+    mode: '0755'
+    owner: root
+    group: root
+  when: minikube_installed.rc != 0
+
+- name: 📊 Minikube Version - minikube_task.yml
+  ansible.builtin.command: minikube version --short
+  register: minikube_version
+  changed_when: false
+
+- name: 📊 Debug Minikube Version - minikube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "🧊 Installiert: {{ minikube_version.stdout }}"
+      - "🎯 Soll: v{{ minikube_stack.minikube_version }}"
+
+# ============================================================
+# Docker DNS Fix (Docker-Driver nutzt 127.0.0.53 → funktioniert nicht im Container)
+# ============================================================
+- name: 🌐 Ermittle echte DNS-Server vom Host - minikube_task.yml
+  ansible.builtin.shell: resolvectl status | grep 'DNS Servers' | head -1 | awk '{print $NF}'
+  register: _real_dns
+  changed_when: false
+  failed_when: false
+
+- name: 🌐 Prüfe aktuelle daemon.json - minikube_task.yml
+  ansible.builtin.shell: cat /etc/docker/daemon.json 2>/dev/null || echo '{}'
+  register: _docker_daemon_current
+  changed_when: false
+
+- name: 🌐 Schreibe Docker DNS Config - minikube_task.yml
+  ansible.builtin.copy:
+    content: |
+      {
+        "dns": ["{{ _real_dns.stdout | default('8.8.8.8') }}", "8.8.8.8", "1.1.1.1"]
+      }
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: '0644'
+  register: _docker_dns_changed
+  when: _real_dns.stdout | default('') not in (_docker_daemon_current.stdout | default(''))
+
+- block:
+    - name: 🗑️ Minikube löschen (DNS geändert — Container muss neu) - minikube_task.yml
+      ansible.builtin.command: minikube delete --all --purge
+      become_user: "{{ kube_user }}"
+      environment: "{{ _kube_env }}"
+      failed_when: false
+      changed_when: true
+
+    - name: 🔄 Restart Docker nach DNS Fix - minikube_task.yml
+      ansible.builtin.service:
+        name: docker
+        state: restarted
+
+  when: _docker_dns_changed.changed | default(false)
+
+# ============================================================
+# Minikube Cluster starten (versioniert!)
+# ============================================================
+- name: 🔍 Prüfe ob Minikube Cluster läuft - minikube_task.yml
+  ansible.builtin.command: minikube status -f {% raw %}'{{.Host}}'{% endraw %}
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  register: minikube_status
+  failed_when: false
+  changed_when: false
+
+- name: 🚀 Starte Minikube Cluster (v{{ minikube_stack.kubernetes_version }}) - minikube_task.yml
+  ansible.builtin.command: >
+    minikube start
+    --driver={{ minikube_stack.driver }}
+    --cpus={{ minikube_stack.cpus }}
+    --memory={{ minikube_stack.memory }}
+    --disk-size={{ minikube_stack.disk_size }}
+    --kubernetes-version=v{{ minikube_stack.kubernetes_version }}
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  register: minikube_start
+  changed_when: "'Done' in minikube_start.stdout"
+  when: minikube_status.stdout | default('') != 'Running'
+
+# ============================================================
+# DNS Fix nach Minikube-Start
+# ============================================================
+- name: 🔄 Restart systemd-resolved nach Minikube-Start - minikube_task.yml
+  ansible.builtin.service:
+    name: systemd-resolved
+    state: restarted
+
+- name: 🌐 Ermittle echte DNS für Minikube-Container - minikube_task.yml
+  ansible.builtin.shell: resolvectl status | grep 'DNS Servers' | head -1 | awk '{print $NF}'
+  register: _real_dns_mk
+  changed_when: false
+  failed_when: false
+
+- name: 🌐 Setze DNS im Minikube-Container - minikube_task.yml
+  ansible.builtin.shell: >
+    minikube ssh "sudo sh -c 'echo nameserver {{ _real_dns_mk.stdout | default('8.8.8.8') }} > /etc/resolv.conf
+    && echo nameserver 8.8.8.8 >> /etc/resolv.conf
+    && echo nameserver 1.1.1.1 >> /etc/resolv.conf'"
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  changed_when: true
+
+- name: 🌐 Verifiziere DNS im Minikube-Container - minikube_task.yml
+  ansible.builtin.shell: minikube ssh "nslookup quay.io"
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  register: _mk_dns_verify
+  retries: 3
+  delay: 5
+  until: _mk_dns_verify.rc == 0
+  changed_when: false
+
+# ============================================================
+# kubectl einrichten
+# ============================================================
+- name: 📂 Ensure .kube directory exists - minikube_task.yml
+  ansible.builtin.file:
+    path: "/home/{{ kube_user }}/.kube"
+    state: directory
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: '0700'
+
+- name: 🔍 Prüfe ob kubectl installiert ist - minikube_task.yml
+  ansible.builtin.command: which kubectl
+  register: kubectl_check
+  failed_when: false
+  changed_when: false
+
+- name: 📥 Installiere kubectl standalone - minikube_task.yml
+  ansible.builtin.shell: >
+    curl -LO "https://dl.k8s.io/release/v{{ minikube_stack.kubernetes_version }}/bin/linux/amd64/kubectl" &&
+    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl &&
+    rm kubectl
+  args:
+    chdir: /tmp
+  when: kubectl_check.rc != 0
+
+- name: 🔧 Generiere kubeconfig via minikube update-context - minikube_task.yml
+  ansible.builtin.command: minikube update-context
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  changed_when: true
+
+- name: 🔧 Setze kubeconfig Berechtigungen - minikube_task.yml
+  ansible.builtin.file:
+    path: "/home/{{ kube_user }}/.kube/config"
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: '0600'
+
+# ============================================================
+# Addons aktivieren (aus Profil)
+# ============================================================
+- name: 📦 Aktiviere Minikube Addons - minikube_task.yml
+  ansible.builtin.command: "minikube addons enable {{ item }}"
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  loop: "{{ minikube_stack.addons }}"
+  register: addon_result
+  changed_when: "'was successfully enabled' in addon_result.stdout"
+  failed_when: false
+
+# ============================================================
+# Helm installieren
+# ============================================================
+- name: 🔍 Prüfe ob Helm installiert ist - minikube_task.yml
+  ansible.builtin.command: helm version --short
+  register: helm_check
+  failed_when: false
+  changed_when: false
+
+- name: 📥 Installiere Helm - minikube_task.yml
+  ansible.builtin.shell: >
+    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  when: helm_check.rc != 0
+
+# ============================================================
+# Cluster-Status prüfen
+# ============================================================
+- name: ⏳ Warte bis alle System-Pods Ready sind - minikube_task.yml
+  ansible.builtin.command: >
+    kubectl wait --for=condition=Ready pod --all
+    -n kube-system --timeout=300s
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  changed_when: false
+  failed_when: false
+
+- name: 🧪 Cluster Status - minikube_task.yml
+  ansible.builtin.command: minikube status
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  register: cluster_status
+  changed_when: false
+  failed_when: false
+
+- name: 🧪 Node Status - minikube_task.yml
+  ansible.builtin.command: kubectl get nodes -o wide
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  register: node_status
+  changed_when: false
+
+- name: 🧪 Alle Pods - minikube_task.yml
+  ansible.builtin.command: kubectl get pods --all-namespaces
+  become_user: "{{ kube_user }}"
+  environment: "{{ _kube_env }}"
+  register: pods_status
+  changed_when: false
+
+# ============================================================
+# Systemd Service für Reboot-Sicherheit
+# ============================================================
+- name: 📦 Erstelle Minikube systemd Service - minikube_task.yml
+  ansible.builtin.copy:
+    content: |
+      [Unit]
+      Description=Minikube Cluster
+      After=docker.service
+      Requires=docker.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      User={{ kube_user }}
+      Group={{ kube_user }}
+      Environment=HOME=/home/{{ kube_user }}
+      Environment=MINIKUBE_HOME=/home/{{ kube_user }}/.minikube
+      ExecStart=/usr/local/bin/minikube start
+      ExecStop=/usr/local/bin/minikube stop
+
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/minikube.service
+    owner: root
+    group: root
+    mode: '0644'
+  register: _minikube_service
+
+- name: 🔄 Systemd daemon-reload - minikube_task.yml
+  ansible.builtin.command: systemctl daemon-reload
+  when: _minikube_service.changed
+
+- name: ✅ Aktiviere Minikube Service (Autostart) - minikube_task.yml
+  ansible.builtin.service:
+    name: minikube
+    enabled: true
+
+- name: 📊 Debug – Minikube Status Übersicht - minikube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "🧊 Minikube Cluster Status"
+      - "=========================================="
+      - "Minikube: v{{ minikube_stack.minikube_version }}"
+      - "Kubernetes: v{{ minikube_stack.kubernetes_version }}"
+      - "Driver: {{ minikube_stack.driver }}"
+      - ""
+      - "{{ cluster_status.stdout_lines }}"
+      - ""
+      - "🧠 Node-Status:"
+      - "{{ node_status.stdout_lines }}"
+      - ""
+      - "📦 Pods:"
+      - "{{ pods_status.stdout_lines }}"
+      - "=========================================="
+      - "✅ Minikube Cluster bereit!"
+      - "  kubectl: sudo -u {{ kube_user }} kubectl get pods --all-namespaces"
+      - "  helm:    sudo -u {{ kube_user }} helm list --all-namespaces"
+      - "=========================================="

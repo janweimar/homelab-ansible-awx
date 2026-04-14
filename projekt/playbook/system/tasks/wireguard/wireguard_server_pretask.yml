@@ -1,0 +1,37 @@
+---
+# ============================================================
+# WIREGUARD SERVER - PRE-TASK
+# ============================================================
+# Prüft Voraussetzungen vor der Installation
+# ============================================================
+
+- name: WG Server – Prüfe nftables ist installiert
+  ansible.builtin.command: which nft
+  register: nftables_check
+  failed_when: false
+  changed_when: false
+
+- name: WG Server – Fehler wenn nftables fehlt
+  ansible.builtin.fail:
+    msg: "❌ nftables ist nicht installiert! Bitte erst pb_inst_firewall_nftables.yml ausführen."
+  when: nftables_check.rc != 0
+
+- name: WG Server – Prüfe Kernel unterstützt WireGuard
+  ansible.builtin.shell: |
+    modprobe wireguard 2>/dev/null && echo "OK" || echo "FAIL"
+  register: wg_kernel_check
+  changed_when: false
+  failed_when: false
+
+- name: WG Server – Info bei fehlendem Kernel-Support
+  ansible.builtin.debug:
+    msg: "⚠️  WireGuard Kernel-Modul nicht verfügbar - wird über wireguard-dkms kompiliert"
+  when: wg_kernel_check.stdout != "OK"
+
+- name: WG Server – Prüfe /etc/wireguard existiert
+  ansible.builtin.file:
+    path: /etc/wireguard
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"

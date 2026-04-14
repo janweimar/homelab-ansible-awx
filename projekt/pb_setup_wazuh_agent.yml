@@ -1,0 +1,178 @@
+---
+###########################################################################
+# 🔒 Wazuh Agent Installation
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials:
+#   allg_status: aktiviert | deaktiviert | deinstalliert
+#   wazuh_manager_ip: IP/Hostname des Wazuh Managers
+#   ssh_key: SSH-Zugangsdaten
+#
+# Beschreibung:
+# Installiert und registriert den Wazuh Agent auf dem Zielsystem.
+# Der Agent sendet Sicherheitsereignisse an den Wazuh Manager.
+# Hostname wird automatisch als Agent-Name verwendet.
+#
+# Hinweise:
+# - Wazuh Manager muss NICHT zwingend laufen (Agent wartet automatisch)
+# - Registrierung wird uebersprungen wenn Manager nicht erreichbar
+# - Kommunikation laeuft ueber VPN (10.200.0.20)
+# - Port 1514/tcp und 1515/tcp zum Manager muss offen sein
+#
+# BEST PRACTICES:
+# - Wenn moeglich kein Code im Playbook, sondern in pre_task/task auslagern
+# - Nicht benoetigte Service-Includes loeschen (nicht auskommentieren)
+###########################################################################
+
+- name: pb_setup_wazuh_agent.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+    - playbooks_paths.yml
+
+  vars:
+    # Installation erfolgt in pretask mit Deployment-Variablen
+    # (WAZUH_MANAGER + WAZUH_AGENT_NAME → automatische Registrierung)
+    var_pack_name: []
+
+    # Abhaengigkeiten
+    var_dependencies_list:
+
+    # Voraussetzungen
+    var_prerequisites:
+
+    # Installationsreihenfolge
+    var_inst_order: 0
+
+    # Zusaetzliche Services
+    var_sonder_start:
+    var_sonder_autostart:
+
+    # Nicht unterstuetzte OS
+    unsupported_systems:
+      - RedHat
+      - Suse
+      - Archlinux
+      - FreeBSD
+
+    # Wazuh Manager Verbindung (VPN-IP)
+    wazuh_manager_ip: "10.200.0.20" # Wazuh Manager über VPN
+    wazuh_agent_name: "{{ inventory_hostname }}"
+
+    # Playbook-Log-Dokumentation (Template-Pfad)
+    pb_doku_template: wazuh_agent_doku
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden & setzen
+    ###########################################################################
+    - block:
+        - name: Lade alle Variablen-Dateien aus var_list.yml - pb_setup_wazuh_agent.yml
+          include_vars:
+            file: "{{ item }}"
+          loop: "{{ var_files }}"
+
+    ###########################################################################
+    # Hook: Pre-Start (nach Variablen-Laden)
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start - pb_setup_wazuh_agent.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck & Prerequisites
+    ###########################################################################
+    - name: 🔄 Importiere Systemcheck - pb_setup_wazuh_agent.yml
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Importiere Systemcheck zwingend benoetigter Komponenten - pb_setup_wazuh_agent.yml
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks
+    ###########################################################################
+    - block:
+        - name: 🔄 Importiere Paketmanager-Lock pruefen - pb_setup_wazuh_agent.yml
+          ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+        - name: 🔄 Importiere Debug ausgabe bei Playbook start - pb_setup_wazuh_agent.yml
+          ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+    ###########################################################################
+    # Playbook-spezifische Pre-Tasks
+    ###########################################################################
+    - block:
+        - name: 🔄 Importiere pre_task - pb_setup_wazuh_agent.yml
+          ansible.builtin.include_tasks: "{{ task_paths.wazuh_agent_pretask }}"
+      when: allg_status == "aktiviert"
+
+  tasks:
+    ###########################################################################
+    # HAUPTLOGIK - Installation
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Hook: Pre-Install (vor Installation)
+        ###########################################################################
+        - name: 🔧 Hook Pre-Install - pb_setup_wazuh_agent.yml
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        ###########################################################################
+        # Standard-Installation
+        ###########################################################################
+        - name: Komplette installation von var_pack_name - pb_setup_wazuh_agent.yml
+          ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+        ###########################################################################
+        # Playbook-spezifische Konfiguration
+        ###########################################################################
+        - name: Ausfuehren der kompletten Konfiguration - pb_setup_wazuh_agent.yml
+          ansible.builtin.include_tasks: "{{ task_paths.wazuh_agent_task }}"
+
+        ###########################################################################
+        # Service-Management
+        ###########################################################################
+        - block:
+            - name: 🔄 Startet Hauptdienst - pb_setup_wazuh_agent.yml
+              ansible.builtin.include_tasks: "{{ include_paths.services_start }}"
+
+            - name: 🔄 Autostart aktivieren - pb_setup_wazuh_agent.yml
+              ansible.builtin.include_tasks: "{{ include_paths.services_autostart }}"
+
+            - name: 🔄 Status pruefen - pb_setup_wazuh_agent.yml
+              ansible.builtin.include_tasks: "{{ include_paths.status_inst }}"
+
+            - name: 🔄 Autostart pruefen - pb_setup_wazuh_agent.yml
+              ansible.builtin.include_tasks: "{{ include_paths.services_is_enable }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # Deaktivierung
+    ###########################################################################
+    - block:
+        - name: 🔄 Dienste stoppen - pb_setup_wazuh_agent.yml
+          ansible.builtin.include_tasks: "{{ include_paths.services_stop }}"
+
+      when: allg_status == "deaktiviert"
+
+    ###########################################################################
+    # Deinstallation
+    ###########################################################################
+    - block:
+        - name: 🔄 Deinstallationsscript mit debug Ausgabe - pb_setup_wazuh_agent.yml
+          ansible.builtin.include_tasks: "{{ include_paths.deinstall_allg }}"
+
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # Hook: end (am Ende des Playbooks)
+    ###########################################################################
+    - name: 🔧 Hook End - pb_setup_wazuh_agent.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

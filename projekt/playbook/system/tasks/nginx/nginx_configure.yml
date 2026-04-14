@@ -1,0 +1,169 @@
+---
+###########################################################################
+# 🌐 nginx_configure.yml
+# Vereinheitlichter Task für nginx Konfiguration (HTTP + HTTPS)
+###########################################################################
+# Benötigte Variablen:
+#   domain_port: "domain1/8080,domain2/9000" (Komma-getrennt)
+#   domain_port_ssl: "domain1/8080"
+#   admin_email: "admin@example.com"
+#   nginx_ssl: true/false (HTTP=false, HTTPS=true + Zertifikat erstellen)
+#   nginx_modsecurity: true/false (ModSecurity WAF aktivieren)
+#
+# Setzt nach Abschluss:
+#   _ssl_cert_available: true/false — ob HTTPS vHost erstellt werden kann
+###########################################################################
+
+###########################################################################
+# 🌐 Defaults aus os_urls.yml (Credential überschreibt!)
+###########################################################################
+- name: 🌐 Setze nginx_ssl aus os_urls.yml (Default) - nginx_configure.yml
+  ansible.builtin.set_fact:
+    nginx_ssl: "{{ urls[ansible_host].server_ssl | default(false) | bool }}"
+  when: nginx_ssl is not defined
+
+- name: 🌐 Setze nginx_modsecurity aus os_urls.yml (Default) - nginx_configure.yml
+  ansible.builtin.set_fact:
+    nginx_modsecurity: "{{ urls[ansible_host].nginx_modsecurity | default(false) | bool }}"
+  when: nginx_modsecurity is not defined
+
+###########################################################################
+# 📦 ModSecurity + CRS Setup
+###########################################################################
+- name: 🔧 Konfiguriere ModSecurity - nginx_configure.yml
+  ansible.builtin.include_tasks: "{{ task_paths.task_modsecurity }}"
+  when: nginx_modsecurity | bool
+
+###########################################################################
+# 🧱 Hauptkonfiguration nginx.conf
+###########################################################################
+- name: 🔍 Prüfe ob nginx.conf existiert - nginx_configure.yml
+  ansible.builtin.stat:
+    path: "{{ paths.nginx_conf[ansible_os_family] }}"
+  register: nginx_conf_check
+
+- name: 📝 Erstelle nginx.conf aus Template - nginx_configure.yml
+  ansible.builtin.template:
+    src: "{{ nginx_paths[ansible_host].nginx_conf }}"
+    dest: "{{ paths.nginx_conf[ansible_os_family] }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: yes
+  when: not nginx_conf_check.stat.exists or (nginx_modsecurity | bool)
+
+###########################################################################
+# 🌐 Domain-Liste vorbereiten
+###########################################################################
+- name: 🌍 Split domain_port in Liste - nginx_configure.yml
+  ansible.builtin.set_fact:
+    domain_port_list: "{{ domain_port.split(',') | map('trim') | list }}"
+
+- name: 🔍 Validiere domain_port Format - nginx_configure.yml
+  vars:
+    valid_pattern: '^[a-zA-Z0-9\.\-]+(/[0-9\.]+)?/[0-9]+$'
+  ansible.builtin.fail:
+    msg: >
+      Ungültiger Eintrag in domain_port: '{{ item }}'
+      Erwartet: domain/port oder domain/ip/port
+  loop: "{{ domain_port_list }}"
+  when: item is not regex(valid_pattern)
+
+###########################################################################
+# ℹ️ Hinweis: Cleanup + Deploy der vHosts erfolgt im jeweiligen
+# Playbook-Task (awx_ee_task.yml, repo_server_task.yml, etc.)
+###########################################################################
+
+###########################################################################
+# 🔒 HTTPS-Modus: Certbot braucht laufendes HTTP nginx!
+# Ablauf: Temp HTTP vHost → nginx starten → Certbot → Aufräumen
+###########################################################################
+- block:
+    - name: 🌍 Wähle SSL Domainliste - nginx_configure.yml
+      ansible.builtin.set_fact:
+        domain_port_ssl_active: "{{ domain_port_ssl }}"
+
+    - name: 🌍 Split SSL domain_port in Liste - nginx_configure.yml
+      ansible.builtin.set_fact:
+        domain_port_ssl_list: "{{ domain_port_ssl_active.split(',') | map('trim') | list }}"
+
+    ###########################################################################
+    # Prüfe ob Zertifikate bereits existieren
+    ###########################################################################
+    - name: 🔍 Prüfe ob SSL Zertifikate bereits existieren - nginx_configure.yml
+      ansible.builtin.stat:
+        path: "/etc/letsencrypt/live/{{ item.split('/')[0] }}/fullchain.pem"
+      loop: "{{ domain_port_ssl_list }}"
+      register: _ssl_cert_pre_check
+
+    - name: 🔧 Ermittle fehlende Zertifikate - nginx_configure.yml
+      ansible.builtin.set_fact:
+        _ssl_certs_missing: "{{ _ssl_cert_pre_check.results | selectattr('stat.exists', 'equalto', false) | map(attribute='item') | list }}"
+        _ssl_certs_exist: "{{ _ssl_cert_pre_check.results | selectattr('stat.exists', 'equalto', true) | map(attribute='item') | list }}"
+
+    - name: 📊 DEBUG SSL Zertifikat-Status - nginx_configure.yml
+      ansible.builtin.debug:
+        msg:
+          - "✅ Vorhanden: {{ _ssl_certs_exist | map('regex_replace', '/.*', '') | list }}"
+          - "❌ Fehlend:   {{ _ssl_certs_missing | map('regex_replace', '/.*', '') | list }}"
+
+    ###########################################################################
+    # Certbot NUR wenn Zertifikate fehlen
+    ###########################################################################
+    - block:
+        - name: 🔒 Erstelle SSL Zertifikate (Certbot) - nginx_configure.yml
+          ansible.builtin.include_tasks: "{{ task_paths.task_ssl_certs }}"
+
+      when: _ssl_certs_missing | length > 0
+
+    ###########################################################################
+    # Finale Prüfung — Zertifikate jetzt da?
+    ###########################################################################
+    - name: 🔍 Finale Prüfung SSL Zertifikate - nginx_configure.yml
+      ansible.builtin.stat:
+        path: "/etc/letsencrypt/live/{{ item.split('/')[0] }}/fullchain.pem"
+      loop: "{{ domain_port_ssl_list }}"
+      register: _ssl_cert_final_check
+
+    - name: 🔧 Setze _ssl_cert_available - nginx_configure.yml
+      ansible.builtin.set_fact:
+        _ssl_cert_available: "{{ _ssl_cert_final_check.results | selectattr('stat.exists', 'equalto', false) | list | length == 0 }}"
+
+    - name: ⚠️ Certbot fehlgeschlagen — HTTP Fallback - nginx_configure.yml
+      ansible.builtin.debug:
+        msg: >
+          ⚠️ SSL Zertifikate konnten nicht erstellt werden!
+          HTTP vHost wird als Fallback verwendet.
+          Prüfe: DNS A-Record, Port 80 in Firewall, Webroot existiert.
+          Manuell: certbot certonly --webroot -w /var/www/html -d <domain>
+      when: not (_ssl_cert_available | bool)
+
+    ###########################################################################
+    # 🕒 Auto-Renew Cronjob (nur wenn Zertifikate vorhanden)
+    ###########################################################################
+    - name: 🕒 Erstelle SSL Renewal Cronjob - nginx_configure.yml
+      ansible.builtin.cron:
+        name: "Let's Encrypt Auto Renewal"
+        job: "{{ command.certbot_renew[ansible_os_family] }}"
+        hour: 3
+        minute: 0
+        user: root
+      when: _ssl_cert_available | bool
+
+  when: nginx_ssl | bool
+
+###########################################################################
+# Kein SSL gewünscht → _ssl_cert_available = false
+###########################################################################
+- name: 🔧 Kein SSL — setze _ssl_cert_available=false - nginx_configure.yml
+  ansible.builtin.set_fact:
+    _ssl_cert_available: false
+  when: not (nginx_ssl | default(false) | bool)
+
+###########################################################################
+# ℹ️ Hinweis: Test + Reload erfolgt im jeweiligen Playbook-Task
+# nach dem vHost-Deploy (awx_ee_task.yml, repo_server_task.yml, etc.)
+###########################################################################
+- name: ✅ nginx Konfiguration abgeschlossen - nginx_configure.yml
+  ansible.builtin.debug:
+    msg: "✅ nginx konfiguriert ({{ 'HTTPS ✅' if _ssl_cert_available | default(false) | bool else 'HTTP (SSL Zertifikat fehlt)' if nginx_ssl | default(false) | bool else 'HTTP' }}) - vHost Deploy + Reload folgt"

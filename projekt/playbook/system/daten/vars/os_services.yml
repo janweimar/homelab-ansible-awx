@@ -1,0 +1,293 @@
+---
+###########################################################################
+# ⚙️ OS-abhängige Dienstnamen
+#    → zentrale Matrix für Start/Stop/Enable/Disable je nach Distribution
+###########################################################################
+services:
+  nftables:
+    start:
+      Debian: systemctl start nftables
+    stop:
+      Debian: systemctl stop nftables
+    enable:
+      Debian: systemctl enable nftables
+    disable:
+      Debian: systemctl disable nftables
+    reload:
+      Debian: systemctl reload nftables
+    restart:
+      Debian: systemctl restart nftables
+    status:
+      Debian: systemctl is-active nftables
+    is_enable:
+      Debian: systemctl is-enabled nftables
+
+  fail2ban:
+    start:
+      Debian: systemctl start fail2ban
+    stop:
+      Debian: systemctl stop fail2ban
+    enable:
+      Debian: systemctl enable fail2ban
+    disable:
+      Debian: systemctl disable fail2ban
+
+  suricata:
+    start:
+      Debian: systemctl start suricata
+    stop:
+      Debian: systemctl stop suricata
+    enable:
+      Debian: systemctl enable suricata
+    disable:
+      Debian: systemctl disable suricata
+    reload:
+      Debian: systemctl reload suricata
+    restart:
+      Debian: systemctl restart suricata
+    status:
+      Debian: systemctl is-active suricata
+    is_enable:
+      Debian: systemctl is-enabled suricata
+
+  persist:
+    save:
+      Debian: netfilter-persistent save
+    reload:
+      Debian: netfilter-persistent reload
+
+  apparmor:
+    start:
+      Debian: systemctl start apparmor
+    stop:
+      Debian: systemctl stop apparmor
+    enable:
+      Debian: systemctl enable apparmor
+    disable:
+      Debian: systemctl disable apparmor
+    reload:
+      Debian: systemctl reload apparmor
+    status:
+      Debian: "systemctl status apparmor"
+    is_enable:
+      Debian: "systemctl is-enabled apparmor"
+    restart:
+      Debian: systemctl restart apparmor
+
+  audit:
+    start:
+      Debian: systemctl start auditd
+    stop:
+      Debian: systemctl stop auditd
+    enable:
+      Debian: systemctl enable auditd
+    disable:
+      Debian: systemctl disable auditd
+    reload:
+      Debian: systemctl reload auditd
+    restart:
+      Debian: systemctl restart auditd
+    status:
+      Debian: systemctl is-active auditd
+    is_enabled:
+      Debian: systemctl is-enabled auditd
+
+  kube:
+    start:
+      Debian: "systemctl start containerd kubelet"
+    enable:
+      Debian: "systemctl enable containerd kubelet"
+    restart:
+      Debian: "systemctl restart containerd kubelet"
+    status:
+      Debian: "systemctl status containerd kubelet"
+    is_enable:
+      Debian: "systemctl is-enabled containerd kubelet"
+
+  containerd:
+    start:
+      Debian: "systemctl start containerd"
+    stop:
+      Debian: "systemctl stop containerd"
+    enable:
+      Debian: "systemctl enable containerd"
+    reload:
+      Debian: "systemctl restart containerd"
+    disable:
+      Debian: "systemctl disable containerd"
+    status:
+      Debian: "systemctl is-active containerd"
+    is_enable:
+      Debian: "systemctl is-enabled containerd"
+    restart:
+      Debian: "systemctl restart containerd"
+
+  nginx:
+    test:
+      Debian: "nginx -t"
+    start:
+      Debian: "systemctl start nginx"
+    enable:
+      Debian: "systemctl enable nginx"
+    reload:
+      Debian: "systemctl reload nginx"
+    is_enable:
+      Debian: "systemctl is-enabled nginx"
+    status:
+      Debian: "systemctl status nginx"
+
+  docker:
+    start:
+      Debian: "systemctl start docker"
+    stop:
+      Debian: "systemctl stop docker"
+    enable:
+      Debian: "systemctl enable docker"
+    disable:
+      Debian: "systemctl disable docker"
+    restart:
+      Debian: "systemctl restart docker"
+    reload:
+      Debian: "systemctl reload docker"
+    status:
+      Debian: "systemctl is-active docker"
+    is_enable:
+      Debian: "systemctl is-enabled docker"
+
+  ssh:
+    name:
+      Debian: "sshd"
+    start:
+      Debian: "systemctl start sshd"
+    stop:
+      Debian: "systemctl stop sshd"
+    enable:
+      Debian: "systemctl enable sshd"
+    restart:
+      Debian: "systemctl restart sshd"
+    reload:
+      Debian: "systemctl reload sshd"
+    status:
+      Debian: "systemctl status sshd"
+
+  auto_update:
+    start:
+      Debian: "systemctl start unattended-upgrades"
+      RedHat: "systemctl start dnf-automatic.timer"
+      Suse: "systemctl start dnf-automatic.timer"
+    stop:
+      Debian: "systemctl stop unattended-upgrades"
+      RedHat: "systemctl stop dnf-automatic.timer"
+      Suse: "systemctl stop dnf-automatic.timer"
+    enable:
+      Debian: "systemctl enable unattended-upgrades"
+      RedHat: "systemctl enable dnf-automatic.timer"
+      Suse: "systemctl enable dnf-automatic.timer"
+    disable:
+      Debian: "systemctl disable unattended-upgrades"
+      RedHat: "systemctl disable dnf-automatic.timer"
+      Suse: "systemctl disable dnf-automatic.timer"
+    status:
+      Debian: "systemctl is-active unattended-upgrades"
+      RedHat: "systemctl is-active dnf-automatic.timer"
+      Suse: "systemctl is-active dnf-automatic.timer"
+    is_enable:
+      Debian: "systemctl is-enabled unattended-upgrades"
+      RedHat: "systemctl is-enabled dnf-automatic.timer"
+      Suse: "systemctl is-enabled dnf-automatic.timer"
+
+  wazuh_manager:
+    start:
+      Debian: "systemctl start wazuh-manager"
+    stop:
+      Debian: "systemctl stop wazuh-manager"
+    enable:
+      Debian: "systemctl enable wazuh-manager"
+    disable:
+      Debian: "systemctl disable wazuh-manager"
+    restart:
+      Debian: "systemctl restart wazuh-manager"
+    reload:
+      Debian: "systemctl reload wazuh-manager"
+    status:
+      Debian: "systemctl is-active wazuh-manager"
+    is_enable:
+      Debian: "systemctl is-enabled wazuh-manager"
+
+  wazuh_indexer:
+    start:
+      Debian: "systemctl start wazuh-indexer"
+    stop:
+      Debian: "systemctl stop wazuh-indexer"
+    enable:
+      Debian: "systemctl enable wazuh-indexer"
+    disable:
+      Debian: "systemctl disable wazuh-indexer"
+    restart:
+      Debian: "systemctl restart wazuh-indexer"
+    status:
+      Debian: "systemctl is-active wazuh-indexer"
+    is_enable:
+      Debian: "systemctl is-enabled wazuh-indexer"
+
+  wazuh_dashboard:
+    start:
+      Debian: "systemctl start wazuh-dashboard"
+    stop:
+      Debian: "systemctl stop wazuh-dashboard"
+    enable:
+      Debian: "systemctl enable wazuh-dashboard"
+    disable:
+      Debian: "systemctl disable wazuh-dashboard"
+    restart:
+      Debian: "systemctl restart wazuh-dashboard"
+    status:
+      Debian: "systemctl is-active wazuh-dashboard"
+    is_enable:
+      Debian: "systemctl is-enabled wazuh-dashboard"
+
+  wazuh_agent:
+    start:
+      Debian: "systemctl start wazuh-agent"
+    stop:
+      Debian: "systemctl stop wazuh-agent"
+    enable:
+      Debian: "systemctl enable wazuh-agent"
+    disable:
+      Debian: "systemctl disable wazuh-agent"
+    restart:
+      Debian: "systemctl restart wazuh-agent"
+    status:
+      Debian: "systemctl is-active wazuh-agent"
+    is_enable:
+      Debian: "systemctl is-enabled wazuh-agent"
+
+  wireguard:
+    start:
+      Debian: "systemctl start wg-quick@wg0"
+    stop:
+      Debian: "systemctl stop wg-quick@wg0"
+    enable:
+      Debian: "systemctl enable wg-quick@wg0"
+    disable:
+      Debian: "systemctl disable wg-quick@wg0"
+    restart:
+      Debian: "systemctl restart wg-quick@wg0"
+    status:
+      Debian: "systemctl is-active wg-quick@wg0"
+    is_enable:
+      Debian: "systemctl is-enabled wg-quick@wg0"
+
+  net_conf:
+    start:
+      Debian: "systemctl start vnstat"
+    stop:
+      Debian: "systemctl stop vnstat"
+    enable:
+      Debian: "systemctl enable vnstat"
+    disable:
+      Debian: "systemctl disable vnstat"
+    status:
+      Debian: "systemctl is-active vnstat"
+    is_enable:
+      Debian: "systemctl is-enabled vnstat"

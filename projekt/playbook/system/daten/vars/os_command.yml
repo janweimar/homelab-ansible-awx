@@ -1,0 +1,154 @@
+command:
+  swapoff_a:
+    Debian: "swapoff -a"
+    RedHat: "swapoff -a"
+    Suse: "swapoff -a"
+    Archlinux: "swapoff -a"
+
+  modprobe_overlay:
+    Debian: "modprobe overlay"
+    RedHat: "modprobe overlay"
+    Suse: "modprobe overlay"
+    Archlinux: "modprobe overlay"
+
+  modprobe_br_netfilter:
+    Debian: "modprobe br_netfilter"
+    RedHat: "modprobe br_netfilter"
+    Suse: "modprobe br_netfilter"
+    Archlinux: "modprobe br_netfilter"
+
+  ###########################################################################
+  # SYSCTL – Forwarding sofort aktivieren + persistent setzen
+  ###########################################################################
+  sysctl_forward_file:
+    Debian: "net.ipv4.ip_forward = 1"
+    RedHat: "net.ipv4.ip_forward = 1"
+    Suse: "net.ipv4.ip_forward = 1"
+    Archlinux: "net.ipv4.ip_forward = 1"
+    FreeBSD: "net.inet.ip.forwarding=1"
+
+  sysctl_forward_cmd:
+    Debian: "sysctl -w net.ipv4.ip_forward=1"
+    RedHat: "sysctl -w net.ipv4.ip_forward=1"
+    Suse: "sysctl -w net.ipv4.ip_forward=1"
+    Archlinux: "sysctl -w net.ipv4.ip_forward=1"
+    FreeBSD: "sysctl net.inet.ip.forwarding=1"
+
+  nginx_test:
+    Debian: nginx -t
+
+  nginx_restart:
+    Debian: systemctl restart nginx
+
+  certbot_webroot:
+    Debian: certbot certonly --webroot
+
+  certbot_renew:
+    Debian: certbot renew --quiet --post-hook 'systemctl restart nginx'
+
+  # Docker Compose (v2 - ohne Bindestrich)
+  docker_compose_up:
+    Debian: docker compose up -d
+    RedHat: docker compose up -d
+    Suse: docker compose up -d
+    Archlinux: docker compose up -d
+    FreeBSD: docker compose up -d
+
+  docker_compose_down:
+    Debian: docker compose down
+    RedHat: docker compose down
+    Suse: docker compose down
+    Archlinux: docker compose down
+    FreeBSD: docker compose down
+
+  docker_compose_ps:
+    Debian: docker compose ps
+    RedHat: docker compose ps
+    Suse: docker compose ps
+    Archlinux: docker compose ps
+    FreeBSD: docker compose ps
+
+  docker_compose_logs:
+    Debian: docker compose logs -f
+    RedHat: docker compose logs -f
+    Suse: docker compose logs -f
+    Archlinux: docker compose logs -f
+    FreeBSD: docker compose logs -f
+
+  ###############################################################################
+  # Datenbank Befehle für Backup und Restore
+  ###############################################################################
+  db_container_check:
+    bookstack:
+      Debian: "docker ps -q -f name=bookstack_db"
+      RedHat: "docker ps -q -f name=bookstack_db"
+    awx:
+      Debian: "docker ps -q -f name=awx_postgres"
+      RedHat: "docker ps -q -f name=awx_postgres"
+    odoo:
+      Debian: "docker ps -q -f name=odoo_db"
+      RedHat: "docker ps -q -f name=odoo_db"
+
+  db_health_check:
+    bookstack:
+      Debian: 'docker exec bookstack_db mariadb-admin ping -h localhost -u bookstack -p{{ bookstack_db_password | default("") }}'
+      RedHat: 'docker exec bookstack_db mariadb-admin ping -h localhost -u bookstack -p{{ bookstack_db_password | default("") }}'
+    awx:
+      Debian: "docker exec awx_postgres pg_isready -U awx"
+      RedHat: "docker exec awx_postgres pg_isready -U awx"
+    odoo:
+      Debian: "docker exec odoo_db pg_isready -U odoo"
+      RedHat: "docker exec odoo_db pg_isready -U odoo"
+
+  db_dump:
+    bookstack:
+      Debian: 'docker exec bookstack_db mariadb-dump -u bookstack -p{{ bookstack_db_password | default("") }} bookstack'
+      RedHat: 'docker exec bookstack_db mariadb-dump -u bookstack -p{{ bookstack_db_password | default("") }} bookstack'
+    awx:
+      Debian: "docker exec awx_postgres pg_dump -U awx awx"
+      RedHat: "docker exec awx_postgres pg_dump -U awx awx"
+    odoo:
+      Debian: "docker exec odoo_db pg_dump -U odoo odoo"
+      RedHat: "docker exec odoo_db pg_dump -U odoo odoo"
+
+  db_restore:
+    bookstack:
+      Debian: 'docker exec -i bookstack_db mariadb -u bookstack -p{{ bookstack_db_password | default("") }} bookstack'
+      RedHat: 'docker exec -i bookstack_db mariadb -u bookstack -p{{ bookstack_db_password | default("") }} bookstack'
+    awx:
+      Debian: "docker exec -i awx_postgres psql -U awx awx"
+      RedHat: "docker exec -i awx_postgres psql -U awx awx"
+    odoo:
+      Debian: "docker exec -i odoo_db psql -U odoo odoo"
+      RedHat: "docker exec -i odoo_db psql -U odoo odoo"
+
+  ###############################################################################
+  # SSH - Sicherheits-Konfiguration
+  ###############################################################################
+  ssh:
+    validate_config:
+      Debian: "/usr/sbin/sshd -t -f %s"
+      RedHat: "/usr/sbin/sshd -t -f %s"
+      Suse: "/usr/sbin/sshd -t -f %s"
+      Archlinux: "/usr/sbin/sshd -t -f %s"
+      FreeBSD: "/usr/sbin/sshd -t -f %s"
+    reload:
+      Debian: "systemctl reload sshd"
+      RedHat: "systemctl reload sshd"
+      Suse: "systemctl reload sshd"
+      Archlinux: "systemctl reload sshd"
+      FreeBSD: "service sshd reload"
+    apt_protect_content:
+      Debian: |
+        DPkg::Options {
+          "--force-confdef";
+          "--force-confold";
+        };
+      RedHat: |
+        # YUM Config Protection
+        [main]
+        assumeyes=0
+      Suse: |
+        # Zypper Config Protection  
+        [main]
+        solver.onlyRequires = false

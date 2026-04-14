@@ -1,0 +1,41 @@
+Inhalt
+Vorbereitungen
+
+Wir brauchen das Programm figlet, um auf einfache Art und Weise ein ASCII Banner zu erstellen. Mit folgenden Befehlen installieren wir figlet:
+
+$ apt-get update
+$ apt-get install figlet
+
+Banner erstellen
+
+Nun können wir uns in der Shell ein Banner ausgeben lassen:
+
+$ figlet -f standard wiki
+          _ _    _
+__      _(_) | _(_)
+\ \ /\ / / | |/ / |
+ \ V  V /| |   <| |
+  \_/\_/ |_|_|\_\_|
+
+Die Option -f gibt die Schriftart an. Dahinter kommt der auszugebende Text.
+Banner Datei anlegen
+
+Nun legen wir im Ordner /etc/ eine neue Datei an (z.B. banner.net) und kopieren den erstellten Text in diese.
+
+touch /etc/banner.txt
+
+SSH Konfiguration
+
+Der nächste Schritt, ist die Anpassung der Datei /etc/ssh/sshd_config
+
+Hier müssen wir folgenden Eintrag setzen:
+
+banner /etc/banner.net
+
+SSH Neustart
+
+Jetzt starten wir noch SSHD neu:
+
+$ /etc/init.d/ssh restart
+
+Und bei unserem nächsten Login bekommen wir unseren Banner angezeigt.

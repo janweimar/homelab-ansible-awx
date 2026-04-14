@@ -1,0 +1,157 @@
+---
+###########################################################################
+# 📧 msmtp Installation und Konfiguration
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials (AWX):
+#   allg_status:      aktiviert | deaktiviert | deinstalliert
+#   smtp_user:        SMTP-Benutzername / Absender-Adresse (AWX Credential)
+#   smtp_password:    SMTP-Passwort (AWX Credential)
+#   ssh_key:          SSH-Zugangsdaten
+#
+# Feste Werte (os_urls.yml):
+#   msmtp.account:    Account-Name ("web")
+#   msmtp.host:       SMTP-Server ("smtp.web.de")
+#   msmtp.port:       SMTP-Port (587)
+#   msmtp.test_to:    Empfänger der Test-Mail ("<email> ")
+#   msmtp.sudoers_user: Benutzer für NOPASSWD sendmail (z.B. "max")
+#
+# Beschreibung:
+# Installiert msmtp als reinen SMTP-Sender (kein Daemon, kein Empfang).
+# Registriert msmtp als systemweiten Sendmail-Ersatz.
+# Sendet eine Test-Mail zur Verifikation.
+# Setzt sudoers-Eintrag damit Benutzer sendmail ohne Passwort ausführen kann.
+#
+# Hinweise:
+# - msmtpd wird NICHT gestartet (nur Versand, kein Empfang)
+# - Konfiguration in /etc/msmtprc (systemweit, root:root 0600)
+# - Log: /var/log/msmtp.log (root:adm 0640)
+#
+# BEST PRACTICES:
+# - Wenn möglich kein Code im Playbook, sondern in pre_task/task auslagern
+# - Nicht benötigte Service-Includes löschen (nicht auskommentieren)
+###########################################################################
+
+- name: pb_setup_msmtp.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+    - playbooks_paths.yml
+
+  vars:
+    # Hauptanwendung
+    var_pack_name:
+      - msmtp
+
+    # Abhängigkeiten
+    var_dependencies_list:
+
+    # Voraussetzungen
+    var_prerequisites:
+
+    # Installationsreihenfolge (0 = erst Hauptanwendung, 1 = erst Dependencies)
+    var_inst_order: 0
+
+    # Kein Service-Start (msmtp ist kein Daemon)
+    var_sonder_start:
+    var_sonder_autostart:
+
+    # Nicht unterstützte OS
+    unsupported_systems:
+
+    # Playbook-Kontext
+    templates_paths_pb: msmtp
+    pb_doku_template: msmtp_doku
+
+    # msmtp Konfiguration
+    msmtp_account: "{{ urls[ansible_host].msmtp.account }}"
+    msmtp_host: "{{ urls[ansible_host].msmtp.host }}"
+    msmtp_port: "{{ urls[ansible_host].msmtp.port }}"
+    msmtp_from: "{{ smtp_user }}"
+    msmtp_user: "{{ smtp_user }}"
+    msmtp_password: "{{ smtp_password }}"
+    msmtp_test_to: "{{ urls[ansible_host].msmtp.test_to }}"
+    msmtp_sudoers_user: "{{ urls[ansible_host].msmtp.sudoers_user }}"
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden
+    ###########################################################################
+    - name: Lade alle Variablen-Dateien - pb_inst_conf_msmtp.yml
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop: "{{ var_files }}"
+
+    ###########################################################################
+    # Hook: Pre-Start
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start - pb_inst_conf_msmtp.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck
+    ###########################################################################
+    - name: 🔄 Systemcheck - pb_inst_conf_msmtp.yml
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Systemcheck Prerequisites - pb_inst_conf_msmtp.yml
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks
+    ###########################################################################
+    - name: 🔄 Paketmanager-Lock prüfen - pb_inst_conf_msmtp.yml
+      ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+    - name: 🔄 Debug Ausgabe Playbook-Start - pb_inst_conf_msmtp.yml
+      ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+    ###########################################################################
+    # Playbook-spezifische Pre-Tasks
+    ###########################################################################
+    - name: 🔄 msmtp Pre-Task - pb_inst_conf_msmtp.yml
+      ansible.builtin.include_tasks: "{{ task_paths.msmtp_pretask }}"
+      when: allg_status == "aktiviert"
+
+  tasks:
+    ###########################################################################
+    # INSTALLATION
+    ###########################################################################
+    - block:
+        - name: 🔧 Hook Pre-Install - pb_inst_conf_msmtp.yml
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        - name: Installation msmtp - pb_inst_conf_msmtp.yml
+          ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+        - name: msmtp Konfiguration - pb_inst_conf_msmtp.yml
+          ansible.builtin.include_tasks: "{{ task_paths.msmtp_task }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # DEINSTALLATION
+    ###########################################################################
+    - block:
+        - name: 🔄 Deinstallation msmtp - pb_inst_conf_msmtp.yml
+          ansible.builtin.include_tasks: "{{ include_paths.deinstall_allg }}"
+
+        - name: Sudoers-Eintrag entfernen - pb_inst_conf_msmtp.yml
+          ansible.builtin.file:
+            path: /etc/sudoers.d/msmtp_sendmail
+            state: absent
+
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # Hook: End
+    ###########################################################################
+    - name: 🔧 Hook End - pb_inst_conf_msmtp.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

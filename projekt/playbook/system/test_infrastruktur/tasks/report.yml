@@ -1,0 +1,83 @@
+---
+###########################################################################
+# 📄 Report — Abschlussbericht generieren
+# =========================================================================
+# Zweck  : Alle gesammelten Variablen → Markdown-Report
+#          Report wird auf dem Controller gespeichert (nicht auf dem Client)
+# Liest  : Alle *_results Variablen
+# Schreibt: reports/analyse_<host>_<datum>.md auf dem Controller
+###########################################################################
+
+# =========================================================================
+# Gesamtstatus berechnen
+# =========================================================================
+
+- name: "RPT | Gesamtstatus aller Module berechnen"
+  ansible.builtin.set_fact:
+    alle_module_status:
+      - "{{ system_info_results.status | default('UNBEKANNT') }}"
+      - "{{ pakete_results.status | default('UNBEKANNT') }}"
+      - "{{ services_results.status | default('UNBEKANNT') }}"
+      - "{{ benutzer_results.status | default('UNBEKANNT') }}"
+      - "{{ netzwerk_results.status | default('UNBEKANNT') }}"
+      - "{{ ressourcen_results.status | default('UNBEKANNT') }}"
+      - "{{ logs_results.status | default('UNBEKANNT') }}"
+      - "{{ sicherheit_results.status | default('UNBEKANNT') }}"
+      - "{{ container_results.status | default('UNBEKANNT') }}"
+      - "{{ hardware_results.status | default('UNBEKANNT') }}"
+
+- name: "RPT | Gesamtstatus ermitteln (schlechtester Einzelstatus)"
+  ansible.builtin.set_fact:
+    gesamt_status: >-
+      {{
+        'FEHLER' if 'FEHLER' in alle_module_status
+        else 'WARNUNG' if 'WARNUNG' in alle_module_status
+        else 'OK'
+      }}
+
+- name: "RPT | App-Statistiken berechnen"
+  ansible.builtin.set_fact:
+    app_ok: "{{ app_results | selectattr('status', 'equalto', 'OK') | list | length }}"
+    app_warnung: "{{ app_results | selectattr('status', 'equalto', 'WARNUNG') | list | length }}"
+    app_fehler: "{{ app_results | selectattr('status', 'equalto', 'FEHLER') | list | length }}"
+
+# =========================================================================
+# Report generieren auf dem Controller
+# =========================================================================
+
+- name: "RPT | Abschlussbericht generieren"
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/playbook/system/test_infrastruktur/templates/report.md.j2"
+    dest: "{{ var_report_pfad }}/analyse_{{ inventory_hostname }}_{{ var_timestamp }}.md"
+    mode: "0644"
+  delegate_to: localhost
+  become: false
+
+# =========================================================================
+# Vollständige Dokumentation generieren
+# =========================================================================
+
+- name: "RPT | Vollständige Dokumentation generieren"
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/playbook/system/test_infrastruktur/templates/doku.md.j2"
+    dest: "{{ var_report_pfad }}/doku_{{ inventory_hostname }}_{{ var_timestamp }}.md"
+    mode: "0644"
+  delegate_to: localhost
+  become: false
+
+- name: "RPT | ✅ Report erstellt"
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "📄 REPORT & DOKUMENTATION ERSTELLT"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Gesamtstatus : {{ gesamt_status }}"
+      - "Module OK    : {{ alle_module_status | select('equalto', 'OK') | list | length }}/{{ alle_module_status | length }}"
+      - "Apps geprüft : {{ app_results | length }}"
+      - "  ✅ OK      : {{ app_ok }}"
+      - "  ⚠️ WARNUNG : {{ app_warnung }}"
+      - "  ❌ FEHLER  : {{ app_fehler }}"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Report: {{ var_report_pfad }}/analyse_{{ inventory_hostname }}_{{ var_timestamp }}.md"
+      - "Doku  : {{ var_report_pfad }}/doku_{{ inventory_hostname }}_{{ var_timestamp }}.md"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

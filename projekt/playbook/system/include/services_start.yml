@@ -1,0 +1,26 @@
+###########################################################################
+# 🟢 Dienste starten
+# Nutzt die OS‑abhängigen Start‑Kommandos aus services[..].start[..]
+# Funktioniert mit String ("fail2ban") oder Liste (["fail2ban","nftables"])
+###########################################################################
+- name: 🚀 Starte Hauptdienst(e)
+  ansible.builtin.command: "{{ services[item].start[ansible_os_family] }}"
+  loop: >-
+    {{ (var_pack_name | list)
+       if var_pack_name is iterable and (var_pack_name is not string)
+       else [var_pack_name] }}
+  register: service_start
+  failed_when: false
+  changed_when: false
+  when:
+    - (var_pack_name | default([])) | length > 0
+
+- name: 💤 Info
+  ansible.builtin.debug:
+    msg: |
+      {% set ok = service_start.results | default([]) | selectattr('rc', 'eq', 0) | map(attribute='item') | list %}
+      {% set fail = service_start.results | default([]) | selectattr('rc', 'ne', 0) | map(attribute='item') | list %}
+      {% if ok | length > 0 %}✓ Gestartet: {{ ok | join(', ') }}{% endif %}
+      {% if fail | length > 0 %}⚠️  Fehler: {{ fail | join(', ') }}{% endif %}
+  when:
+    - service_start.results is defined

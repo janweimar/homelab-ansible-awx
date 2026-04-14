@@ -1,0 +1,37 @@
+# AppArmor Profile für Auditd
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/sbin/auditd {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  
+  # Capabilities
+  capability audit_control,
+  capability audit_write,
+  capability dac_override,
+  capability sys_nice,
+  capability sys_resource,
+  
+  # Auditd Binary
+  /sbin/auditd mr,
+  
+  # Konfiguration
+  /etc/audit/** r,
+  
+  # Logs
+  /var/log/audit/** rw,
+  
+  # Runtime
+  /run/auditd.pid rw,
+  /run/auditd.state rw,
+  
+  # Proc
+  @{PROC}/sys/kernel/random/uuid r,
+  
+  # Temp
+  /tmp/** rw,
+}

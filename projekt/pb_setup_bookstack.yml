@@ -1,0 +1,355 @@
+---
+###########################################################################
+# 📚 BookStack Installation mit Docker
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials:
+#   allg_status: aktiviert | deaktiviert | deinstalliert
+#   bookstack_db_password: Passwort fuer MySQL
+#   bookstack_nginx_integration: true | false (nginx Reverse Proxy)
+#   server_ssl: true | false (Let's Encrypt SSL)
+#   nginx_modsecurity: true | false (ModSecurity WAF)
+#   restore_db: true | false (Backup/Restore aktivieren)
+#   ssh_key: SSH-Zugangsdaten
+#
+# Beschreibung:
+# Installiert BookStack Dokumentations-System mit Docker auf dem Zielsystem.
+# BookStack ist ein Wiki-System speziell fuer strukturierte Dokumentation.
+# Domain/Port/URL kommen aus os_urls.yml (server_urls.bookstack.*)
+#
+# Hinweise:
+# - Benoetigt min. 1 GB RAM
+# - Ports: 8080 (direkt) oder 80/443 (ueber nginx)
+#
+# BEST PRACTICES:
+# - Wenn moeglich kein Code im Playbook, sondern in pre_task/task auslagern
+# - Nicht benoetigte Service-Includes loeschen (nicht auskommentieren)
+###########################################################################
+
+- name: pb_inst_bookstack.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+    - playbooks_paths.yml
+
+  vars:
+    # Hauptanwendung(en)
+    var_pack_name:
+      - bookstack
+
+    # Abhaengigkeiten - wird dynamisch in pre_tasks gesetzt
+    var_dependencies_list:
+
+    # Voraussetzungen
+    var_prerequisites:
+
+    # Installationsreihenfolge
+    var_inst_order: 0
+
+    # Zusaetzliche Services
+    var_sonder_start:
+    var_sonder_autostart:
+
+    # Nicht unterstuetzte OS
+    unsupported_systems:
+      - FreeBSD
+
+    # Playbook-Log-Dokumentation (Template-Pfad)
+    pb_doku_template: bookstack_doku
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden & setzen
+    ###########################################################################
+    - block:
+        - name: Lade alle Variablen-Dateien aus var_list.yml - pb_inst_bookstack.yml
+          include_vars:
+            file: "{{ item }}"
+          loop: "{{ var_files }}"
+
+        - name: Setze server_urls fuer aktuellen Host - pb_inst_bookstack.yml
+          ansible.builtin.set_fact:
+            server_urls: "{{ urls[ansible_host] }}"
+
+    ###########################################################################
+    # Hook: Pre-Start (nach Variablen-Laden)
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start - pb_inst_bookstack.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Abhaengigkeiten setzen Playbook-spezifisch
+    ###########################################################################
+    - block:
+        - name: Setze Dependencies basierend auf nginx Integration - pb_inst_bookstack.yml
+          ansible.builtin.set_fact:
+            var_dependencies_list: >-
+              {{ ['bookstack_nginx'] if bookstack_nginx_integration | bool else [] }}
+
+        - name: ⚠️ Warnung - ModSecurity ohne nginx nicht moeglich - pb_inst_bookstack.yml
+          ansible.builtin.debug:
+            msg:
+              - "⚠️ WARNUNG: nginx_modsecurity ist aktiviert, aber bookstack_nginx_integration ist deaktiviert!"
+              - "ModSecurity benoetigt nginx und wird NICHT installiert."
+              - "Setze bookstack_nginx_integration: true um ModSecurity zu nutzen."
+          when:
+            - nginx_modsecurity | bool
+            - not (bookstack_nginx_integration | bool)
+
+    ###########################################################################
+    # Systemcheck & Prerequisites
+    ###########################################################################
+    - name: 🔄 Importiere Systemcheck - pb_inst_bookstack.yml
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Importiere Systemcheck zwingend benoetigter Komponenten - pb_inst_bookstack.yml
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks
+    ###########################################################################
+    - block:
+        - name: 🔄 Importiere Paketmanager-Lock pruefen - pb_inst_bookstack.yml
+          ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+        - name: 🔄 Importiere Debug ausgabe bei Playbook start - pb_inst_bookstack.yml
+          ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+    ###########################################################################
+    # Playbook-spezifische Pre-Tasks
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Backup vor Update (wenn restore_db aktiviert)
+        ###########################################################################
+        - name: 🔄 Pruefe ob BookStack bereits installiert ist - pb_inst_bookstack.yml
+          ansible.builtin.command: docker ps -q -f name=bookstack
+          register: bookstack_installed
+          changed_when: false
+          failed_when: false
+
+        - name: 💾 Backup vor Update erstellen - pb_inst_bookstack.yml
+          ansible.builtin.include_tasks: "{{ task_paths.bookstack_backup }}"
+          when:
+            - bookstack_installed.stdout != ""
+            - restore_db | bool
+
+        ###########################################################################
+        # Pre-Task (Verzeichnisse, Standardwerte)
+        ###########################################################################
+        - name: 🔄 Importiere pre_task - pb_inst_bookstack.yml
+          ansible.builtin.include_tasks: "{{ task_paths.bookstack_pretask }}"
+
+      when: allg_status == "aktiviert"
+
+  tasks:
+    ###########################################################################
+    # HAUPTLOGIK - Installation
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Hook: Pre-Install (vor Installation)
+        ###########################################################################
+        - name: 🔧 Hook Pre-Install - pb_inst_bookstack.yml
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        ###########################################################################
+        # Repository hinzufuegen
+        ###########################################################################
+        - name: Docker Repository hinzufuegen - pb_inst_bookstack.yml
+          ansible.builtin.include_tasks: "{{ task_paths.add_repos_client }}"
+          vars:
+            var_repo_list: "docker"
+
+        ###########################################################################
+        # Standard-Installation
+        ###########################################################################
+        - name: Komplette installation von var_pack_name und var_dependencies_list - pb_inst_bookstack.yml
+          ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+        ###########################################################################
+        # Docker Konfiguration
+        ###########################################################################
+        - name: Docker konfigurieren - pb_inst_bookstack.yml
+          ansible.builtin.include_tasks: "{{ task_paths.docker_install }}"
+
+        ###########################################################################
+        # Playbook-spezifische Konfiguration
+        ###########################################################################
+        - name: Ausfuehren der komplette konfiguration - pb_inst_bookstack.yml
+          ansible.builtin.include_tasks: "{{ task_paths.bookstack_task }}"
+
+        - name: 🔄 BookStack Restore aus Backup - pb_inst_bookstack.yml
+          ansible.builtin.include_tasks: "{{ task_paths.bookstack_restore }}"
+          when: restore_db | bool
+
+        ###########################################################################
+        # nginx Integration
+        ###########################################################################
+        - block:
+            - name: 🌐 Konfiguriere nginx fuer BookStack - pb_inst_bookstack.yml
+              ansible.builtin.include_tasks: "{{ task_paths.nginx_configure }}"
+              vars:
+                domain_port: "{{ server_urls.bookstack.domain }}/{{ server_urls.bookstack.port }}"
+                domain_port_ssl: "{{ server_urls.bookstack.domain }}/{{ server_urls.bookstack.port }}"
+                admin_email: "{{ urls[ansible_host].admin_email }}"
+                nginx_ssl: "{{ server_ssl }}"
+                nginx_modsecurity: "{{ nginx_modsecurity }}"
+
+            # ============================================================
+            # NGINX - Default-Seiten loeschen + vHosts selbst deployen
+            # ============================================================
+            - name: nginx Default-Seiten loeschen - pb_inst_bookstack.yml
+              ansible.builtin.file:
+                path: "{{ item }}"
+                state: absent
+              loop:
+                - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/default"
+                - "{{ paths.nginx_conf_dir[ansible_os_family] }}/sites-available/default"
+                - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/default.conf"
+              ignore_errors: true
+
+            - name: Alte bookstack vHost Configs loeschen - pb_inst_bookstack.yml
+              ansible.builtin.file:
+                path: "{{ item }}"
+                state: absent
+              loop:
+                - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.bookstack.domain }}.conf"
+                - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.bookstack.domain }}_ssl.conf"
+                - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.bookstack.domain }}_temp.conf"
+                - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/bookstack"
+                - "{{ paths.nginx_conf_dir[ansible_os_family] }}/sites-available/bookstack"
+              ignore_errors: true
+
+            # --- HTTP-Modus (server_ssl: false) -> nur Port 80 ---
+            - name: HTTP vHost deployen - pb_inst_bookstack.yml
+              ansible.builtin.template:
+                src: "{{ nginx_paths[ansible_host].bookstack[80].vHost_80 }}"
+                dest: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.bookstack.domain }}.conf"
+                owner: root
+                group: root
+                mode: "0644"
+              when: not (server_ssl | bool)
+
+            # --- HTTPS-Modus (server_ssl: true) -> Port 80 Redirect + Port 443 ---
+            - block:
+                - name: HTTPS Redirect vHost deployen (Port 80) - pb_inst_bookstack.yml
+                  ansible.builtin.template:
+                    src: "{{ nginx_paths[ansible_host].bookstack[443].vHost_80 }}"
+                    dest: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.bookstack.domain }}.conf"
+                    owner: root
+                    group: root
+                    mode: "0644"
+
+                - name: HTTPS vHost deployen (Port 443) - pb_inst_bookstack.yml
+                  ansible.builtin.template:
+                    src: "{{ nginx_paths[ansible_host].bookstack[443].vHost_443 }}"
+                    dest: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.bookstack.domain }}_ssl.conf"
+                    owner: root
+                    group: root
+                    mode: "0644"
+              when: server_ssl | bool
+
+            - name: Teste nginx Konfiguration nach vHost Deploy - pb_inst_bookstack.yml
+              ansible.builtin.command: "{{ command.nginx_test[ansible_os_family] }}"
+              changed_when: false
+
+            - name: Restart nginx nach vHost Deploy - pb_inst_bookstack.yml
+              ansible.builtin.command: "{{ command.nginx_restart[ansible_os_family] }}"
+              changed_when: true
+
+            - name: 📊 BookStack nginx Integration Zusammenfassung - pb_inst_bookstack.yml
+              ansible.builtin.debug:
+                msg:
+                  - "✅ nginx Reverse Proxy fuer BookStack konfiguriert!"
+                  - "🔗 URL: {{ server_urls.bookstack.url }}"
+          when:
+            - allg_status == "aktiviert"
+            - bookstack_nginx_integration | bool
+
+        ###########################################################################
+        # nginx Entfernung (wenn Integration deaktiviert)
+        ###########################################################################
+        - block:
+            - name: 🗑️ Entferne nginx Konfiguration fuer BookStack - pb_inst_bookstack.yml
+              ansible.builtin.file:
+                path: "{{ item }}"
+                state: absent
+              loop:
+                - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.bookstack.domain }}.conf"
+                - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.bookstack.domain }}_ssl.conf"
+                - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/bookstack"
+                - "{{ paths.nginx_conf_dir[ansible_os_family] }}/sites-available/bookstack"
+              register: nginx_config_removed
+
+            - name: Restart nginx (BookStack vHost entfernt) - pb_inst_bookstack.yml
+              ansible.builtin.command: "{{ command.nginx_restart[ansible_os_family] }}"
+              changed_when: true
+              when: nginx_config_removed.changed
+              ignore_errors: true
+
+            - name: 📊 BookStack Direktzugriff Info - pb_inst_bookstack.yml
+              ansible.builtin.debug:
+                msg:
+                  - "✅ nginx Konfiguration entfernt"
+                  - "🔗 Zugriff direkt ueber: http://{{ server_urls.bookstack.domain }}:{{ server_urls.bookstack.port }}"
+          when:
+            - allg_status == "aktiviert"
+            - not (bookstack_nginx_integration | bool)
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # Deaktivierung
+    ###########################################################################
+    - block:
+        - name: 🔄 BookStack Container stoppen - pb_inst_bookstack.yml
+          ansible.builtin.command: "{{ command.docker_compose_down[ansible_os_family] }}"
+          args:
+            chdir: "{{ paths.bookstack_base[ansible_os_family] }}"
+          ignore_errors: true
+
+      when: allg_status == "deaktiviert"
+
+    ###########################################################################
+    # Deinstallation
+    ###########################################################################
+    - block:
+        - name: 🔄 BookStack Container & Volumes entfernen - pb_inst_bookstack.yml
+          ansible.builtin.command: "{{ command.docker_compose_down[ansible_os_family] }} -v"
+          args:
+            chdir: "{{ paths.bookstack_base[ansible_os_family] }}"
+          ignore_errors: true
+
+        - name: 🔄 BookStack Verzeichnis entfernen - pb_inst_bookstack.yml
+          ansible.builtin.file:
+            path: "{{ paths.bookstack_base[ansible_os_family] }}"
+            state: absent
+
+        - name: 🔄 nginx Konfiguration entfernen - pb_inst_bookstack.yml
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.bookstack.domain }}.conf"
+            - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.bookstack.domain }}_ssl.conf"
+            - "{{ paths.nginx_sites_enabled[ansible_os_family] }}/bookstack"
+          when: bookstack_nginx_integration | bool
+
+        - name: 🔄 Deinstallationsscript mit debug Ausgabe - pb_inst_bookstack.yml
+          ansible.builtin.include_tasks: "{{ include_paths.deinstall_allg }}"
+
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # Hook: end (am Ende des Playbooks)
+    ###########################################################################
+    - name: 🔧 Hook Post-Install - pb_inst_bookstack.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

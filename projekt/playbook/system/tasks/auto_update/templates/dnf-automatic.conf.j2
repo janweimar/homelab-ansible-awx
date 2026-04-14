@@ -1,0 +1,24 @@
+# dnf-automatic Konfiguration
+# Verwaltet durch Ansible - pb_inst_conf_auto_update.yml
+# Aenderungen werden beim naechsten Playbook-Lauf ueberschrieben!
+
+[commands]
+upgrade_type = security
+random_sleep = 0
+download_updates = yes
+apply_updates = yes
+
+[emitters]
+system_name = {{ ansible_hostname }}
+emit_via = command_email
+
+[email]
+email_from = {{ smtp_user }}
+email_to = {{ urls[ansible_host].msmtp.admin_email }}
+
+[command_email]
+command_format = "printf 'Subject: [{{ urls[ansible_host].msmtp.subject_prefix }}] dnf-automatic Updates auf {system_name}\nFrom: {{ smtp_user }}\nTo: {{ urls[ansible_host].msmtp.admin_email }}\n\n{body}' | msmtp -a {{ urls[ansible_host].msmtp.account }} {{ urls[ansible_host].msmtp.admin_email }}"
+stdin_content = "{body}"
+
+[base]
+debuglevel = 1

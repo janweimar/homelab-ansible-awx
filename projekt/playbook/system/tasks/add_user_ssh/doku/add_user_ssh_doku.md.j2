@@ -1,0 +1,35 @@
+# BENUTZER & SSH SICHERHEIT - SYSTEM KONFIGURATION
+
+## 👤 DEPLOYED BENUTZER
+
+- **Name:** {{ add_user_sudo }}
+- **Home:** /home/{{ add_user_sudo }}
+- **Shell:** /bin/bash
+- **Gruppen:** {{ 'sudo' if ansible_os_family == 'Debian' else 'wheel' }}
+
+---
+
+## 🔒 DEPLOYED SSH-EINSTELLUNGEN
+
+- **SSH Port:** {{ ssh_port | default('2222') }}
+- **Root-Login:** Deaktiviert
+- **Passwort-Login:** Deaktiviert
+- **Nur SSH-Key:** Aktiviert
+- **SSH-Config:** {{ paths.ssh.config[ansible_os_family] }}
+- **Public Key:** {{ file_paths.ssh_pub_key[ansible_default_ipv4.address][add_user_sudo] }}
+
+---
+
+## 🛡️ SICHERHEITS-MASSNAHMEN
+
+- Banner deployed
+- SSH-Config gesichert (Backup in {{ paths.ssh.backup_dir[ansible_os_family] }})
+- Sudoers-Eintrag: {{ paths.ssh.sudoers_d[ansible_os_family] }}/{{ add_user_sudo }}
+{% if ansible_os_family == 'Debian' %}
+- APT-Protect Config: {{ paths.ssh.apt_protect[ansible_os_family] }}
+{% endif %}
+- System-Update: {{ 'Durchgeführt' if update_system | default(true) else 'Übersprungen' }}
+
+---
+
+**Status:** ✅ SSH-Sicherheit konfiguriert

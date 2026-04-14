@@ -1,0 +1,40 @@
+# STATUS: NICHT GETESTET
+---
+###########################################################################
+# OpenEMS Konfiguration
+# Datei: openems_task.yml
+# Zweck: OpenEMS installieren und konfigurieren (nativ oder Docker)
+###########################################################################
+
+# Native Installation (aus Source)
+- block:
+    - name: OpenEMS nativ installieren - openems_task.yml
+      ansible.builtin.debug:
+        msg: "TODO: Native OpenEMS Installation implementieren"
+
+    # TODO: CSXCAD aus Source bauen (cmake)
+    # TODO: OpenEMS aus Source bauen (cmake)
+    # TODO: Umgebungsvariablen setzen
+    # TODO: OpenEMS testen
+
+  when: openems_install_mode == "nativ"
+
+# Docker Installation
+- block:
+    - name: OpenEMS Docker Image bauen/pullen - openems_task.yml
+      ansible.builtin.debug:
+        msg: "TODO: Docker-basierte OpenEMS Installation implementieren"
+
+    # TODO: Docker pruefen/installieren
+    # TODO: Dockerfile deployen oder Image pullen
+    # TODO: Arbeitsverzeichnis erstellen
+    # TODO: Docker Compose Template deployen
+
+  when: openems_install_mode == "docker"
+
+# Verifikation
+- name: OpenEMS Installation Status - openems_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "OpenEMS konfiguriert"
+      - "Modus: {{ openems_install_mode }}"

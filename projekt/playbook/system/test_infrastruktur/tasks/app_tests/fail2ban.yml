@@ -1,0 +1,123 @@
+---
+###########################################################################
+# 🛡️  Spezialtest: fail2ban
+# =========================================================================
+# Zweck  : Vollständige fail2ban Funktionalitätsprüfung
+#          Jails aktiv? Regeln greifen? Logs sauber?
+# Schreibt in: app_results (wird angehängt)
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+- name: "F2B | Paket installiert"
+  ansible.builtin.command: dpkg -s fail2ban
+  register: reg_f2b_pkg
+  changed_when: false
+  failed_when: false
+
+- name: "F2B | Service aktiv"
+  ansible.builtin.command: systemctl is-active fail2ban
+  register: reg_f2b_active
+  changed_when: false
+  failed_when: false
+
+- name: "F2B | Service enabled"
+  ansible.builtin.command: systemctl is-enabled fail2ban
+  register: reg_f2b_enabled
+  changed_when: false
+  failed_when: false
+
+- name: "F2B | Aktive Jails auflisten"
+  ansible.builtin.command: fail2ban-client status
+  register: reg_f2b_jails
+  changed_when: false
+  failed_when: false
+
+- name: "F2B | sshd Jail Status"
+  ansible.builtin.command: fail2ban-client status sshd
+  register: reg_f2b_sshd
+  changed_when: false
+  failed_when: false
+
+- name: "F2B | Jail-Anzahl ermitteln"
+  ansible.builtin.shell: fail2ban-client status | grep "Jail list" | awk -F: '{print $2}' | tr ',' '\n' | grep -v '^$' | wc -l
+  register: reg_f2b_jail_anzahl
+  changed_when: false
+  failed_when: false
+
+- name: "F2B | Log-Datei prüfen"
+  ansible.builtin.stat:
+    path: /var/log/fail2ban.log
+  register: reg_f2b_log
+
+- name: "F2B | Letzte Bans"
+  ansible.builtin.shell: grep "Ban " /var/log/fail2ban.log 2>/dev/null | tail -10 || echo "Keine Bans gefunden"
+  register: reg_f2b_bans
+  changed_when: false
+  failed_when: false
+
+- name: "F2B | Fehler in fail2ban Logs"
+  ansible.builtin.shell: grep -c "ERROR" /var/log/fail2ban.log 2>/dev/null || echo 0
+  register: reg_f2b_errors
+  changed_when: false
+  failed_when: false
+
+- name: "F2B | Ergebnis in app_results speichern"
+  ansible.builtin.set_fact:
+    app_results: >-
+      {{
+        app_results + [{
+          'app': 'fail2ban',
+          'typ': 'spezial',
+          'status': (
+            'FEHLER' if reg_f2b_active.stdout != 'active'
+            else 'WARNUNG' if (reg_f2b_jail_anzahl.stdout | int) == 0
+            else 'WARNUNG' if reg_f2b_sshd.rc != 0
+            else 'OK'
+          ),
+          'details': [
+            {
+              'name': 'Paket installiert',
+              'status': 'OK' if reg_f2b_pkg.rc == 0 else 'FEHLER',
+              'wert': 'installiert' if reg_f2b_pkg.rc == 0 else 'NICHT installiert',
+              'hinweis': ''
+            },
+            {
+              'name': 'Service aktiv',
+              'status': 'OK' if reg_f2b_active.stdout == 'active' else 'FEHLER',
+              'wert': reg_f2b_active.stdout,
+              'hinweis': 'fail2ban läuft nicht!' if reg_f2b_active.stdout != 'active' else ''
+            },
+            {
+              'name': 'Aktive Jails',
+              'status': 'OK' if (reg_f2b_jail_anzahl.stdout | int) > 0 else 'FEHLER',
+              'wert': reg_f2b_jail_anzahl.stdout | trim + ' Jails aktiv',
+              'hinweis': 'Keine aktiven Jails — fail2ban schützt nicht!' if (reg_f2b_jail_anzahl.stdout | int) == 0 else ''
+            },
+            {
+              'name': 'sshd Jail',
+              'status': 'OK' if reg_f2b_sshd.rc == 0 else 'WARNUNG',
+              'wert': 'aktiv' if reg_f2b_sshd.rc == 0 else 'INAKTIV',
+              'hinweis': 'sshd Jail inaktiv — SSH ungeschützt!' if reg_f2b_sshd.rc != 0 else ''
+            },
+            {
+              'name': 'Log-Datei',
+              'status': 'OK' if reg_f2b_log.stat.exists else 'WARNUNG',
+              'wert': 'vorhanden' if reg_f2b_log.stat.exists else 'fehlt',
+              'hinweis': 'fail2ban Log-Datei fehlt' if not reg_f2b_log.stat.exists else ''
+            },
+            {
+              'name': 'Fehler in Logs',
+              'status': 'OK' if (reg_f2b_errors.stdout | int) == 0 else 'WARNUNG',
+              'wert': reg_f2b_errors.stdout | trim + ' Fehler',
+              'hinweis': 'Fehler in fail2ban Logs!' if (reg_f2b_errors.stdout | int) > 0 else ''
+            }
+          ],
+          'spezialtest': true
+        }]
+      }}
+  when: reg_f2b_pkg.rc == 0
+
+- name: "F2B | ✅ fail2ban Spezialtest abgeschlossen"
+  ansible.builtin.debug:
+    msg: "fail2ban getestet — Status: {{ (app_results | last).status }}"
+  when: reg_f2b_pkg.rc == 0

@@ -1,0 +1,10 @@
+[dovecot]
+enabled  = {{ mail_dovecot_enable }}
+filter   = dovecot
+bantime  = {{ mail_dovecot_bantime }}
+findtime = {{ mail_dovecot_findtime }}
+maxretry = {{ mail_dovecot_maxretry }}
+port     = {{ mail_dovecot_ports }}
+action   = nftables_custom[name=IMAP, port="{{ mail_dovecot_ports }}"]
+logpath  = /var/log/mail.log
+backend  = systemd

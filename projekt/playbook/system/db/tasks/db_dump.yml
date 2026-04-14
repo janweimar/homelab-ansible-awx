@@ -1,0 +1,38 @@
+---
+###############################################################
+# 💾 Datenbank Backup erstellen
+# Verwendet: templates_paths_pb, restore_db
+###############################################################
+- name: 🔍 Prüfe ob Anwendung bereits existiert
+  ansible.builtin.stat:
+    path: "{{ paths[templates_paths_pb + '_base'][ansible_os_family] }}/docker-compose.yml"
+  register: app_exists
+
+- name: 🔍 Prüfe ob DB-Container läuft
+  ansible.builtin.shell: "{{ command.db_container_check[templates_paths_pb][ansible_os_family] }}"
+  register: db_container_running
+  changed_when: false
+  failed_when: false
+  when: app_exists.stat.exists
+
+- name: 💾 Erstelle DB-Backup
+  ansible.builtin.shell: |
+    {{ command.db_dump[templates_paths_pb][ansible_os_family] }} > {{ paths[templates_paths_pb + '_base'][ansible_os_family] }}/backup_pre_update.sql
+  when:
+    - app_exists.stat.exists
+    - db_container_running.stdout | default('') | length > 0
+  register: db_backup_created
+  no_log: true
+
+- name: 📊 DB-Backup Info
+  ansible.builtin.debug:
+    msg:
+      - "✅ DB-Backup erstellt: {{ paths[templates_paths_pb + '_base'][ansible_os_family] }}/backup_pre_update.sql"
+      - "⚠️ Bei Abbruch manuell wiederherstellen mit:"
+      - "docker exec -i bookstack_db mariadb -u bookstack -p[PASSWORT] bookstack < {{ paths[templates_paths_pb + '_base'][ansible_os_family] }}/backup_pre_update.sql"
+  when: db_backup_created.changed | default(false)
+
+- name: ⏭️ Neuinstallation - kein Backup nötig
+  ansible.builtin.debug:
+    msg: "ℹ️ Neuinstallation erkannt - kein DB-Backup erstellt"
+  when: not app_exists.stat.exists

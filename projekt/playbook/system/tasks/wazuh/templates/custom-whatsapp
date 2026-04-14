@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+###########################################################################
+# Wazuh WhatsApp Integration (CallMeBot)
+# Sendet Wazuh Alerts als WhatsApp Nachricht
+# Pfad: /var/ossec/integrations/custom-whatsapp
+# Managed by Ansible - DO NOT EDIT MANUALLY
+###########################################################################
+
+import sys
+import json
+import urllib.request
+import urllib.parse
+
+LOG_FILE = "/var/ossec/logs/integrations.log"
+
+
+def log(msg):
+    try:
+        with open(LOG_FILE, "a") as f:
+            f.write(f"{msg}\n")
+    except Exception:
+        pass
+
+
+def main():
+    if len(sys.argv) < 4:
+        log("ERROR: Nicht genuegend Argumente. Erwartet: alert_file api_key hook_url")
+        sys.exit(1)
+
+    alert_file = sys.argv[1]
+    api_key = sys.argv[2]
+    hook_url = sys.argv[3]
+
+    # Phone aus hook_url extrahieren
+    try:
+        phone = hook_url.split("phone=")[1].split("&")[0]
+    except (IndexError, AttributeError):
+        log(f"ERROR: Telefonnummer nicht aus hook_url extrahiert: {hook_url}")
+        sys.exit(1)
+
+    # Alert lesen
+    try:
+        with open(alert_file) as f:
+            alert_json = json.load(f)
+    except Exception as e:
+        log(f"ERROR: Alert-Datei nicht lesbar: {e}")
+        sys.exit(1)
+
+    # Alert-Daten extrahieren
+    rule_id = alert_json.get("rule", {}).get("id", "N/A")
+    rule_level = alert_json.get("rule", {}).get("level", "N/A")
+    rule_desc = alert_json.get("rule", {}).get("description", "N/A")
+    agent_name = alert_json.get("agent", {}).get("name", "Manager")
+    agent_ip = alert_json.get("agent", {}).get("ip", "lokal")
+    timestamp = alert_json.get("timestamp", "N/A")
+    full_log = alert_json.get("full_log", "")[:200]
+
+    # MITRE ATT&CK
+    mitre = alert_json.get("rule", {}).get("mitre", {})
+    mitre_tactic = ", ".join(mitre.get("tactic", [])) if mitre else ""
+    mitre_technique = ", ".join(mitre.get("technique", [])) if mitre else ""
+
+    # Severity Emoji
+    lvl = int(rule_level) if str(rule_level).isdigit() else 0
+    if lvl >= 12:
+        severity = "🔴 KRITISCH"
+    elif lvl >= 10:
+        severity = "🟠 HOCH"
+    elif lvl >= 7:
+        severity = "🟡 MITTEL"
+    else:
+        severity = "🟢 NIEDRIG"
+
+    # Nachricht formatieren
+    message = (
+        f"⚠️ *Wazuh Alert*\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"*{severity}* (Level {rule_level})\n"
+        f"📋 Rule: {rule_id}\n"
+        f"📝 {rule_desc}\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"🖥️ Server: {agent_name}\n"
+        f"🌐 IP: {agent_ip}\n"
+        f"🕐 Zeit: {timestamp}\n"
+    )
+
+    if mitre_tactic:
+        message += f"🎯 MITRE: {mitre_tactic}\n"
+    if mitre_technique:
+        message += f"🔧 Technik: {mitre_technique}\n"
+    if full_log:
+        message += f"━━━━━━━━━━━━━━━\n📄 {full_log}\n"
+
+    # WhatsApp senden
+    try:
+        encoded_msg = urllib.parse.quote_plus(message)
+        url = f"https://api.callmebot.com/whatsapp.php?phone={phone}&text={encoded_msg}&apikey={api_key}"
+        req = urllib.request.Request(url)
+        response = urllib.request.urlopen(req, timeout=10)
+        status = response.getcode()
+
+        if status == 200:
+            log(f"OK: WhatsApp gesendet - Rule {rule_id} Level {rule_level} Agent {agent_name}")
+        else:
+            log(f"WARNING: CallMeBot Status {status} - Rule {rule_id}")
+    except Exception as e:
+        log(f"ERROR: WhatsApp senden fehlgeschlagen: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

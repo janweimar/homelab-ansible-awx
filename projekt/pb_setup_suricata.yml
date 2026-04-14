@@ -1,0 +1,157 @@
+###########################################################################
+# 🛡️ Suricata IDS/IPS — nftables Integration
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials:
+#   a_cred_typ_pb_suricata_status: Status + Modus (IDS/IPS) + Interface
+#   a_cred_typ_default_admin_smtp_mail: Admin E-Mail für Benachrichtigung
+#   a_cred_typ_default_status_update: allg_status + update_before_install
+#   ssh_key: SSH-Zugangsdaten
+#
+# Beschreibung: Installiert und konfiguriert Suricata IDS/IPS
+#   IDS-Modus: Überwacht Traffic passiv (af-packet)
+#   IPS-Modus: Blockiert Bedrohungen inline (nfqueue + nftables)
+#
+# Hinweise:
+#   - Suricata-Rules werden automatisch per suricata-update geladen
+#   - IPS-Modus benötigt nftables Forward-Regeln (NFQUEUE)
+#   - Logfiles unter /var/log/suricata/
+###########################################################################
+
+- name: pb_setup_suricata.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    var_pack_name:
+      - suricata
+
+    var_dependencies_list:
+
+    var_prerequisites:
+
+    var_inst_order: 0
+
+    var_sonder_start:
+
+    var_sonder_autostart:
+
+    unsupported_systems:
+      - Suse
+      - Archlinux
+      - FreeBSD
+
+    templates_paths_pb:
+
+    pb_doku_template: suricata_doku
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden & setzen
+    ###########################################################################
+    - block:
+        - name: Lade playbooks_paths.yml
+          include_vars:
+            file: "playbooks_paths.yml"
+
+        - name: Lade alle Variablen-Dateien aus var_list.yml
+          include_vars:
+            file: "{{ item }}"
+          loop: "{{ var_files }}"
+
+        - name: 🔄 Variablen für Playbook vereinheitlichen
+          ansible.builtin.set_fact:
+            allg_status: "{{ suricata_status | default('aktiviert') }}"
+
+    ###########################################################################
+    # Hook: Pre-Start
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck & Prerequisites
+    ###########################################################################
+    - name: 🔄 Importiere Systemcheck
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks
+    ###########################################################################
+    - block:
+        - name: 🔄 Importiere Paketmanager-Lock prüfen
+          ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+        - name: 🔄 Importiere Debug ausgabe bei Playbook start
+          ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+  tasks:
+    ###########################################################################
+    # HAUPTLOGIK - Installation
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Hook: Pre-Install
+        ###########################################################################
+        - name: 🔧 Hook Pre-Install
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        ###########################################################################
+        # Standard-Installation
+        ###########################################################################
+        - name: 🔄 Komplette Installation
+          ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+        ###########################################################################
+        # Suricata Konfiguration
+        ###########################################################################
+        - name: 🛡️ Suricata konfigurieren
+          ansible.builtin.include_tasks: "{{ task_paths.suricata_task }}"
+
+        ###########################################################################
+        # Service-Management
+        ###########################################################################
+        - block:
+            - name: 🔄 Startet Hauptdienst
+              ansible.builtin.include_tasks: "{{ include_paths.services_start }}"
+
+            - name: 🔄 Autostart aktivieren
+              ansible.builtin.include_tasks: "{{ include_paths.services_autostart }}"
+
+            - name: 🔄 Status prüfen
+              ansible.builtin.include_tasks: "{{ include_paths.status_inst }}"
+
+            - name: 🔄 Autostart prüfen
+              ansible.builtin.include_tasks: "{{ include_paths.services_is_enable }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # Deaktivierung
+    ###########################################################################
+    - block:
+        - name: 🔄 Dienste stoppen
+          ansible.builtin.include_tasks: "{{ include_paths.services_stop }}"
+
+      when: allg_status == "deaktiviert"
+
+    ###########################################################################
+    # Deinstallation
+    ###########################################################################
+    - block:
+        - name: 🔄 Deinstallationsscript
+          ansible.builtin.include_tasks: "{{ include_paths.deinstall_allg }}"
+
+        - name: 🔄 Cleanup Konfiguration
+          ansible.builtin.include_tasks: "{{ include_paths.cleanup }}"
+
+      when: allg_status == "deinstallieren"
+
+    ###########################################################################
+    # Hook: Ende
+    ###########################################################################
+    - name: 🔧 Hook Post-Install
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

@@ -1,0 +1,75 @@
+---
+###########################################################################
+# Hook: Pre-Start (nach Variablen-Laden)
+# Wird in allen Playbooks nach dem Laden der Variablen ausgeführt
+###########################################################################
+
+###########################################################################
+# Debug-Info
+###########################################################################
+- name: 🔧 Hook Pre-Start - Playbook-Kontext
+  ansible.builtin.debug:
+    msg:
+      - "Playbook gestartet: {{ ansible_play_name }}"
+      - "Host: {{ ansible_hostname }}"
+      - "OS: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      - "Status: {{ allg_status | default('nicht gesetzt') }}"
+  when: debug_output | default(false) | bool
+
+###########################################################################
+# State-Konfiguration aus playbook_state_map.yml laden
+# Liest anhand ansible_play_name welche Vars in den State geschrieben werden
+###########################################################################
+- name: 📋 Lade playbook_state_map - hook_pre_start.yml
+  ansible.builtin.include_vars:
+    file: playbook/system/daten/vars/playbook_state_map.yml
+
+- name: 📋 Setze State-Konfiguration fuer dieses Playbook - hook_pre_start.yml
+  ansible.builtin.set_fact:
+    _state_section: "{{ state_map[ansible_play_name].section | default('') }}"
+    _state_var_list: "{{ state_map[ansible_play_name].vars | default([]) }}"
+  when: ansible_play_name in state_map
+
+- name: 📋 Kein State-Eintrag fuer dieses Playbook - hook_pre_start.yml
+  ansible.builtin.debug:
+    msg: "ℹ️ Kein State-Eintrag in playbook_state_map fuer: {{ ansible_play_name }}"
+  when: ansible_play_name not in state_map
+
+###########################################################################
+# State-Section loeschen (vor dem Lauf)
+# Wenn Playbook fehlschlaegt wird Section nicht neu geschrieben → sauber
+###########################################################################
+- name: 🗑️ Pruefe ob server_state.fact existiert - hook_pre_start.yml
+  ansible.builtin.stat:
+    path: /etc/ansible/facts.d/server_state.fact
+  register: _pre_state_file_check
+  when:
+    - ansible_play_name in state_map
+    - _state_section is defined
+    - _state_section | length > 0
+
+- name: 🗑️ Lese bestehende server_state.fact - hook_pre_start.yml
+  ansible.builtin.slurp:
+    src: /etc/ansible/facts.d/server_state.fact
+  register: _pre_state_file_content
+  when:
+    - ansible_play_name in state_map
+    - _state_section is defined
+    - _state_section | length > 0
+    - _pre_state_file_check.stat.exists | default(false)
+
+- name: 🗑️ Entferne Section aus server_state.fact - hook_pre_start.yml
+  ansible.builtin.copy:
+    dest: /etc/ansible/facts.d/server_state.fact
+    content: >-
+      {{ (_pre_state_file_content.content | b64decode)
+         | regex_replace('(?m)^\[' + _state_section + '\][^\[]*', '')
+         | trim }}
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - ansible_play_name in state_map
+    - _state_section is defined
+    - _state_section | length > 0
+    - _pre_state_file_check.stat.exists | default(false)

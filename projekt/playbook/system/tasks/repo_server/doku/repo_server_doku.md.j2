@@ -1,0 +1,56 @@
+# REPOSITORY SERVER - SYSTEM KONFIGURATION
+
+## 📦 Status
+
+- **Status:** {{ allg_status }}
+- **Host:** {{ ansible_host }}
+- **OS:** {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
+- **aptly:** {{ 'aktiviert' if (install_aptly | default(false) | bool) else 'deaktiviert' }}
+- **cgit:** {{ 'aktiviert' if (install_cgit | default(false) | bool) else 'deaktiviert' }}
+- **SSL:** {{ server_ssl | default(false) }}
+- **ModSecurity:** {{ nginx_modsecurity | default(false) }}
+
+---
+
+## 🌐 URLs
+
+| Dienst | URL |
+|--------|-----|
+| aptly  | {{ server_urls.repo_server_apt.url | default('n/a') }} |
+| cgit   | {{ server_urls.repo_server_cgit.url | default('n/a') }} |
+
+---
+
+## 📁 Verzeichnisse
+
+| Verzeichnis | Pfad |
+|-------------|------|
+| aptly Basis    | {{ paths.aptly_base[ansible_os_family] | default('n/a') }} |
+| aptly Config   | {{ paths.aptly_config[ansible_os_family] | default('n/a') }} |
+| aptly GPG Home | {{ paths.aptly_gpg_home[ansible_os_family] | default('n/a') }} |
+| aptly Public Key | {{ paths.aptly_public_key[ansible_os_family] | default('n/a') }} |
+| git Basis      | {{ paths.git_base[ansible_os_family] | default('n/a') }} |
+| cgit Config    | {{ paths.cgit_config[ansible_os_family] | default('n/a') }} |
+| nginx Config   | {{ paths.nginx_conf[ansible_os_family] | default('n/a') }} |
+| nginx Log      | {{ paths.nginx_log_dir[ansible_os_family] | default('n/a') }} |
+
+---
+
+## 🔧 nginx Konfiguration
+
+- **Domain apt:** {{ server_urls.repo_server_apt.domain | default('n/a') }}
+- **Domain cgit:** {{ server_urls.repo_server_cgit.domain | default('n/a') }}
+{% if server_ssl | default(false) | bool %}
+- **Modus:** HTTPS (Port 443) + HTTP Redirect (Port 80)
+{% else %}
+- **Modus:** HTTP (Port 80)
+{% endif %}
+{% if nginx_modsecurity | default(false) | string | lower == 'true' %}
+- **ModSecurity:** aktiv (OWASP CRS)
+- **CRS-Verzeichnis:** {{ paths.owasp_crs[ansible_os_family] | default('n/a') }}
+{% endif %}
+
+---
+
+**Zeitstempel:** {{ ansible_date_time.iso8601 | default('n/a') }}
+**Status:** ✅ Repository Server konfiguriert

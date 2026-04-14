@@ -1,0 +1,185 @@
+---
+###########################################################################
+# 🧱 ollama_kube_task.yml
+# Ollama AI Runtime Deployment auf K3s — MariaDB + Ollama
+###########################################################################
+# Wird vom universellen pb_setup_app_deploy.yml aufgerufen.
+# nginx wird dort gehandelt — hier nur Kubernetes-Deployment.
+#
+# MariaDB = Code-Wissensdatenbank (nicht von Ollama direkt genutzt)
+# Ollama = AI Runtime für LLM-Modelle (CPU-only Inferenz)
+#
+# Nutzt wiederverwendbare Common Tasks:
+#   - kube_app_cleanup:     Namespace + Ressourcen aufräumen
+#   - db_deploy:            DB deployen (erkennt DB-Typ + Deploy-Typ)
+#   - kube_app_wait_ready:  Warten bis alle Pods Ready
+###########################################################################
+
+# ============================================================
+# 0) DEBUG — Eingangsvariablen anzeigen
+# ============================================================
+- name: 📊 DEBUG Eingangsvariablen - ollama_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "🧠 Ollama Kubernetes Deployment"
+      - "=========================================="
+      - "app_name:        {{ app_name }}"
+      - "app_deploy_type: {{ app_deploy_type }}"
+      - "app_db_type:     {{ app_db_type | default('none') }}"
+      - "app_port:        {{ app_port | default('11434') }}"
+      - "kube_user:       {{ kube_user }}"
+      - "Domain:          {{ urls[ansible_host][app_name].domain | default('NICHT GESETZT') }}"
+      - "=========================================="
+
+# ============================================================
+# 1) Aufräumen — alte Installation entfernen
+# ============================================================
+- name: 🧹 Alte Installation aufräumen - ollama_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_cleanup }}"
+
+# ============================================================
+# 2) Datenbank deployen (MariaDB) — common Task
+# ============================================================
+- name: 🗄️ Datenbank deployen (Code-Wissensdatenbank) - ollama_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.db_deploy }}"
+  when: app_db_type | default('none') != 'none'
+
+- name: 📊 DEBUG DB Deploy abgeschlossen - ollama_kube_task.yml
+  ansible.builtin.debug:
+    msg: "✅ MariaDB für Code-Wissensdatenbank deployed (DB: {{ app_name }}, User: {{ app_name }})"
+  when: app_db_type | default('none') != 'none'
+
+# ============================================================
+# 3) Ollama App deployen
+# ============================================================
+- name: 📁 Namespace sicherstellen (falls DB übersprungen) - ollama_kube_task.yml
+  ansible.builtin.command: kubectl create namespace {{ app_name }}
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _ns_ensure
+  failed_when:
+    - _ns_ensure.rc != 0
+    - "'already exists' not in _ns_ensure.stderr"
+  changed_when: "'created' in _ns_ensure.stdout"
+
+- name: 📁 Manifests-Verzeichnis sicherstellen - ollama_kube_task.yml
+  ansible.builtin.file:
+    path: "/home/{{ kube_user }}/manifests"
+    state: directory
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0755"
+
+- name: 📝 Ollama App-Manifest erstellen - ollama_kube_task.yml
+  ansible.builtin.template:
+    src: playbook/system/tasks/ollama/templates/ollama_kube_manifests.yml.j2
+    dest: "/home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml"
+    owner: "{{ kube_user }}"
+    group: "{{ kube_user }}"
+    mode: "0644"
+
+- name: 📊 DEBUG Manifest erstellt - ollama_kube_task.yml
+  ansible.builtin.debug:
+    msg: "📝 Manifest: /home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml"
+
+- name: 🚀 Ollama App deployen - ollama_kube_task.yml
+  ansible.builtin.command: kubectl apply -f /home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _deploy_result
+  changed_when: "'created' in _deploy_result.stdout or 'configured' in _deploy_result.stdout"
+
+- name: 📊 DEBUG App Deploy Ergebnis - ollama_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ Ollama App Manifest applied"
+      - "{{ _deploy_result.stdout_lines | default([]) }}"
+
+# ============================================================
+# 4) Warten bis ALLE Pods Ready — common Task
+# ============================================================
+- name: ⏳ Warte auf alle Pods - ollama_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_wait_ready }}"
+  vars:
+    _app_pod_label: "{{ app_name }}"
+    _expected_ready: 2
+
+# ============================================================
+# 5) Modelle herunterladen
+# ============================================================
+- name: 🔍 Ermittle Ollama Pod-Name - ollama_kube_task.yml
+  ansible.builtin.shell: >
+    kubectl get pods -n {{ app_name }}
+    -l app={{ app_name }}
+    -o jsonpath='{.items[0].metadata.name}'
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _ollama_pod
+  changed_when: false
+
+- name: 📊 DEBUG Ollama Pod - ollama_kube_task.yml
+  ansible.builtin.debug:
+    msg: "🧠 Ollama Pod: {{ _ollama_pod.stdout }}"
+
+- name: 📥 Modell DeepSeek-Coder herunterladen (kann dauern!) - ollama_kube_task.yml
+  ansible.builtin.shell: >
+    kubectl exec -n {{ app_name }} {{ _ollama_pod.stdout }} --
+    ollama pull deepseek-coder-v2:16b-lite-instruct-q4_0
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _pull_deepseek
+  changed_when: "'pulling' in _pull_deepseek.stdout | default('')"
+
+- name: 📊 DEBUG DeepSeek Pull Ergebnis - ollama_kube_task.yml
+  ansible.builtin.debug:
+    msg: "{{ _pull_deepseek.stdout_lines | default(['Pull abgeschlossen']) }}"
+
+- name: 📥 Modell LLaVA herunterladen (kann dauern!) - ollama_kube_task.yml
+  ansible.builtin.shell: >
+    kubectl exec -n {{ app_name }} {{ _ollama_pod.stdout }} --
+    ollama pull llava:7b
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _pull_llava
+  changed_when: "'pulling' in _pull_llava.stdout | default('')"
+
+- name: 📊 DEBUG LLaVA Pull Ergebnis - ollama_kube_task.yml
+  ansible.builtin.debug:
+    msg: "{{ _pull_llava.stdout_lines | default(['Pull abgeschlossen']) }}"
+
+- name: 📋 Installierte Modelle anzeigen - ollama_kube_task.yml
+  ansible.builtin.shell: >
+    kubectl exec -n {{ app_name }} {{ _ollama_pod.stdout }} --
+    ollama list
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  register: _model_list
+  changed_when: false
+
+- name: 📊 DEBUG Modell-Liste - ollama_kube_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "📋 Installierte Ollama Modelle:"
+      - "=========================================="
+      - "{{ _model_list.stdout_lines | default([]) }}"
+
+# ============================================================
+# 6) domain_port setzen (Common Task — K3s/Minikube/K8s)
+# ============================================================
+- name: 🔌 Setze domain_port für nginx - ollama_kube_task.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_set_domain_port }}"
+

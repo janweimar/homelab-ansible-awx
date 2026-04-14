@@ -1,0 +1,515 @@
+# INFRASTRUKTUR DOKUMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Host        :** {{ inventory_hostname }}
+**IP          :** {{ ansible_default_ipv4.address | default('unbekannt') }}
+**OS          :** {{ ansible_distribution }} {{ ansible_distribution_version }} ({{ ansible_distribution_release }})
+**Kernel      :** {{ ansible_kernel }}
+**Architektur :** {{ ansible_architecture }}
+**Datum       :** {{ ansible_date_time.iso8601 }}
+**Modus       :** READ-ONLY — keine Änderungen am System
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## GESAMTSTATUS
+
+| Modul | Status |
+|---|---|
+| 01 System-Info | {{ '✅ OK' if system_info_results.status == 'OK' else '⚠️ WARNUNG' if system_info_results.status == 'WARNUNG' else '❌ FEHLER' }} |
+| 02 Pakete | {{ '✅ OK' if pakete_results.status == 'OK' else '⚠️ WARNUNG' if pakete_results.status == 'WARNUNG' else '❌ FEHLER' }} |
+| 03 Services | {{ '✅ OK' if services_results.status == 'OK' else '⚠️ WARNUNG' if services_results.status == 'WARNUNG' else '❌ FEHLER' }} |
+| 04 Benutzer | {{ '✅ OK' if benutzer_results.status == 'OK' else '⚠️ WARNUNG' if benutzer_results.status == 'WARNUNG' else '❌ FEHLER' }} |
+| 05 Netzwerk | {{ '✅ OK' if netzwerk_results.status == 'OK' else '⚠️ WARNUNG' if netzwerk_results.status == 'WARNUNG' else '❌ FEHLER' }} |
+| 06 Ressourcen | {{ '✅ OK' if ressourcen_results.status == 'OK' else '⚠️ WARNUNG' if ressourcen_results.status == 'WARNUNG' else '❌ FEHLER' }} |
+| 07 Logs | {{ '✅ OK' if logs_results.status == 'OK' else '⚠️ WARNUNG' if logs_results.status == 'WARNUNG' else '❌ FEHLER' }} |
+| 08 Sicherheit | {{ '✅ OK' if sicherheit_results.status == 'OK' else '⚠️ WARNUNG' if sicherheit_results.status == 'WARNUNG' else '❌ FEHLER' }} |
+| 09 Container | {{ '✅ OK' if container_results.status == 'OK' else '⚠️ WARNUNG' if container_results.status == 'WARNUNG' else '❌ FEHLER' }} |
+| 10 Hardware | {{ '✅ OK' if hardware_results.status == 'OK' else '⚠️ WARNUNG' if hardware_results.status == 'WARNUNG' else '❌ FEHLER' }} |
+| App-Tests | {{ '✅ OK' if app_fehler == 0 and app_warnung == 0 else '⚠️ WARNUNG' if app_fehler == 0 else '❌ FEHLER' }} |
+
+**Gesamt: {{ '❌ FEHLER' if gesamt_status == 'FEHLER' else '⚠️ WARNUNG' if gesamt_status == 'WARNUNG' else '✅ OK' }}**
+
+---
+
+## MODUL 01 — SYSTEMINFO
+
+### Kernel & Betriebssystem
+
+| Prüfpunkt | Status | Wert | Hinweis |
+|---|---|---|---|
+{% for detail in system_info_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅ OK' if detail.status == 'OK' else '⚠️ WARNUNG' if detail.status == 'WARNUNG' else '❌ FEHLER' }} | {{ detail.wert }} | {{ detail.hinweis | default('') }} |
+{% endfor %}
+
+{% if system_info_results.kernel_module | default([]) | length > 0 %}
+### Geladene Kernel-Module (Auszug)
+
+```
+{{ system_info_results.kernel_module | default([]) | join('\n') }}
+```
+{% endif %}
+
+---
+
+## MODUL 02 — PAKETE
+
+### Paket-Übersicht
+
+| Prüfpunkt | Status | Wert | Hinweis |
+|---|---|---|---|
+{% for detail in pakete_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅ OK' if detail.status == 'OK' else '⚠️ WARNUNG' if detail.status == 'WARNUNG' else '❌ FEHLER' }} | {{ detail.wert }} | {{ detail.hinweis | default('') }} |
+{% endfor %}
+
+{% if pakete_results.paketquellen | default([]) | length > 0 %}
+### Aktive Paketquellen
+
+```
+{{ pakete_results.paketquellen | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if pakete_results.verwaiste_pakete | default([]) | length > 0 %}
+### Verwaiste Pakete (autoremove)
+
+```
+{{ pakete_results.verwaiste_pakete | default([]) | join('\n') }}
+```
+{% endif %}
+
+---
+
+## MODUL 03 — SERVICES & PROZESSE
+
+### Service-Status
+
+| Prüfpunkt | Status | Wert | Hinweis |
+|---|---|---|---|
+{% for detail in services_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅ OK' if detail.status == 'OK' else '⚠️ WARNUNG' if detail.status == 'WARNUNG' else '❌ FEHLER' }} | {{ detail.wert }} | {{ detail.hinweis | default('') }} |
+{% endfor %}
+
+{% if services_results.services_failed | default([]) | length > 0 %}
+### ❌ Fehlgeschlagene Services
+
+```
+{{ services_results.services_failed | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if services_results.services_enabled_not_running | default([]) | length > 0 %}
+### ⚠️ Enabled aber nicht laufend
+
+```
+{{ services_results.services_enabled_not_running | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if services_results.timer | default([]) | length > 0 %}
+### Aktive Systemd-Timer
+
+```
+{{ services_results.timer | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if services_results.cronjobs | default([]) | length > 0 %}
+### Cronjobs (System)
+
+```
+{{ services_results.cronjobs | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if services_results.top_prozesse | default([]) | length > 0 %}
+### Top-Prozesse nach CPU
+
+```
+{{ services_results.top_prozesse | default([]) | join('\n') }}
+```
+{% endif %}
+
+---
+
+## MODUL 04 — BENUTZER & BERECHTIGUNGEN
+
+### Übersicht
+
+| Prüfpunkt | Status | Wert | Hinweis |
+|---|---|---|---|
+{% for detail in benutzer_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅ OK' if detail.status == 'OK' else '⚠️ WARNUNG' if detail.status == 'WARNUNG' else '❌ FEHLER' }} | {{ detail.wert }} | {{ detail.hinweis | default('') }} |
+{% endfor %}
+
+{% if benutzer_results.login_user | default([]) | length > 0 %}
+### Login-fähige Benutzer
+
+| Benutzer | Shell | Letzter Login |
+|---|---|---|
+{% for user in benutzer_results.login_user | default([]) %}
+| {{ user.name }} | {{ user.shell }} | {{ user.letzter_login | default('nie') }} |
+{% endfor %}
+{% endif %}
+
+{% if benutzer_results.sudo_user | default([]) | length > 0 %}
+### Sudo-Berechtigungen
+
+```
+{{ benutzer_results.sudo_user | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if benutzer_results.ssh_config | default({}) %}
+### SSH-Konfiguration
+
+| Parameter | Wert |
+|---|---|
+| Root-Login | {{ benutzer_results.ssh_config.root_login | default('unbekannt') }} |
+| Passwort-Auth | {{ benutzer_results.ssh_config.passwort_auth | default('unbekannt') }} |
+| SSH-Port | {{ benutzer_results.ssh_config.port | default('22') }} |
+| Syntax-Test | {{ benutzer_results.ssh_config.syntax | default('unbekannt') }} |
+{% endif %}
+
+{% if benutzer_results.suid_dateien | default([]) | length > 0 %}
+### SUID-Dateien
+
+```
+{{ benutzer_results.suid_dateien | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if benutzer_results.letzte_logins | default([]) | length > 0 %}
+### Letzte Logins
+
+```
+{{ benutzer_results.letzte_logins | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if benutzer_results.fehlgeschlagene_logins | default([]) | length > 0 %}
+### Fehlgeschlagene Login-Versuche (Top IPs)
+
+```
+{{ benutzer_results.fehlgeschlagene_logins | default([]) | join('\n') }}
+```
+{% endif %}
+
+---
+
+## MODUL 05 — NETZWERK & KONNEKTIVITÄT
+
+### Übersicht
+
+| Prüfpunkt | Status | Wert | Hinweis |
+|---|---|---|---|
+{% for detail in netzwerk_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅ OK' if detail.status == 'OK' else '⚠️ WARNUNG' if detail.status == 'WARNUNG' else '❌ FEHLER' }} | {{ detail.wert }} | {{ detail.hinweis | default('') }} |
+{% endfor %}
+
+{% if netzwerk_results.interfaces | default([]) | length > 0 %}
+### Netzwerkinterfaces
+
+```
+{{ netzwerk_results.interfaces | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if netzwerk_results.routing | default([]) | length > 0 %}
+### Routing-Tabelle
+
+```
+{{ netzwerk_results.routing | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if netzwerk_results.dns | default([]) | length > 0 %}
+### DNS-Konfiguration
+
+```
+{{ netzwerk_results.dns | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if netzwerk_results.offene_ports_tcp | default([]) | length > 0 %}
+### Offene TCP-Ports
+
+```
+{{ netzwerk_results.offene_ports_tcp | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if netzwerk_results.offene_ports_udp | default([]) | length > 0 %}
+### Offene UDP-Ports
+
+```
+{{ netzwerk_results.offene_ports_udp | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if netzwerk_results.aktive_verbindungen | default([]) | length > 0 %}
+### Aktive Verbindungen
+
+```
+{{ netzwerk_results.aktive_verbindungen | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if netzwerk_results.firewall | default('') %}
+### Firewall-Regeln
+
+```
+{{ netzwerk_results.firewall | default('keine Ausgabe') }}
+```
+{% endif %}
+
+---
+
+## MODUL 06 — SYSTEMRESSOURCEN & PERFORMANCE
+
+### Übersicht
+
+| Prüfpunkt | Status | Wert | Hinweis |
+|---|---|---|---|
+{% for detail in ressourcen_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅ OK' if detail.status == 'OK' else '⚠️ WARNUNG' if detail.status == 'WARNUNG' else '❌ FEHLER' }} | {{ detail.wert }} | {{ detail.hinweis | default('') }} |
+{% endfor %}
+
+{% if ressourcen_results.disk_details | default([]) | length > 0 %}
+### Festplattennutzung (alle Dateisysteme)
+
+```
+{{ ressourcen_results.disk_details | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if ressourcen_results.top_ram | default([]) | length > 0 %}
+### Top-Prozesse nach RAM
+
+```
+{{ ressourcen_results.top_ram | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if ressourcen_results.grosse_verzeichnisse | default([]) | length > 0 %}
+### Größte Verzeichnisse unter /var
+
+```
+{{ ressourcen_results.grosse_verzeichnisse | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if ressourcen_results.inode | default([]) | length > 0 %}
+### Inode-Verbrauch
+
+```
+{{ ressourcen_results.inode | default([]) | join('\n') }}
+```
+{% endif %}
+
+---
+
+## MODUL 07 — LOGS & LOGIN-ANALYSE
+
+### Übersicht
+
+| Prüfpunkt | Status | Wert | Hinweis |
+|---|---|---|---|
+{% for detail in logs_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅ OK' if detail.status == 'OK' else '⚠️ WARNUNG' if detail.status == 'WARNUNG' else '❌ FEHLER' }} | {{ detail.wert }} | {{ detail.hinweis | default('') }} |
+{% endfor %}
+
+{% if logs_results.journal_fehler | default([]) | length > 0 %}
+### Journal-Fehler (letzte 24h)
+
+```
+{{ logs_results.journal_fehler | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if logs_results.journal_kritisch | default([]) | length > 0 %}
+### Kritische Journal-Meldungen
+
+```
+{{ logs_results.journal_kritisch | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if logs_results.auth_fehler | default([]) | length > 0 %}
+### Auth-Log Fehler
+
+```
+{{ logs_results.auth_fehler | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if logs_results.top_ips_brute | default([]) | length > 0 %}
+### Top IPs mit fehlgeschlagenen Logins
+
+```
+{{ logs_results.top_ips_brute | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if logs_results.logrotate | default([]) | length > 0 %}
+### Log-Rotation Konfiguration
+
+```
+{{ logs_results.logrotate | default([]) | join('\n') }}
+```
+{% endif %}
+
+---
+
+## MODUL 08 — SICHERHEITSHÄRTUNG
+
+### Übersicht
+
+| Prüfpunkt | Status | Wert | Hinweis |
+|---|---|---|---|
+{% for detail in sicherheit_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅ OK' if detail.status == 'OK' else '⚠️ WARNUNG' if detail.status == 'WARNUNG' else '❌ FEHLER' }} | {{ detail.wert }} | {{ detail.hinweis | default('') }} |
+{% endfor %}
+
+{% if sicherheit_results.sysctl | default([]) | length > 0 %}
+### Sysctl Sicherheitsparameter
+
+```
+{{ sicherheit_results.sysctl | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if sicherheit_results.audit_regeln | default([]) | length > 0 %}
+### Auditd-Regeln
+
+```
+{{ sicherheit_results.audit_regeln | default([]) | join('\n') }}
+```
+{% endif %}
+
+---
+
+## MODUL 09 — CONTAINER-INFRASTRUKTUR
+
+### Übersicht
+
+| Prüfpunkt | Status | Wert | Hinweis |
+|---|---|---|---|
+{% for detail in container_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅ OK' if detail.status == 'OK' else '⚠️ WARNUNG' if detail.status == 'WARNUNG' else '❌ FEHLER' }} | {{ detail.wert }} | {{ detail.hinweis | default('') }} |
+{% endfor %}
+
+{% if container_results.container_liste | default([]) | length > 0 %}
+### Alle Container
+
+| Name | Status | Image | Ports |
+|---|---|---|---|
+{% for c in container_results.container_liste | default([]) %}
+| {{ c.name }} | {{ '✅ laufend' if c.status == 'running' else '⚠️ ' + c.status }} | {{ c.image }} | {{ c.ports | default('—') }} |
+{% endfor %}
+{% endif %}
+
+{% if container_results.images | default([]) | length > 0 %}
+### Docker Images
+
+```
+{{ container_results.images | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if container_results.volumes | default([]) | length > 0 %}
+### Docker Volumes
+
+```
+{{ container_results.volumes | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if container_results.disk_nutzung | default('') %}
+### Docker Disk-Nutzung
+
+```
+{{ container_results.disk_nutzung | default('keine Daten') }}
+```
+{% endif %}
+
+---
+
+## MODUL 10 — HARDWARE
+
+### Übersicht
+
+| Prüfpunkt | Status | Wert | Hinweis |
+|---|---|---|---|
+{% for detail in hardware_results.details | default([]) %}
+| {{ detail.name }} | {{ '✅ OK' if detail.status == 'OK' else '⚠️ WARNUNG' if detail.status == 'WARNUNG' else '❌ FEHLER' }} | {{ detail.wert }} | {{ detail.hinweis | default('') }} |
+{% endfor %}
+
+{% if hardware_results.cpu_info | default([]) | length > 0 %}
+### CPU-Details
+
+```
+{{ hardware_results.cpu_info | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if hardware_results.blockgeraete | default([]) | length > 0 %}
+### Blockgeräte & Partitionen
+
+```
+{{ hardware_results.blockgeraete | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if hardware_results.raid_status | default('') %}
+### Software-RAID Status (/proc/mdstat)
+
+```
+{{ hardware_results.raid_status | default('kein RAID gefunden') }}
+```
+{% endif %}
+
+{% if hardware_results.netzwerkadapter | default([]) | length > 0 %}
+### Netzwerkadapter
+
+```
+{{ hardware_results.netzwerkadapter | default([]) | join('\n') }}
+```
+{% endif %}
+
+{% if hardware_results.virtualisierung | default('') %}
+### Virtualisierung
+
+```
+{{ hardware_results.virtualisierung | default('unbekannt') }}
+```
+{% endif %}
+
+---
+
+## APP-TESTS
+
+### Zusammenfassung
+
+| Status | Anzahl |
+|---|---|
+| ✅ OK | {{ app_ok }} |
+| ⚠️ WARNUNG | {{ app_warnung }} |
+| ❌ FEHLER | {{ app_fehler }} |
+| Gesamt geprüft | {{ app_results | length }} |
+
+---
+
+{% for app in app_results | sort(attribute='app') %}
+### {{ '❌' if app.status == 'FEHLER' else '⚠️' if app.status == 'WARNUNG' else '✅' }} App: {{ app.app }} ({{ 'Spezialtest' if app.spezialtest | default(false) else 'Generisch' }})
+
+| Prüfpunkt | Status | Wert | Hinweis |
+|---|---|---|---|
+{% for detail in app.details | default([]) %}
+| {{ detail.name }} | {{ '✅ OK' if detail.status == 'OK' else '⚠️ WARNUNG' if detail.status == 'WARNUNG' else '❌ FEHLER' if detail.status == 'FEHLER' else detail.status }} | {{ detail.wert }} | {{ detail.hinweis | default('') }} |
+{% endfor %}
+
+{% endfor %}
+
+---
+
+*Dokumentation erstellt am {{ ansible_date_time.iso8601 }} — READ-ONLY Analyse — keine Änderungen am System vorgenommen*

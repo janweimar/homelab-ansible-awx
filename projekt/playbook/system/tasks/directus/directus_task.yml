@@ -1,0 +1,115 @@
+---
+###########################################################################
+# directus_task.yml
+# Directus Docker-Compose Deployment
+# Unterstützte DBs: mariadb | postgresql | mysql
+###########################################################################
+
+# ============================================================
+# DB-spezifische Variablen setzen (abhängig von directus_db_type)
+# ============================================================
+- name: Setze DB-Konfiguration für MariaDB - directus_task.yml
+  ansible.builtin.set_fact:
+    _db_client:      "mysql"
+    _db_port:        "3306"
+    _db_image:       "mariadb:11"
+    _db_data_dir:    "mysql"
+    _db_env:
+      MARIADB_ROOT_PASSWORD: "{{ app_db_password }}"
+      MARIADB_DATABASE:      "directus"
+      MARIADB_USER:          "directus"
+      MARIADB_PASSWORD:      "{{ app_db_password }}"
+    _db_healthcheck: >-
+      ["CMD", "mariadb-admin", "ping", "-h", "localhost",
+       "-u", "directus", "-p{{ app_db_password }}"]
+  when: app_db_type == "mariadb"
+
+- name: Setze DB-Konfiguration für PostgreSQL - directus_task.yml
+  ansible.builtin.set_fact:
+    _db_client:      "pg"
+    _db_port:        "5432"
+    _db_image:       "postgres:16-alpine"
+    _db_data_dir:    "postgresql/data"
+    _db_env:
+      POSTGRES_DB:       "directus"
+      POSTGRES_USER:     "directus"
+      POSTGRES_PASSWORD: "{{ app_db_password }}"
+    _db_healthcheck: >-
+      ["CMD-SHELL", "pg_isready -U directus"]
+  when: app_db_type == "postgresql"
+
+- name: Setze DB-Konfiguration für MySQL - directus_task.yml
+  ansible.builtin.set_fact:
+    _db_client:      "mysql"
+    _db_port:        "3306"
+    _db_image:       "mysql:8"
+    _db_data_dir:    "mysql"
+    _db_env:
+      MYSQL_ROOT_PASSWORD: "{{ app_db_password }}"
+      MYSQL_DATABASE:      "directus"
+      MYSQL_USER:          "directus"
+      MYSQL_PASSWORD:      "{{ app_db_password }}"
+    _db_healthcheck: >-
+      ["CMD", "mysqladmin", "ping", "-h", "localhost",
+       "-u", "directus", "-p{{ app_db_password }}"]
+  when: app_db_type == "mysql"
+
+# ============================================================
+# Verzeichnisse anlegen
+# ============================================================
+- name: Directus Verzeichnisse anlegen - directus_task.yml
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /opt/directus
+    - /opt/directus/uploads
+    - /opt/directus/extensions
+    - /opt/directus/db
+
+# ============================================================
+# docker-compose.yml deployen
+# ============================================================
+- name: docker-compose.yml bereitstellen - directus_task.yml
+  ansible.builtin.template:
+    src: playbook/system/tasks/directus/templates/docker-compose.yml.j2
+    dest: /opt/directus/docker-compose.yml
+    owner: root
+    group: root
+    mode: "0644"
+  register: directus_compose_changed
+
+# ============================================================
+# Container starten / neu starten
+# ============================================================
+- name: Directus Container starten - directus_task.yml
+  ansible.builtin.command:
+    cmd: docker compose up -d --pull always
+    chdir: /opt/directus
+  changed_when: true
+
+# ============================================================
+# Warten bis Directus erreichbar ist
+# ============================================================
+- name: Warte bis Directus bereit ist - directus_task.yml
+  ansible.builtin.uri:
+    url: "http://localhost:{{ app_port | default('8055') }}/server/health"
+    status_code: 200
+  register: directus_health
+  retries: 30
+  delay: 5
+  until: directus_health.status == 200
+
+# ============================================================
+# Status
+# ============================================================
+- name: Directus Status - directus_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ Directus läuft"
+      - "🗄️  Datenbank: {{ app_db_type }}"
+      - "🌐 URL: http://localhost:{{ app_port | default('8055') }}"
+      - "📧 Admin: {{ app_admin_email }}"

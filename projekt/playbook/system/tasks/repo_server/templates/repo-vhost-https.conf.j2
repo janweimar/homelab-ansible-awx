@@ -1,0 +1,82 @@
+{# tasks/repo_server/templates/repo-vhost-https.conf.j2 #}
+server {
+    listen 443 ssl http2;
+    server_name {{ server_urls.repo_server_apt.domain }};
+    
+    ssl_certificate /etc/letsencrypt/live/{{ server_urls.repo_server_apt.domain }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ server_urls.repo_server_apt.domain }}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    
+    root /var/www/html;
+    
+    # cgit - Statische Dateien (CSS, Icons)
+    location ~* ^/(cgit\.(css|png)|favicon\.ico|robots\.txt) {
+        root /usr/share/cgit;
+        expires 30d;
+    }
+    
+    # cgit - Web Interface
+    location ~ ^/cgit(/.*)?$ {
+        include fastcgi_params;
+        fastcgi_split_path_info ^(/cgit)(/.*)$;
+        fastcgi_param SCRIPT_FILENAME /usr/lib/cgit/cgit.cgi;
+        fastcgi_param SCRIPT_NAME $fastcgi_script_name;
+        fastcgi_param PATH_INFO $fastcgi_path_info;
+        fastcgi_param QUERY_STRING $args;
+        fastcgi_param HTTP_HOST $server_name;
+        fastcgi_pass unix:/run/fcgiwrap.socket;
+    }
+    
+    # Git Clone (HTTP)
+    location ~ ^/git(/.*)$ {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME /usr/lib/git-core/git-http-backend;
+        fastcgi_param GIT_HTTP_EXPORT_ALL "";
+        fastcgi_param GIT_PROJECT_ROOT /srv/git;
+        fastcgi_param PATH_INFO $1;
+        fastcgi_read_timeout 600s;
+        fastcgi_send_timeout 600s;
+        fastcgi_connect_timeout 600s;
+        fastcgi_pass unix:/run/fcgiwrap.socket;
+    }
+    
+    # aptly - Debian Repository
+    location /aptly/ {
+        alias {{ paths.aptly_base[ansible_os_family] }}/public/;
+        autoindex on;
+        limit_except GET HEAD {
+            deny all;
+        }
+        
+        # GPG-Dateien korrekt als Binär servieren
+        location ~ /\.gpg$ {
+            default_type application/octet-stream;
+            add_header Content-Disposition "attachment";
+            expires off;
+        }
+    }
+    
+    # GPG Public Key
+    location /aptly_repo.key {
+        alias {{ paths.aptly_public_key[ansible_os_family] }};
+    }
+
+{% if install_helm | default(false) | bool %}
+    # Helm Chart Cache
+    location = /helm {
+        return 301 $scheme://$host/helm/;
+    }
+    location /helm/ {
+        alias {{ paths.helm_charts_base[ansible_os_family] }}/;
+        autoindex on;
+        limit_except GET HEAD {
+            deny all;
+        }
+    }
+{% endif %}
+
+    location ~ /\.ht {
+        deny all;
+    }
+}

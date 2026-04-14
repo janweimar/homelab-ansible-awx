@@ -1,0 +1,20 @@
+---
+# Docker-Modus
+- name: Directus Docker Container stoppen - directus_stop.yml
+  ansible.builtin.command:
+    cmd: docker compose stop
+    chdir: /opt/directus
+  changed_when: true
+  failed_when: false
+  when: app_deploy_type | default('docker') == 'docker'
+
+# Kubernetes-Modus
+- name: Directus Kubernetes Pods skalieren auf 0 - directus_stop.yml
+  ansible.builtin.command: kubectl scale deployment --all --replicas=0 -n directus
+  become_user: "{{ kube_user }}"
+  environment:
+    HOME: "/home/{{ kube_user }}"
+    KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+  changed_when: true
+  failed_when: false
+  when: app_deploy_type | default('docker') == 'kubernetes'

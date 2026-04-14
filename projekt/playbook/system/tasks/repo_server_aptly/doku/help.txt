@@ -1,0 +1,191 @@
+# ============================================================
+# APTLY MIRROR VERWALTUNG - SCHNELLHILFE
+# ============================================================
+
+## ZWECK
+Erstellt und aktualisiert Aptly-Mirrors basierend auf Roll-Listen.
+Keine Snapshots oder Publishes - nur Mirror-Management!
+
+## AWX JOB TEMPLATE KONFIGURATION
+
+Name: Aptly Mirrors Verwalten
+Job Type: Run
+Inventory: Repository Server
+Projekt: Ansible Playbooks
+Playbook: pb_conf_aptly_mirrors_repo_server.yml
+Credentials: SSH Key (repo-server)
+
+## EXTRA VARIABLES (BEISPIEL)
+
+```yaml
+# Basis-Konfiguration
+allg_status: aktiviert
+
+# Mirror-Definitionen
+aptly_mirrors:
+  - name: "ubuntu-noble-main"
+    url: "http://archive.ubuntu.com/ubuntu"
+    dist: "noble"
+    components: ["main", "restricted"]
+    arch_filter: "amd64,all"
+    key_url: "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x871920D1991BC93C"
+  
+  - name: "ubuntu-noble-universe"
+    url: "http://archive.ubuntu.com/ubuntu"
+    dist: "noble"
+    components: ["universe", "multiverse"]
+    arch_filter: "amd64"
+    key_url: "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x871920D1991BC93C"
+
+# Paket-Filter (Roll)
+repo_self_list_var:
+  ubuntu-noble-main:
+    roll:
+      - name: "nginx"
+      - name: "postgresql-16"
+      - name: "python3"
+  
+  ubuntu-noble-universe:
+    roll:
+      - name: "docker.io"
+      - name: "ansible"
+```
+
+## FUNKTIONSWEISE
+
+1. **Vorhandene Mirrors ermitteln**
+   - Liste aller existierenden Mirrors
+
+2. **Unerwünschte Mirrors löschen**
+   - Mirrors die nicht in aptly_mirrors definiert sind
+
+3. **GPG Infrastructure**
+   - Verzeichnisse erstellen
+   - Ubuntu-Basis-Keys importieren
+
+4. **Mirrors verarbeiten** (pro Mirror):
+   - GPG Key importieren
+   - Paket-Filter aus Roll erstellen
+   - Architektur-Filter normalisieren
+   - Mirror neu erstellen (mit aktuellen Filtern)
+   - Mirror aktualisieren (aptly mirror update)
+
+5. **Reporting**
+   - Mirror-Übersicht mit Paket-Anzahl und Größe
+
+## WICHTIGE PFADE
+
+- Aptly-DB: `/root/.aptly/db/`
+- Aptly-Public: `/root/.aptly/public/`
+- GPG-Keys: `/root/.gnupg/trustedkeys.gpg`
+
+## MANUELLE BEFEHLE
+
+# Mirrors auflisten
+aptly mirror list
+
+# Mirror-Details
+aptly mirror show ubuntu-noble-main
+
+# Mirror manuell aktualisieren
+aptly mirror update ubuntu-noble-main
+
+# Datenbank bereinigen
+aptly db cleanup
+
+# Mirror löschen
+aptly mirror drop -force ubuntu-noble-main
+
+## FILTER-LOGIK
+
+### Paket-Filter
+```
+(Name (= nginx) | Name (= postgresql-16) | Name (= python3))
+```
+
+### Architektur-Filter
+```
+# Wenn arch_filter = "amd64,all"
+($Architecture (= amd64) | $Architecture (= all))
+
+# Wenn arch_filter = "all" oder nicht gesetzt
+(keine Einschränkung)
+```
+
+### Kombinierter Filter
+```
+((Name (= pkg1) | Name (= pkg2)), ($Architecture (= amd64)))
+```
+
+## FEHLERBEHEBUNG
+
+**Problem:** 404-Fehler beim Update
+- Automatisch toleriert, alte Pakete werden übersprungen
+
+**Problem:** Paketliste fehlt
+- Mirror wird übersprungen mit Warnung
+
+**Problem:** GPG-Fehler
+- Key-URL prüfen
+- Manuell importieren und Playbook wiederholen
+
+**Problem:** Filter zu groß
+- Roll-Liste aufteilen in mehrere Mirrors
+
+## WORKFLOW
+
+1. Mirrors in Extra Variables definieren
+2. Roll-Listen (Paketlisten) definieren
+3. Playbook ausführen
+4. Mirrors werden erstellt und aktualisiert
+5. Nächster Schritt: Snapshot-Playbook (separat)
+
+## HINWEISE
+
+- ⚠️ Dieses Playbook erstellt KEINE Snapshots
+- ⚠️ Dieses Playbook führt KEIN Publish durch
+- ⚠️ Mirrors werden bei jeder Ausführung NEU erstellt
+- ✅ Filter-Änderungen werden sofort angewendet
+- ✅ 404-Fehler werden toleriert
+- ✅ Dependencies werden automatisch aufgelöst (-filter-with-deps)
+
+## PERFORMANCE
+
+- 1 Mirror (klein): ~2-5 Minuten
+- 1 Mirror (groß): ~10-30 Minuten
+- Mehrere Mirrors: Parallel nicht unterstützt
+
+## ARCHITEKTUR-HINWEISE
+
+Verfügbare Architekturen:
+- amd64 (x86_64)
+- arm64 (ARM 64-bit)
+- armhf (ARM 32-bit)
+- i386 (x86 32-bit)
+- all (architektur-unabhängig)
+
+Empfehlung: "amd64,all" für Server-Systeme
+
+## BEISPIEL-ROLL FÜR TYPISCHE SERVER
+
+```yaml
+repo_self_list_var:
+  ubuntu-server-base:
+    roll:
+      - name: "openssh-server"
+      - name: "vim"
+      - name: "curl"
+      - name: "wget"
+      - name: "git"
+      - name: "htop"
+      - name: "tmux"
+      - name: "rsync"
+      - name: "ufw"
+      - name: "fail2ban"
+      - name: "certbot"
+      - name: "nginx"
+      - name: "postgresql-16"
+      - name: "redis-server"
+```
+
+============================================================

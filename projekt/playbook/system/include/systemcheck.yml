@@ -1,0 +1,37 @@
+###########################################################################
+# 🧩 Systeminformationen + Prüfung unterstützte Systeme
+###########################################################################
+- block:
+    - name: 🧪 Debug supported / unsupported systems
+      ansible.builtin.debug:
+        msg:
+          - "supported_systems: {{ supported_systems | default('NICHT GESETZT') }}"
+          - "unsupported_systems: {{ unsupported_systems | default('NICHT GESETZT') }}"
+
+    - name: ➖ Effektive unterstützte Systeme berechnen
+      ansible.builtin.set_fact:
+        effective_supported_systems: >-
+          {{
+            (supported_systems | default([], true))
+            | difference(unsupported_systems | default([], true))
+          }}
+
+    - name: 🔄 Systeminfo zusammenfassen
+      ansible.builtin.set_fact:
+        sys_os: "{{ ansible_distribution }}"
+        sys_ver: "{{ ansible_distribution_version }}"
+        sys_major: "{{ ansible_distribution_major_version }}"
+
+    - name: 🧩 Debug – Systeminformationen anzeigen
+      ansible.builtin.debug:
+        msg:
+          - "System: {{ sys_os }}"
+          - "Version: {{ sys_ver }} (Major: {{ sys_major }})"
+          - "Unterstützte Systeme: {{ effective_supported_systems }}"
+
+    - name: 🧩 Ergebnissystem-Prüfung
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family in effective_supported_systems
+        fail_msg: "❌ Nicht unterstütztes System erkannt: {{ ansible_os_family }}"
+        success_msg: "✅ Unterstütztes System erkannt -> {{ ansible_os_family }}"

@@ -1,0 +1,114 @@
+---
+###########################################################################
+# AppArmor Profile Management
+# Deployed profiles basierend auf Server-IP aus apparmor_d
+###########################################################################
+
+- name: 📋 Prüfe ob Profile für diesen Server definiert sind
+  ansible.builtin.set_fact:
+    server_profiles: "{{ apparmor_d[ansible_default_ipv4.address] | default({}) }}"
+
+- name: 🔍 Finde alle existierenden custom AppArmor Profile
+  ansible.builtin.find:
+    paths: /etc/apparmor.d
+    patterns: "custom_*"
+  register: existing_profiles
+
+- name: 🗑️ Lösche alle alten custom Profile
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ existing_profiles.files }}"
+
+###########################################################################
+# ENFORCE-MODUS PROFILE
+###########################################################################
+- name: 🔒 Deploy Profile in Enforce-Modus
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/apparmor.d/custom_{{ item | basename | regex_replace('\\.j2$', '') }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ server_profiles.enforce }}"
+  register: enforce_profiles_deployed
+  when:
+    - server_profiles.enforce is defined
+    - server_profiles.enforce is iterable
+    - server_profiles.enforce is not string
+    # Zusätzliche Sicherheit: Nur ausführen, wenn die Liste nicht leer ist
+    - (server_profiles.enforce | default([], true)) | length > 0
+
+- name: 🔒 Aktiviere Enforce-Modus für Profile
+  ansible.builtin.command: "aa-enforce /etc/apparmor.d/custom_{{ item | basename | regex_replace('\\.j2$', '') }}"
+  loop: "{{ server_profiles.enforce }}"
+  changed_when: true
+  when:
+    - server_profiles.enforce is defined
+    - server_profiles.enforce | length > 0
+
+- name: ℹ️ Liste deployed Enforce-Profile
+  ansible.builtin.debug:
+    msg: "Enforce-Profil aktiviert: custom_{{ item | basename | regex_replace('\\.j2$', '') }}"
+  loop: "{{ server_profiles.enforce }}"
+  when:
+    - server_profiles.enforce is defined
+    - server_profiles.enforce | length > 0
+
+###########################################################################
+# COMPLAIN-MODUS PROFILE
+###########################################################################
+- name: ⚠️ Deploy Profile in Complain-Modus
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/apparmor.d/custom_{{ item | basename | regex_replace('\\.j2$', '') }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ server_profiles.complain }}"
+  register: complain_profiles_deployed
+  when:
+    - server_profiles.complain is defined
+    - server_profiles.complain is iterable
+    - server_profiles.complain is not string
+    # Zusätzliche Sicherheit: Nur ausführen, wenn die Liste nicht leer ist
+    - (server_profiles.complain | default([], true)) | length > 0
+
+- name: ⚠️ Aktiviere Complain-Modus für Profile
+  ansible.builtin.command: "aa-complain /etc/apparmor.d/custom_{{ item | basename | regex_replace('\\.j2$', '') }}"
+  loop: "{{ server_profiles.complain }}"
+  changed_when: true
+  when:
+    - server_profiles.complain is defined
+    - server_profiles.complain | length > 0
+
+- name: ℹ️ Liste deployed Complain-Profile
+  ansible.builtin.debug:
+    msg: "Complain-Profil aktiviert: custom_{{ item | basename | regex_replace('\\.j2$', '') }}"
+  loop: "{{ server_profiles.complain }}"
+  when:
+    - server_profiles.complain is defined
+    - server_profiles.complain | length > 0
+
+###########################################################################
+# APPARMOR NEU LADEN
+###########################################################################
+- name: 🔄 Reload AppArmor Service
+  ansible.builtin.systemd:
+    name: apparmor
+    state: reloaded
+  when:
+    - (server_profiles.enforce is defined and server_profiles.enforce | length > 0) or
+      (server_profiles.complain is defined and server_profiles.complain | length > 0)
+
+###########################################################################
+# STATUS PRÜFEN
+###########################################################################
+- name: 📊 AppArmor Status prüfen
+  ansible.builtin.command: aa-status
+  register: apparmor_status
+  changed_when: false
+
+- name: 📊 AppArmor Status anzeigen
+  ansible.builtin.debug:
+    var: apparmor_status.stdout_lines

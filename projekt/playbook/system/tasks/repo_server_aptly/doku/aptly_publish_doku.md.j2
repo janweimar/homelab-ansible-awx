@@ -1,0 +1,14 @@
+# APTLY PUBLISH - SYSTEM KONFIGURATION
+
+## 📤 DEPLOYED PUBLICATIONS
+
+{% if aptly_publishes is defined %}
+- **Anzahl:** {{ aptly_publishes | length }}
+{% for pub in aptly_publishes %}
+- {{ pub.name }}: {{ pub.distribution }}
+{% endfor %}
+{% endif %}
+
+---
+
+**Status:** ✅ Aptly Publishing konfiguriert

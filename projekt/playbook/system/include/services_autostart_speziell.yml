@@ -1,0 +1,21 @@
+###########################################################################
+# ⚙️ Autostart steuern (spezifisch)
+# Nutzt die OS‑abhängigen Kommandos aus services[..].enable/disable
+# Steuerung über var_sonder_autostart
+###########################################################################
+- block:
+    - name: ⚙️ Autostart Speziell aktivieren für "{{ var_sonder_autostart }}"
+      ansible.builtin.command: "{{ (services[var_sonder_autostart] | default({})).enable[ansible_os_family] | default('') }}"
+      changed_when: false
+      ignore_errors: true
+
+    - name: 💤 Info
+      ansible.builtin.debug:
+        msg: "Autostart für {{ var_sonder_autostart }} wurde aktiviert."
+  when:
+    - var_sonder_autostart is defined
+    - (var_sonder_autostart | string | length) > 0
+    - autostart | default(true)
+    - services[var_sonder_autostart] is defined
+    - services[var_sonder_autostart].enable is defined
+    - services[var_sonder_autostart].enable[ansible_os_family] is defined

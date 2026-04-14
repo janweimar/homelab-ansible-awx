@@ -1,0 +1,185 @@
+---
+###########################################################################
+# 📋 Modul 07 — Logs & Auditing
+# =========================================================================
+# Zweck  : System-Logs, Anwendungs-Logs und Login-Analyse auswerten
+# Liest  : journalctl, /var/log/*, auth.log, last, lastb, lastlog
+# Schreibt in: logs_results
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+# =========================================================================
+# Systemd Journal
+# =========================================================================
+
+- name: "07 | Fehler im Journal (letzte 24h)"
+  ansible.builtin.shell: journalctl --since "24 hours ago" -p err --no-pager -q | tail -50
+  register: reg_journal_fehler
+  changed_when: false
+  failed_when: false
+
+- name: "07 | Kritische Meldungen im Journal (letzte 24h)"
+  ansible.builtin.shell: journalctl --since "24 hours ago" -p crit --no-pager -q | tail -20
+  register: reg_journal_krit
+  changed_when: false
+  failed_when: false
+
+- name: "07 | Fehler-Anzahl im Journal zählen"
+  ansible.builtin.shell: journalctl --since "24 hours ago" -p err --no-pager -q | wc -l
+  register: reg_journal_fehler_anzahl
+  changed_when: false
+  failed_when: false
+
+- name: "07 | Boot-Meldungen (aktueller Boot)"
+  ansible.builtin.shell: journalctl -b --no-pager -p warning -q | tail -30
+  register: reg_journal_boot
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Traditionelle Log-Dateien
+# =========================================================================
+
+- name: "07 | /var/log Verzeichnis erfassen"
+  ansible.builtin.find:
+    paths: /var/log
+    file_type: file
+    recurse: false
+  register: reg_log_dateien
+
+- name: "07 | Auth-Log lesen (letzte 100 Zeilen)"
+  ansible.builtin.shell: tail -100 /var/log/auth.log 2>/dev/null || journalctl -u ssh --no-pager -n 100 -q
+  register: reg_auth_log
+  changed_when: false
+  failed_when: false
+
+- name: "07 | Syslog lesen (letzte 50 Zeilen)"
+  ansible.builtin.shell: tail -50 /var/log/syslog 2>/dev/null || journalctl --no-pager -n 50 -q
+  register: reg_syslog
+  changed_when: false
+  failed_when: false
+
+- name: "07 | Kern-Log lesen"
+  ansible.builtin.shell: tail -30 /var/log/kern.log 2>/dev/null || journalctl -k --no-pager -n 30 -q
+  register: reg_kern_log
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Login-Analyse
+# =========================================================================
+
+- name: "07 | Letzte erfolgreiche Logins"
+  ansible.builtin.command: last -n 30
+  register: reg_last
+  changed_when: false
+  failed_when: false
+
+- name: "07 | Fehlgeschlagene Login-Versuche"
+  ansible.builtin.command: lastb -n 30
+  register: reg_lastb
+  changed_when: false
+  failed_when: false
+
+- name: "07 | Fehlgeschlagene Logins zählen"
+  ansible.builtin.shell: lastb 2>/dev/null | grep -v "^$\|^btmp" | wc -l
+  register: reg_lastb_anzahl
+  changed_when: false
+  failed_when: false
+
+- name: "07 | Top IPs mit fehlgeschlagenen Logins"
+  ansible.builtin.shell: lastb 2>/dev/null | awk '{print $3}' | sort | uniq -c | sort -rn | head -10
+  register: reg_failed_ips
+  changed_when: false
+  failed_when: false
+
+- name: "07 | Letzter Login je User"
+  ansible.builtin.command: lastlog
+  register: reg_lastlog
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Log-Rotation prüfen
+# =========================================================================
+
+- name: "07 | Log-Rotation Konfiguration prüfen"
+  ansible.builtin.stat:
+    path: /etc/logrotate.conf
+  register: reg_logrotate_conf
+
+- name: "07 | Log-Rotation Verzeichnis prüfen"
+  ansible.builtin.find:
+    paths: /etc/logrotate.d
+    file_type: file
+  register: reg_logrotate_d
+
+# =========================================================================
+# Ergebnisse in Variable speichern
+# =========================================================================
+
+- name: "07 | Ergebnisse in logs_results speichern"
+  ansible.builtin.set_fact:
+    logs_results:
+      status: >-
+        {{
+          'FEHLER' if (reg_journal_krit.stdout_lines | length) > 0
+          else 'WARNUNG' if (reg_journal_fehler_anzahl.stdout | int) > 50
+          else 'WARNUNG' if (reg_lastb_anzahl.stdout | int) > 100
+          else 'OK'
+        }}
+      zusammenfassung:
+        ok: "{{ 0 if (reg_journal_krit.stdout_lines | length) > 0 else 1 }}"
+        warnungen: "{{ 1 if (reg_journal_fehler_anzahl.stdout | int) > 50 or (reg_lastb_anzahl.stdout | int) > 100 else 0 }}"
+        fehler: "{{ reg_journal_krit.stdout_lines | length }}"
+      details:
+        - name: "Journal-Fehler (letzte 24h)"
+          status: >-
+            {{
+              'FEHLER' if (reg_journal_fehler_anzahl.stdout | int) > 100
+              else 'WARNUNG' if (reg_journal_fehler_anzahl.stdout | int) > 20
+              else 'OK'
+            }}
+          wert: "{{ reg_journal_fehler_anzahl.stdout | trim }} Fehler"
+          hinweis: "{{ 'Viele Journal-Fehler in den letzten 24h!' if (reg_journal_fehler_anzahl.stdout | int) > 20 else '' }}"
+
+        - name: "Kritische Journal-Meldungen (letzte 24h)"
+          status: "{{ 'FEHLER' if reg_journal_krit.stdout_lines | length > 0 else 'OK' }}"
+          wert: "{{ reg_journal_krit.stdout_lines | length }} kritische Meldungen"
+          hinweis: "{{ 'Kritische Systemfehler vorhanden!' if reg_journal_krit.stdout_lines | length > 0 else '' }}"
+
+        - name: "Fehlgeschlagene Logins gesamt"
+          status: >-
+            {{
+              'FEHLER' if (reg_lastb_anzahl.stdout | int) > 500
+              else 'WARNUNG' if (reg_lastb_anzahl.stdout | int) > 100
+              else 'OK'
+            }}
+          wert: "{{ reg_lastb_anzahl.stdout | trim }} fehlgeschlagene Logins"
+          hinweis: "{{ 'Brute-Force-Anzeichen! Viele fehlgeschlagene Logins.' if (reg_lastb_anzahl.stdout | int) > 100 else '' }}"
+
+        - name: "Log-Rotation konfiguriert"
+          status: "{{ 'WARNUNG' if not reg_logrotate_conf.stat.exists else 'OK' }}"
+          wert: "{{ 'logrotate.conf vorhanden' if reg_logrotate_conf.stat.exists else 'logrotate.conf fehlt!' }}"
+          hinweis: "{{ 'Keine Log-Rotation konfiguriert — Logs können unkontrolliert wachsen' if not reg_logrotate_conf.stat.exists else '' }}"
+
+        - name: "Log-Rotation Regeln"
+          status: "OK"
+          wert: "{{ reg_logrotate_d.files | length }} Regeln in /etc/logrotate.d"
+          hinweis: ""
+
+        - name: "Top IPs mit fehlgeschlagenen Logins"
+          status: "{{ 'WARNUNG' if reg_failed_ips.stdout_lines | length > 0 else 'OK' }}"
+          wert: "{{ reg_failed_ips.stdout | default('Keine') }}"
+          hinweis: ""
+
+      journal_fehler: "{{ reg_journal_fehler.stdout_lines | default([]) }}"
+      journal_krit: "{{ reg_journal_krit.stdout_lines | default([]) }}"
+      auth_log: "{{ reg_auth_log.stdout_lines | default([]) }}"
+      letzte_logins: "{{ reg_last.stdout_lines | default([]) }}"
+      fehlgeschlagene_logins: "{{ reg_lastb.stdout_lines | default([]) }}"
+      failed_ips: "{{ reg_failed_ips.stdout_lines | default([]) }}"
+
+- name: "07 | ✅ Log-Analyse abgeschlossen"
+  ansible.builtin.debug:
+    msg: "Logs analysiert — {{ reg_journal_fehler_anzahl.stdout | trim }} Journal-Fehler, {{ reg_lastb_anzahl.stdout | trim }} fehlgesch. Logins — Status: {{ logs_results.status }}"

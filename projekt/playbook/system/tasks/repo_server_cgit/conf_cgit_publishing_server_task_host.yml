@@ -1,0 +1,151 @@
+# ------------------------------------------------------------
+# GIT – REPO MANAGEMENT (ALLES ALS ROOT - MIT ZENTRALEM REPORTING)
+# ------------------------------------------------------------
+# vor änderung
+- name: GIT – Repo-Ordner auf Client vorbereiten - conf_cgit_publishing_server_task_host.yml
+  ansible.builtin.file:
+    path: /root/git_repo # Wir verwenden das Home-Verzeichnis von root
+    state: "{{ item }}"
+    mode: "0755"
+  loop: [absent, directory]
+  become: yes # Stellt sicher, dass es als root läuft
+
+- name: GIT – Lokale Playbooks auf Client kopieren - conf_cgit_publishing_server_task_host.yml
+  ansible.builtin.copy:
+    src: "{{ task_paths.conf_cgit_publishing_localhost }}"
+    dest: /root/git_repo/
+    mode: preserve
+  become: yes # Stellt sicher, dass es als root läuft
+
+- name: GIT – Vorhandene Repos ermitteln - conf_cgit_publishing_server_task_host.yml
+  ansible.builtin.command: ls -1 /srv/git
+  register: git_existing_repos
+  changed_when: false
+  failed_when: false
+  become: yes # Sicherstellen, dass der Befehl die nötigen Rechte hat
+
+- name: GIT – Listen für Löschen und Hinzufügen erstellen - conf_cgit_publishing_server_task_host.yml
+  ansible.builtin.set_fact:
+    git_repos_to_delete: "{{ git_existing_repos.stdout_lines | default([]) | select('match', '.*\\.git$') | reject('in', git_clone_list | map(attribute='name') | map('regex_replace', '$', '.git') | list) | list }}"
+    git_repos_to_add: "{{ git_clone_list | rejectattr('name', 'in', git_existing_repos.stdout_lines | default([]) | map('regex_replace', '\\.git$', '') | list) | list }}"
+  become: yes # Sicherstellen, dass der Task mit den gleichen Rechten läuft
+
+- name: DEBUG – Zeige was GELÖSCHT wird - conf_cgit_publishing_server_task_host.yml
+  ansible.builtin.debug:
+    msg: |
+      ========================================
+      🗑️  REPOS ZUM LÖSCHEN
+      ========================================
+      {% if git_repos_to_delete | length > 0 %}
+      Anzahl: {{ git_repos_to_delete | length }}
+      Liste:
+      {% for repo in git_repos_to_delete %}
+        - {{ repo }}
+      {% endfor %}
+      {% else %}
+      ✅ Keine Repos zum Löschen
+      {% endif %}
+      ========================================
+
+- name: DEBUG – Batch-Übersicht - conf_cgit_publishing_server_task_host.yml
+  ansible.builtin.debug:
+    msg: |
+      ════════════════════════════════════════
+      📦 BATCH-VERARBEITUNG
+      ════════════════════════════════════════
+      {% if git_repos_to_add | length > 0 %}
+      Gesamt Repos: {{ git_repos_to_add | length }}
+      Batch-Größe: {{ git_batch_size | default(20) | int }}
+      Anzahl Batches: {{ (git_repos_to_add | length / (git_batch_size | default(20) | int)) | round(0, 'ceil') | int }}
+      {% else %}
+      ✅ Keine neuen Repos zum Klonen
+      {% endif %}
+      ════════════════════════════════════════
+
+- name: GIT – Lösch-Batches verarbeiten - conf_cgit_publishing_server_task_host.yml
+  include_tasks: "{{ task_paths.process_git_delete_batch }}"
+  loop: "{{ git_repos_to_delete | batch(git_batch_size | default(20) | int) | list }}"
+  loop_control:
+    loop_var: current_batch
+    index_var: batch_index
+  vars:
+    total_batches: "{{ (git_repos_to_delete | length / (git_batch_size | default(20) | int)) | round(0, 'ceil') | int }}"
+  when: git_repos_to_delete | length > 0
+
+- name: GIT – Klon-Batches verarbeiten - conf_cgit_publishing_server_task_host.yml
+  include_tasks: "{{ task_paths.process_git_batch }}"
+  loop: "{{ git_repos_to_add | batch(git_batch_size | default(20) | int) | list }}"
+  loop_control:
+    loop_var: current_batch
+    index_var: batch_index
+  vars:
+    total_batches: "{{ (git_repos_to_add | length / (git_batch_size | default(20) | int)) | round(0, 'ceil') | int }}"
+  when: git_repos_to_add | length > 0
+
+# ----------------------------------------------------------------
+# REPORTING-BLOCK: Findet und verarbeitet alle JSONs (mit slurp)
+# ----------------------------------------------------------------
+
+- name: REPORT – Alle failed_repos_*.json im Job-Ordner finden - conf_cgit_publishing_server_task_host.yml
+  ansible.builtin.find:
+    paths: "/tmp/ansible_git_clone/clone_failed_{{ awx_job_id }}"
+    patterns: "failed_repos_*.json"
+  register: json_files
+  ignore_errors: yes
+
+- name: REPORT – Debuggen, was gefunden wurde - conf_cgit_publishing_server_task_host.yml
+  ansible.builtin.debug:
+    msg: "Es wurden {{ json_files.matched | default(0) }} JSON-Dateien gefunden in {{ json_files.files | map(attribute='path') | list }}."
+  when: json_files.files is defined
+
+# Schritt 1: Lese den Inhalt ALLER gefundenen Dateien vom Zielserver.
+# 'slurp' ist dafür gemacht, Dateien von Remote-Hosts zu lesen.
+- name: REPORT – Inhalt aller JSON-Dateien vom Zielserver laden - conf_cgit_publishing_server_task_host.yml
+  ansible.builtin.slurp:
+    src: "{{ item.path }}"
+  loop: "{{ json_files.files | default([]) }}"
+  register: slurped_files
+
+# Schritt 2: Verarbeite die geladenen Inhalte.
+- name: REPORT – Fehlrepoliste aus geladenen Inhalten erstellen - conf_cgit_publishing_server_task_host.yml
+  ansible.builtin.set_fact:
+    # Für JEDE geladene Datei ('item') in der Schleife:
+    # 1. item.content: Greife auf den Base64-kodierten Inhalt zu.
+    # 2. b64decode: Dekodiere den Inhalt zurück zu normalem Text (JSON).
+    # 3. from_json: Wandle den JSON-Text in ein Ansible-Objekt um.
+    # 4. .failed_repos: Greife auf den Schlüssel 'failed_repos' zu.
+    # 5. +: Füge diese Liste zur Gesamtliste 'all_failed_repos' hinzu.
+    all_failed_repos: "{{ all_failed_repos | default([]) + (item.content | b64decode | from_json).failed_repos }}"
+  loop: "{{ slurped_files.results | default([]) }}"
+  # Dieser Task läuft auf dem Controller, da alle Daten jetzt hier verfügbar sind.
+
+# Schritt 3: Gib die finale Zusammenfassung aus.
+- name: REPORT – Finale Zusammenfassung - conf_cgit_publishing_server_task_host.yml
+  ansible.builtin.debug:
+    msg: |
+      === GIT MIRRORING REPORT (Job {{ awx_job_id }}) ===
+      Fehlgeschlagene Repos ({{ all_failed_repos | default([]) | unique | length }}): {{ all_failed_repos | default([]) | unique }}
+      {% if all_failed_repos | default([]) | length > 0 %}
+      ❌ Bitte die oben genannten Repositories prüfen.
+      {% else %}
+      ✅ Alle Klone waren erfolgreich!
+      {% endif %}
+
+# Schritt 4: Räume den Job-Ordner auf dem Zielserver auf.
+- name: REPORT – Cleanup Job-Ordner - conf_cgit_publishing_server_task_host.yml
+  ansible.builtin.file:
+    path: "/tmp/ansible_git_clone/clone_failed_{{ awx_job_id }}"
+    state: absent
+  when: json_files.files is defined
+
+# ------------------------------------------------------------
+# ABSCHLIESSENDER TASK
+# ------------------------------------------------------------
+
+- name: GIT – Berechtigungen setzen - conf_cgit_publishing_server_task_host.yml
+  ansible.builtin.file:
+    path: /srv/git
+    owner: www-data
+    group: www-data
+    recurse: yes
+    mode: "2775"

@@ -1,0 +1,19 @@
+###########################################################################
+# 🟢 Dienste reloaden
+# Nutzt die OS‑abhängigen Start‑Kommandos aus services[..].reload[..]
+# Funktioniert mit String ("fail2ban") oder Liste (["fail2ban","nftables"])
+###########################################################################
+- name: 🚀 Reload Hauptdienst(e)
+  ansible.builtin.command: "{{ services[item].reload[ansible_os_family] }}"
+  loop: >-
+    {{ (var_pack_name | list)
+       if var_pack_name is iterable and (var_pack_name is not string)
+       else [var_pack_name] }}
+  changed_when: false
+  ignore_errors: true
+  when:
+    - (var_pack_name | default([])) | length > 0
+
+- name: 💤 Info
+  ansible.builtin.debug:
+    msg: "Dienst(e) {{ var_pack_name }} wurden reloaded und Regeln geladen (falls vorhanden)."

@@ -1,0 +1,28 @@
+---
+###########################################################################
+# 🗑️ odoo_deinstall.yml
+# Odoo ERP vollständig deinstallieren (K3s + nginx)
+###########################################################################
+
+- name: 🧹 Odoo Kubernetes Deinstallation - odoo_deinstall.yml
+  ansible.builtin.include_tasks: "{{ task_paths.kube_app_cleanup }}"
+
+# nginx Cleanup — Domain + VPN + Legacy
+- name: 🧹 Entferne nginx Domain Config - odoo_deinstall.yml
+  ansible.builtin.file:
+    path: "/etc/nginx/sites-enabled/{{ urls[ansible_host][app_name].domain | default('') }}.conf"
+    state: absent
+  when: urls[ansible_host][app_name].domain is defined
+  failed_when: false
+
+- name: 🧹 Entferne nginx VPN Config - odoo_deinstall.yml
+  ansible.builtin.file:
+    path: "/etc/nginx/sites-enabled/{{ app_name }}_vpn.conf"
+    state: absent
+  failed_when: false
+
+- name: 🔄 Restart nginx - odoo_deinstall.yml
+  ansible.builtin.systemd:
+    name: nginx
+    state: restarted
+  failed_when: false

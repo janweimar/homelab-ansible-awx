@@ -1,0 +1,6 @@
+supported_systems:
+  - Debian
+  - RedHat
+  - Suse
+  - Archlinux
+  - FreeBSD

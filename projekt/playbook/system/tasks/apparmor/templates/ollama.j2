@@ -1,0 +1,48 @@
+# AppArmor Profile für Ollama
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/bin/ollama {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  
+  # Capabilities
+  capability dac_override,
+  capability setuid,
+  capability setgid,
+  capability sys_ptrace,
+  
+  # Netzwerk
+  network inet stream,
+  network inet6 stream,
+  network unix stream,
+  
+  # Ollama Binary
+  /usr/bin/ollama mr,
+  
+  # Models & Data
+  /usr/share/ollama/** rw,
+  /var/lib/ollama/** rw,
+  
+  # Config
+  /etc/ollama/** r,
+  
+  # GPU Access
+  /dev/nvidia* rw,
+  /dev/dri/** rw,
+  
+  # Logs
+  /var/log/ollama/** w,
+  
+  # Runtime
+  /run/ollama/** rw,
+  
+  # Temp
+  /tmp/** rw,
+  
+  # Proc
+  @{PROC}/** r,
+}

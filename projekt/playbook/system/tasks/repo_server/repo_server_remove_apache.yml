@@ -1,0 +1,41 @@
+---
+###########################################################################
+# Apache2 deaktivieren und entfernen
+# Verhindert Port-Konflikt mit nginx
+###########################################################################
+
+###########################################################################
+# 1. Apache2 Service stoppen
+###########################################################################
+- name: ⏹️ Apache2 stoppen - repo_server_remove_apache.yml
+  ansible.builtin.systemd:
+    name: apache2
+    state: stopped
+    enabled: false
+  failed_when: false
+  ignore_errors: true
+
+###########################################################################
+# 2. Apache2 deinstalliert
+###########################################################################
+- name: 🗑️ Apache2 deinstalliert (Port-Konflikt mit nginx) - repo_server_remove_apache.yml
+  ansible.builtin.apt:
+    name: apache2
+    state: absent
+    purge: yes
+  when: ansible_os_family == "Debian"
+  failed_when: false
+  ignore_errors: true
+
+###########################################################################
+# 3. Apache2 Konfiguration bereinigen
+###########################################################################
+- name: 🧹 Apache2 Konfigurationsverzeichnisse entfernen - repo_server_remove_apache.yml
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/etc/apache2"
+    - "/var/www/html/index.html"
+  failed_when: false
+  ignore_errors: true

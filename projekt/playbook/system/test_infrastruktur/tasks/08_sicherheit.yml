@@ -1,0 +1,236 @@
+---
+###########################################################################
+# 🔒 Modul 08 — Sicherheitshärtung
+# =========================================================================
+# Zweck  : SIEM, auditd, Sicherheitsupdates, Malware-Scanner prüfen
+# Liest  : auditd, apt-get, clamav, rkhunter
+# Schreibt in: sicherheit_results
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+# =========================================================================
+# SIEM und Monitoring
+# =========================================================================
+
+- name: "08 | Wazuh-Agent prüfen"
+  ansible.builtin.command: dpkg -s wazuh-agent
+  register: reg_wazuh
+  changed_when: false
+  failed_when: false
+
+- name: "08 | Wazuh-Service Status"
+  ansible.builtin.command: systemctl is-active wazuh-agent
+  register: reg_wazuh_status
+  changed_when: false
+  failed_when: false
+  when: reg_wazuh.rc == 0
+
+- name: "08 | Filebeat prüfen"
+  ansible.builtin.command: dpkg -s filebeat
+  register: reg_filebeat
+  changed_when: false
+  failed_when: false
+
+- name: "08 | OSSEC prüfen"
+  ansible.builtin.command: which ossec-control
+  register: reg_ossec
+  changed_when: false
+  failed_when: false
+
+- name: "08 | Prometheus Node Exporter prüfen"
+  ansible.builtin.command: dpkg -s prometheus-node-exporter
+  register: reg_node_exporter
+  changed_when: false
+  failed_when: false
+
+- name: "08 | Zabbix Agent prüfen"
+  ansible.builtin.command: dpkg -s zabbix-agent
+  register: reg_zabbix
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# auditd — lokales Auditing
+# =========================================================================
+
+- name: "08 | auditd installiert prüfen"
+  ansible.builtin.command: dpkg -s auditd
+  register: reg_auditd
+  changed_when: false
+  failed_when: false
+
+- name: "08 | auditd Service Status"
+  ansible.builtin.command: systemctl is-active auditd
+  register: reg_auditd_status
+  changed_when: false
+  failed_when: false
+  when: reg_auditd.rc == 0
+
+- name: "08 | auditd Regeln lesen"
+  ansible.builtin.command: auditctl -l
+  register: reg_audit_regeln
+  changed_when: false
+  failed_when: false
+  when: reg_auditd.rc == 0
+
+- name: "08 | auditd Zusammenfassung"
+  ansible.builtin.command: aureport --summary
+  register: reg_audit_summary
+  changed_when: false
+  failed_when: false
+  when: reg_auditd.rc == 0
+
+# =========================================================================
+# Sicherheitsupdates
+# =========================================================================
+
+- name: "08 | Verfügbare Sicherheitsupdates prüfen"
+  ansible.builtin.shell: apt-get --simulate upgrade 2>/dev/null | grep -i security | wc -l
+  register: reg_sec_updates
+  changed_when: false
+  failed_when: false
+
+- name: "08 | Neustart nach Update ausstehend"
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: reg_reboot
+
+# =========================================================================
+# Malware- und Rootkit-Scanner
+# =========================================================================
+
+- name: "08 | ClamAV prüfen"
+  ansible.builtin.command: which clamscan
+  register: reg_clamav
+  changed_when: false
+  failed_when: false
+
+- name: "08 | ClamAV Datenbank-Alter prüfen"
+  ansible.builtin.stat:
+    path: /var/lib/clamav/main.cvd
+  register: reg_clamav_db
+  when: reg_clamav.rc == 0
+
+- name: "08 | rkhunter prüfen"
+  ansible.builtin.command: which rkhunter
+  register: reg_rkhunter
+  changed_when: false
+  failed_when: false
+
+- name: "08 | chkrootkit prüfen"
+  ansible.builtin.command: which chkrootkit
+  register: reg_chkrootkit
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Sysctl Sicherheitsparameter
+# =========================================================================
+
+- name: "08 | Sysctl Sicherheitsparameter prüfen"
+  ansible.builtin.shell: |
+    echo "net.ipv4.ip_forward=$(sysctl -n net.ipv4.ip_forward 2>/dev/null)"
+    echo "net.ipv4.conf.all.accept_redirects=$(sysctl -n net.ipv4.conf.all.accept_redirects 2>/dev/null)"
+    echo "net.ipv4.conf.all.send_redirects=$(sysctl -n net.ipv4.conf.all.send_redirects 2>/dev/null)"
+    echo "kernel.dmesg_restrict=$(sysctl -n kernel.dmesg_restrict 2>/dev/null)"
+    echo "kernel.kptr_restrict=$(sysctl -n kernel.kptr_restrict 2>/dev/null)"
+  register: reg_sysctl_sicherheit
+  changed_when: false
+  failed_when: false
+
+# =========================================================================
+# Ergebnisse in Variable speichern
+# =========================================================================
+
+- name: "08 | SIEM vorhanden prüfen"
+  ansible.builtin.set_fact:
+    siem_vorhanden: >-
+      {{
+        reg_wazuh.rc == 0 or
+        reg_filebeat.rc == 0 or
+        reg_ossec.rc == 0
+      }}
+
+- name: "08 | Ergebnisse in sicherheit_results speichern"
+  ansible.builtin.set_fact:
+    sicherheit_results:
+      status: >-
+        {{
+          'FEHLER' if (reg_sec_updates.stdout | int) > 10
+          else 'WARNUNG' if not siem_vorhanden
+          else 'WARNUNG' if reg_auditd.rc != 0
+          else 'WARNUNG' if (reg_sec_updates.stdout | int) > 0
+          else 'OK'
+        }}
+      zusammenfassung:
+        ok: "{{ 1 if (reg_sec_updates.stdout | int) == 0 and siem_vorhanden and reg_auditd.rc == 0 else 0 }}"
+        warnungen: "{{ (1 if not siem_vorhanden else 0) + (1 if reg_auditd.rc != 0 else 0) + (1 if (reg_sec_updates.stdout | int) > 0 and (reg_sec_updates.stdout | int) <= 10 else 0) }}"
+        fehler: "{{ 1 if (reg_sec_updates.stdout | int) > 10 else 0 }}"
+      details:
+        - name: "SIEM-Agent vorhanden"
+          status: "{{ 'OK' if siem_vorhanden else 'WARNUNG' }}"
+          wert: >-
+            {{
+              'Wazuh' if reg_wazuh.rc == 0
+              else 'Filebeat' if reg_filebeat.rc == 0
+              else 'OSSEC' if reg_ossec.rc == 0
+              else 'KEINES gefunden'
+            }}
+          hinweis: "{{ 'Kein zentrales Monitoring/SIEM gefunden — empfohlen: Wazuh Agent installieren' if not siem_vorhanden else '' }}"
+
+        - name: "auditd (lokales Auditing)"
+          status: "{{ 'OK' if reg_auditd.rc == 0 else 'WARNUNG' }}"
+          wert: "{{ 'installiert und ' + reg_auditd_status.stdout | default('unbekannt') if reg_auditd.rc == 0 else 'NICHT installiert' }}"
+          hinweis: "{{ 'Kein lokales Auditing aktiv — auditd empfohlen' if reg_auditd.rc != 0 else '' }}"
+
+        - name: "Auditd-Regeln"
+          status: "{{ 'OK' if reg_auditd.rc == 0 and reg_audit_regeln.stdout_lines | default([]) | length > 0 else 'WARNUNG' }}"
+          wert: "{{ reg_audit_regeln.stdout_lines | default([]) | length | string + ' Regeln konfiguriert' if reg_auditd.rc == 0 else 'auditd nicht installiert' }}"
+          hinweis: "{{ 'Keine auditd-Regeln konfiguriert' if reg_auditd.rc == 0 and reg_audit_regeln.stdout_lines | default([]) | length == 0 else '' }}"
+
+        - name: "Monitoring-Agent vorhanden"
+          status: "{{ 'OK' if reg_node_exporter.rc == 0 or reg_zabbix.rc == 0 else 'WARNUNG' }}"
+          wert: >-
+            {{
+              'Prometheus Node Exporter' if reg_node_exporter.rc == 0
+              else 'Zabbix Agent' if reg_zabbix.rc == 0
+              else 'Kein Monitoring-Agent'
+            }}
+          hinweis: "{{ 'Kein Monitoring-Agent gefunden' if reg_node_exporter.rc != 0 and reg_zabbix.rc != 0 else '' }}"
+
+        - name: "Sicherheitsupdates ausstehend"
+          status: >-
+            {{
+              'FEHLER' if (reg_sec_updates.stdout | int) > 10
+              else 'WARNUNG' if (reg_sec_updates.stdout | int) > 0
+              else 'OK'
+            }}
+          wert: "{{ reg_sec_updates.stdout | trim }} Sicherheitsupdates"
+          hinweis: "{{ 'Sicherheitsupdates ausstehend!' if (reg_sec_updates.stdout | int) > 0 else '' }}"
+
+        - name: "Malware-Scanner (ClamAV)"
+          status: "{{ 'OK' if reg_clamav.rc == 0 else 'WARNUNG' }}"
+          wert: "{{ 'installiert' if reg_clamav.rc == 0 else 'NICHT installiert' }}"
+          hinweis: "{{ 'Kein Malware-Scanner vorhanden' if reg_clamav.rc != 0 else '' }}"
+
+        - name: "Rootkit-Scanner"
+          status: "{{ 'OK' if reg_rkhunter.rc == 0 or reg_chkrootkit.rc == 0 else 'WARNUNG' }}"
+          wert: >-
+            {{
+              'rkhunter' if reg_rkhunter.rc == 0
+              else 'chkrootkit' if reg_chkrootkit.rc == 0
+              else 'KEINER installiert'
+            }}
+          hinweis: "{{ 'Kein Rootkit-Scanner vorhanden' if reg_rkhunter.rc != 0 and reg_chkrootkit.rc != 0 else '' }}"
+
+        - name: "Neustart ausstehend"
+          status: "{{ 'WARNUNG' if reg_reboot.stat.exists else 'OK' }}"
+          wert: "{{ 'JA — Neustart erforderlich' if reg_reboot.stat.exists else 'Nein' }}"
+          hinweis: "{{ 'Neustart nach Update ausstehend' if reg_reboot.stat.exists else '' }}"
+
+      sysctl: "{{ reg_sysctl_sicherheit.stdout_lines | default([]) }}"
+      audit_regeln: "{{ reg_audit_regeln.stdout_lines | default([]) }}"
+
+- name: "08 | ✅ Sicherheits-Analyse abgeschlossen"
+  ansible.builtin.debug:
+    msg: "Sicherheit geprüft — SIEM: {{ 'vorhanden' if siem_vorhanden else 'FEHLT' }}, auditd: {{ 'OK' if reg_auditd.rc == 0 else 'FEHLT' }} — Status: {{ sicherheit_results.status }}"

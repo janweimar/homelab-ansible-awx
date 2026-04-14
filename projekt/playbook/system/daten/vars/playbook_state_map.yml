@@ -1,0 +1,277 @@
+---
+###########################################################################
+# playbook_state_map.yml
+# Definiert welche Variablen jedes Playbook in den Server-State schreibt
+###########################################################################
+# Wird von hook_pre_start.yml gelesen.
+# hook_end_pb.yml schreibt die Werte nach /etc/ansible/facts.d/server_state.fact
+#
+# WICHTIG: Der Key muss EXAKT dem "name:" Feld im Playbook entsprechen!
+#          Namenskonvention: pb_setup_<anwendung>.yml
+###########################################################################
+
+state_map:
+
+  ##########################################################################
+  # Network — name: pb_setup_network.yml
+  ##########################################################################
+  playbook_conf_network.yml:
+    section: network
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # VPN Server — name: pb_setup_vpn_server.yml
+  ##########################################################################
+  pb_setup_vpn_server.yml:
+    section: vpn_server
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # VPN Client — name: pb_setup_vpn_client.yml
+  ##########################################################################
+  pb_setup_vpn_client.yml:
+    section: vpn
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # Firewall — name: pb_setup_firewall_nftables.yml
+  ##########################################################################
+  pb_setup_firewall_nftables.yml:
+    section: firewall
+    vars:
+      - allg_status
+      - fire_policy_input
+      - fire_policy_output
+      - fire_policy_forward
+      - fire_policy_nat
+      - fire_policy_port_forward
+      - fire_policy_port_forward_in
+
+  ##########################################################################
+  # GeoIP — name: pb_setup_geoblock_nftables.yml
+  ##########################################################################
+  pb_setup_geoblock_nftables.yml:
+    section: geoblock
+    vars:
+      - allg_status
+      - geo_mode
+      - geo_countries
+
+  ##########################################################################
+  # fail2ban — name: pb_setup_fail2ban_nftables.yml
+  ##########################################################################
+  pb_setup_fail2ban_nftables.yml:
+    section: fail2ban
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # suricata — name: pb_setup_suricata.yml
+  ##########################################################################
+  pb_setup_suricata.yml:
+    section: suricata
+    vars:
+      - allg_status
+      - suricata_mode
+      - suricata_traffic
+      - suricata_interface
+
+  ##########################################################################
+  # msmtp — name: pb_setup_msmtp.yml
+  ##########################################################################
+  pb_setup_msmtp.yml:
+    section: msmtp
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # logrotate — name: pb_setup_logrotate.yml
+  ##########################################################################
+  pb_setup_logrotate.yml:
+    section: logrotate
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # auto_update — name: pb_setup_auto_update.yml
+  ##########################################################################
+  pb_setup_auto_update.yml:
+    section: auto_update
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # audit — name: pb_setup_audit.yml
+  ##########################################################################
+  pb_setup_audit.yml:
+    section: audit
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # rkhunter — name: pb_setup_rkhunter.yml
+  ##########################################################################
+  pb_setup_rkhunter.yml:
+    section: rkhunter
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # AppArmor — name: pb_setup_apparmor.yml
+  ##########################################################################
+  pb_setup_apparmor.yml:
+    section: apparmor
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # Wazuh Manager — name: pb_setup_wazuh_manager.yml
+  ##########################################################################
+  pb_setup_wazuh_manager.yml:
+    section: wazuh_manager
+    vars:
+      - allg_status
+      - wazuh_nginx_integration
+      - wazuh_install_port
+
+  ##########################################################################
+  # Wazuh Agent — name: pb_setup_wazuh_agent.yml
+  ##########################################################################
+  pb_setup_wazuh_agent.yml:
+    section: wazuh_agent
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # cgit Publishing Server — name: pb_conf_cgit_publishing_server.yml
+  ##########################################################################
+  pb_conf_cgit_publishing_server.yml:
+    section: cgit_publishing
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # Repo Server — name: pb_setup_repo_server.yml
+  ##########################################################################
+  pb_setup_repo_server.yml:
+    section: repo_server
+    vars:
+      - allg_status
+      - install_cgit
+      - install_aptly
+      - install_helm
+
+  ##########################################################################
+  # add_repos_client — name: pb_setup_add_repos_client.yml
+  ##########################################################################
+  pb_setup_add_repos_client.yml:
+    section: add_repos_client
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # Helm Charts Cache — name: pb_conf_helm_charts_repo_server.yml
+  ##########################################################################
+  pb_conf_helm_charts_repo_server.yml:
+    section: helm_charts
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # aptly mirrors — name: pb_conf_aptly_mirrors_repo_server.yml
+  ##########################################################################
+  pb_conf_aptly_mirrors_repo_server.yml:
+    section: aptly_mirrors
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # aptly publishing — name: pb_conf_aptly_publishing_repo_server.yml
+  ##########################################################################
+  pb_conf_aptly_publishing_repo_server.yml:
+    section: aptly_publishing
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # AWX EE — name: pb_setup_awx_ee.yml
+  ##########################################################################
+  pb_setup_awx_ee.yml:
+    section: awx_ee
+    vars:
+      - allg_status
+      - container_runtime
+      - push_to_registry
+
+  ##########################################################################
+  # deploy_helm — name: pb_setup_deploy_helm_applications.yml
+  ##########################################################################
+  pb_setup_deploy_helm_applications.yml:
+    section: deploy_helm
+    vars:
+      - allg_status
+      - helm_app_auswahl
+      - app_deploy_helm
+      - db_backup
+
+  ##########################################################################
+  # Kubernetes — name: pb_setup_k8s_cluster.yml
+  ##########################################################################
+  pb_setup_k8s_cluster.yml:
+    section: kubernet
+    vars:
+      - allg_status
+
+  ##########################################################################
+  # Minikube — name: pb_setup_minikube.yml
+  ##########################################################################
+  pb_setup_minikube.yml:
+    section: minikube
+    vars:
+      - allg_status
+      - minikube_stack_auswahl
+
+  ##########################################################################
+  # K3s — name: pb_setup_k3s_cluster.yml
+  ##########################################################################
+  pb_setup_k3s_cluster.yml:
+    section: k3s
+    vars:
+      - allg_status
+      - k3s_stack_auswahl
+
+  ##########################################################################
+  # AWX Kube — name: pb_setup_awx_kube.yml
+  ##########################################################################
+  pb_setup_awx_kube.yml:
+    section: awx_kube
+    vars:
+      - allg_status
+      - helm_app_auswahl
+
+  ##########################################################################
+  # Universelles App-Deploy — name: pb_setup_app_deploy.yml
+  ##########################################################################
+  pb_setup_app_deploy.yml:
+    section: app_deploy
+    vars:
+      - allg_status
+      - app_name
+      - app_deploy_type
+      - app_db_type
+      - app_port
+      - _manifest_file
+
+  ##########################################################################
+  # Directus — name: pb_setup_directus.yml (legacy, nutze pb_setup_app_deploy)
+  ##########################################################################
+  pb_setup_directus.yml:
+    section: directus
+    vars:
+      - allg_status
+      - app_deploy_type
+      - app_db_type
+      - app_port

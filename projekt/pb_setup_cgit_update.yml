@@ -1,0 +1,103 @@
+---
+###########################################################################
+# 🔄 cgit Repos aktualisieren (fetch + fsck)
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Keine eigenen Credentials noetig!
+# Nur SSH-Key Credential am Job Template.
+#
+# Beschreibung:
+# Aktualisiert alle bestehenden bare Git-Repositories unter /srv/git/.
+# - git fsck --full (Integritaetspruefung)
+# - git fetch --all (Updates holen)
+# - Berechtigungen setzen (www-data)
+#
+# Hinweise:
+# - Dieses Playbook klont/loescht KEINE Repos
+# - Fuer neue Repos: pb_conf_cgit_publishing_server.yml verwenden
+# - Kann regelmaessig per Cron/AWX Schedule ausgefuehrt werden
+#
+# BEST PRACTICES:
+# - Wenn moeglich kein Code im Playbook, sondern in task auslagern
+# - Nicht benoetigte Service-Includes loeschen (nicht auskommentieren)
+###########################################################################
+
+- name: pb_conf_cgit_update.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+    - playbooks_paths.yml
+
+  vars:
+    # Kein Paket noetig
+    var_pack_name:
+
+    # Abhängigkeiten
+    var_dependencies_list:
+
+    # Voraussetzungen
+    var_prerequisites:
+
+    # Installationsreihenfolge
+    var_inst_order: 0
+
+    # Kein Service
+    var_sonder_start:
+    var_sonder_autostart:
+
+    # Nicht unterstützte OS
+    unsupported_systems:
+
+    # Playbook-Kontext
+    templates_paths_pb: cgit_update
+    pb_doku_template: cgit_update_doku
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden
+    ###########################################################################
+    - name: Lade alle Variablen-Dateien - pb_conf_cgit_update.yml
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop: "{{ var_files }}"
+
+    ###########################################################################
+    # Hook: Pre-Start
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start - pb_conf_cgit_update.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck
+    ###########################################################################
+    - name: 🔄 Systemcheck - pb_conf_cgit_update.yml
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks
+    ###########################################################################
+    - name: 🔄 Debug Ausgabe Playbook-Start - pb_conf_cgit_update.yml
+      ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+  tasks:
+    ###########################################################################
+    # KONFIGURATION (Update bestehender Repos)
+    ###########################################################################
+    - block:
+        - name: cgit Repos aktualisieren - pb_conf_cgit_update.yml
+          ansible.builtin.include_tasks: "{{ task_paths.cgit_update_task }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # Hook: End
+    ###########################################################################
+    - name: 🔧 Hook End - pb_conf_cgit_update.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

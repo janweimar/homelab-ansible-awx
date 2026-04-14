@@ -1,0 +1,15 @@
+---
+###########################################################################
+# Debug-Ausgabe fuer Minikube Playbook
+###########################################################################
+
+- name: "📋 Debug: Minikube Variablen - minikube_debug.yml"
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "Minikube Konfiguration"
+      - "=========================================="
+      - "allg_status:               {{ allg_status }}"
+      - "kube_user:                 {{ kube_user | default('nicht gesetzt') }}"
+      - "minikube_stack_auswahl:    {{ minikube_stack_auswahl | default('nicht gesetzt') }}"
+      - "=========================================="

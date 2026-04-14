@@ -1,0 +1,195 @@
+---
+###########################################################################
+# Fail2Ban + nftables Hauptkonfiguration - fail2ban_task.yml
+# Jails, Actions, Filter, nftables Tabellen/Chains/Sets
+###########################################################################
+
+# ============================================================
+# JAIL - Default-Konfiguration
+# ============================================================
+- name: Kopiere Default-Jail-Konfiguration - fail2ban_task.yml
+  ansible.builtin.template:
+    src: templates/f2b_jail_00_default.j2
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: "0644"
+
+# ============================================================
+# JAILS - Bedingte Jail-Konfigurationen
+# ============================================================
+- name: Kopiere SSH-Jail wenn aktiviert - fail2ban_task.yml
+  ansible.builtin.template:
+    src: templates/f2b_jail_10_ssh_conf.j2
+    dest: /etc/fail2ban/jail.d/10_ssh.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: ssh_enable | default(false) | bool
+
+- name: Kopiere Postfix-Jail wenn aktiviert - fail2ban_task.yml
+  ansible.builtin.template:
+    src: templates/f2b_jail_20_postfix_conf.j2
+    dest: /etc/fail2ban/jail.d/20_postfix.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: mail_postfix_enable | default(false) | bool
+
+- name: Kopiere Dovecot-Jail wenn aktiviert - fail2ban_task.yml
+  ansible.builtin.template:
+    src: templates/f2b_jail_30_dovecot_conf.j2
+    dest: /etc/fail2ban/jail.d/30_dovecot.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: mail_dovecot_enable | default(false) | bool
+
+- name: Kopiere Nginx-Jail wenn aktiviert - fail2ban_task.yml
+  ansible.builtin.template:
+    src: templates/f2b_jail_40_nginx_generic_conf.j2
+    dest: /etc/fail2ban/jail.d/40_nginx.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: nginx_enable | default(false) | bool
+
+- name: Kopiere Odoo-Jail wenn aktiviert - fail2ban_task.yml
+  ansible.builtin.template:
+    src: templates/f2b_jail_100_odoo_conf.j2
+    dest: /etc/fail2ban/jail.d/50_odoo.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: odoo_enable | default(false) | bool
+
+- name: Kopiere AWX-Jail wenn aktiviert - fail2ban_task.yml
+  ansible.builtin.template:
+    src: templates/f2b_jail_200_awx_conf.j2
+    dest: /etc/fail2ban/jail.d/60_awx.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: awx_enable | default(false) | bool
+
+# ============================================================
+# FILTER - Odoo-spezifische Filter
+# ============================================================
+- name: Kopiere Odoo-Fail2ban-Filter - fail2ban_task.yml
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "/etc/fail2ban/filter.d/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - { src: "templates/f2b_filter_odoo_conf.j2", dest: "odoo.conf" }
+    - { src: "templates/f2b_filter_odoo_syslog_conf.j2", dest: "odoo-syslog.conf" }
+    - { src: "templates/f2b_filter_odoo_404_conf.j2", dest: "odoo-404.conf" }
+    - { src: "templates/f2b_filter_odoo_404_syslog_conf.j2", dest: "odoo-404-syslog.conf" }
+  when: odoo_enable | default(false) | bool
+
+# ============================================================
+# ACTIONS - Custom nftables Actions
+# ============================================================
+- name: Kopiere nftables_custom.conf Action - fail2ban_task.yml
+  ansible.builtin.template:
+    src: templates/f2b_action_nftables_custom.j2
+    dest: /etc/fail2ban/action.d/nftables_custom.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Kopiere nftables-allports_custom.conf Action - fail2ban_task.yml
+  ansible.builtin.template:
+    src: templates/f2b_action_nftables_allport_custom.j2
+    dest: /etc/fail2ban/action.d/nftables-allports_custom.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Kopiere nftables-multiport_custom.conf Action - fail2ban_task.yml
+  ansible.builtin.template:
+    src: templates/f2b_action_nftables_multiport_custom.j2
+    dest: /etc/fail2ban/action.d/nftables-multiport_custom.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+# ============================================================
+# FAIL2BAN - Regeln neu laden
+# ============================================================
+- name: Fail2ban Regeln neu laden - fail2ban_task.yml
+  ansible.builtin.command: fail2ban-client reload
+  become: true
+  changed_when: true
+
+
+# ============================================================
+# NFTABLES - Ruleset in Datei speichern (für Reboot)
+# ============================================================
+- name: Alte 20_f2b_ruleset.nft löschen - fail2ban_task.yml
+  ansible.builtin.file:
+    path: /etc/nftables.d/20_f2b_ruleset.nft
+    state: absent
+
+- name: Platzhalter für Fail2ban-Regeln erstellen - fail2ban_task.yml
+  ansible.builtin.copy:
+    dest: /etc/nftables.d/20_f2b_ruleset.nft
+    content: |
+      # f2b ist installiert
+    owner: root
+    group: root
+    mode: "0644"
+
+# ============================================================
+# DOKU - Deployte Configs einlesen fuer Report
+# ============================================================
+- name: Lese jail.local - fail2ban_task.yml
+  ansible.builtin.slurp:
+    src: /etc/fail2ban/jail.local
+  register: f2b_doku_jail_local
+
+- name: Lese aktive Jail-Dateien - fail2ban_task.yml
+  ansible.builtin.shell: |
+    for f in /etc/fail2ban/jail.d/*.conf; do
+      [ -f "$f" ] && echo "===== $(basename $f) =====" && cat "$f" && echo ""
+    done
+  register: f2b_doku_jails_active
+  changed_when: false
+  failed_when: false
+
+- name: Lese Action nftables_custom.conf - fail2ban_task.yml
+  ansible.builtin.slurp:
+    src: /etc/fail2ban/action.d/nftables_custom.conf
+  register: f2b_doku_action_custom
+
+- name: Lese Action nftables-allports_custom.conf - fail2ban_task.yml
+  ansible.builtin.slurp:
+    src: /etc/fail2ban/action.d/nftables-allports_custom.conf
+  register: f2b_doku_action_allports
+
+- name: Lese Action nftables-multiport_custom.conf - fail2ban_task.yml
+  ansible.builtin.slurp:
+    src: /etc/fail2ban/action.d/nftables-multiport_custom.conf
+  register: f2b_doku_action_multiport
+
+- name: Lese Fail2Ban Status - fail2ban_task.yml
+  ansible.builtin.command: fail2ban-client status
+  register: f2b_doku_status
+  changed_when: false
+  failed_when: false
+
+- name: Lese nftables f2b_tab Ruleset - fail2ban_task.yml
+  ansible.builtin.shell: nft list table inet f2b_tab 2>/dev/null || echo "Tabelle nicht vorhanden"
+  register: f2b_doku_nft_ruleset
+  changed_when: false
+  failed_when: false
+
+# ============================================================
+# TEST-BAN - Erzwingt Erstellung der f2b_tab Tabelle
+# ============================================================
+- name: Test-IP bannen (erzwingt f2b_tab Erstellung) - fail2ban_task.yml
+  ansible.builtin.command: fail2ban-client set sshd banip 192.0.2.1
+  become: true
+  changed_when: true

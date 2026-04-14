@@ -1,0 +1,470 @@
+##########################################################################
+# 🧪      Prüfen ob Tabelle inet
+#                 'fire_tab'
+# 🧪 existiert, wenn nicht wird sie angelegt
+###########################################################################
+# Wichtige Anmerkung:
+# Diese Chain dient dazu, um die Firewall zu implementieren,
+# abhängig vom gewählten Modus (drop/allow).
+# Table name: fire_tab
+# Chain name: in_chain
+# Chain name: out_chain
+# Chain name: for_chain
+###########################################################################
+
+###########################################################################
+# 🧪         Prüfen ob Tabelle
+#                'fire_tab'
+# 🧪      existiert, wenn nicht wird sie angelegt
+###########################################################################
+- block:
+    - name: ⚙️ Prüfen, ob Tabelle inet 'fire_tab' existiert
+      ansible.builtin.shell: nft list table inet fire_tab
+      register: nft_table_check__fire_tab
+      failed_when: false
+      changed_when: false
+
+    - name: 🧱 Tabelle inet 'fire_tab' anlegen, falls nicht vorhanden
+      ansible.builtin.command: nft add table inet fire_tab
+      when: nft_table_check__fire_tab.rc != 0
+  become: true
+
+###########################################################################
+# 🧪         Prüfen ob chains
+#              in_chain
+#              out_chain
+#              for_chain
+#  in Tabelle inet 'fire_tab' existiert, wenn nicht wird sie angelegt
+###########################################################################
+- block:
+    - name: Set nft_chains variable -nftables_firewall_tables.yml
+      set_fact:
+        nft_chains:
+          - name: "in_chain"
+            hook: "input"
+            policy: "accept"
+            priority: -170
+          - name: "out_chain"
+            hook: "output"
+            policy: "accept"
+            priority: -170
+          - name: "for_chain"
+            hook: "forward"
+            policy: "accept"
+            priority: -170
+
+    # Prüfen, ob die Chains existieren
+    - name: ⚙️ Prüfen ob Chain existiert - nftables_firewall_tables.yml
+      ansible.builtin.shell: >
+        nft list chain inet fire_tab {{ item.name }} >/dev/null 2>&1
+      register: nft_chain_check
+      ignore_errors: true
+      failed_when: false
+      changed_when: false
+      loop: "{{ nft_chains }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Ergebnisse in ein Dictionary umwandeln - nftables_firewall_tables.yml
+      ansible.builtin.set_fact:
+        existing_chains: >-
+          {{
+            dict(
+              nft_chain_check.results
+              | selectattr('rc', 'equalto', 0)
+              | map(attribute='item.name')
+              | zip([True] * (nft_chain_check.results
+                              | selectattr('rc', 'equalto', 0)
+                              | list
+                              | length))
+            )
+          }}
+
+###########################################################################
+# 🔄 Policies für Chains setzen (nur wenn vorhanden)
+###########################################################################
+- block:
+    - name: 🔄 Setze Policy für in_chain, wenn vorhanden -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft chain inet fire_tab in_chain '{ policy accept; }'
+      when: existing_chains.in_chain is defined
+      changed_when: true
+
+    - name: 🔄 Setze Policy für out_chain, wenn vorhanden -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft chain inet fire_tab out_chain '{ policy accept; }'
+      when: existing_chains.out_chain is defined
+      changed_when: true
+
+    - name: 🔄 Setze Policy für for_chain, wenn vorhanden -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft chain inet fire_tab for_chain '{ policy accept; }'
+      when: existing_chains.for_chain is defined
+      changed_when: true
+
+###########################################################################
+# 🔄 Chains flush delete add
+###########################################################################
+- block:
+    # Flush nur wenn vorhanden
+    - name: 🧹 Chain leeren (falls vorhanden) -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft flush chain inet fire_tab {{ item.name }}
+      when: nft_chain_check.results[idx].rc == 0
+      loop: "{{ nft_chains }}"
+      loop_control:
+        label: "{{ item.name }}"
+        index_var: idx
+      changed_when: false
+      failed_when: false
+
+    # Löschen nur wenn vorhanden
+    - name: 🔗 Alte Chain entfernen (falls vorhanden) -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft delete chain inet fire_tab {{ item.name }}
+      when: nft_chain_check.results[idx].rc == 0
+      loop: "{{ nft_chains }}"
+      loop_control:
+        label: "{{ item.name }}"
+        index_var: idx
+      changed_when: true
+      failed_when: false
+
+    # Neu erstellen der Chains
+    - name: 🧱 Neue Chains erstellen mit accept -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft add chain inet fire_tab {{ item.name }} '{ type filter hook {{ item.hook }} priority {{ item.priority }}; policy {{ item.policy }}; }'
+      loop: "{{ nft_chains }}"
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: true
+      failed_when: false
+
+###########################################################################
+# ➕ Bestehende Verbindungen erlauben (in_chain)
+###########################################################################
+- name: ➕ Bestehende Verbindungen in in_chain erlauben -nftables_firewall_tables.yml
+  ansible.builtin.command: >
+    nft add rule inet fire_tab in_chain ct state established,related accept comment '"Bestehende Verbindungen erlauben"'
+  changed_when: true
+
+###########################################################################
+# ➕ Bestehende Verbindungen erlauben (out_chain)
+###########################################################################
+- name: ➕ Bestehende Verbindungen in out_chain erlauben -nftables_firewall_tables.yml
+  ansible.builtin.command: >
+    nft add rule inet fire_tab out_chain ct state established,related accept comment '"Bestehende Verbindungen erlauben"'
+  changed_when: true
+
+###########################################################################
+# ➕ Bestehende Verbindungen erlauben (for_chain)
+###########################################################################
+- name: ➕ Bestehende Verbindungen in for_chain erlauben -nftables_firewall_tables.yml
+  ansible.builtin.command: >
+    nft add rule inet fire_tab for_chain ct state established,related accept comment '"Bestehende Verbindungen erlauben"'
+  changed_when: true
+
+###########################################################################
+# 🧪  in_chain befüllen mit trusted-list
+###########################################################################
+- block:
+    - name: ➕ trusted IPv4-Adressen in in_chain -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft add rule inet fire_tab in_chain ip saddr {{ item }} accept
+      loop: "{{ in_os_networks_v4 }}"
+      loop_control:
+        label: "{{ item }}"
+      changed_when: true
+
+    - name: ➕ trusted IPv6-Adressen in in_chain -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft add rule inet fire_tab in_chain ip6 saddr {{ item }} accept
+      loop: "{{ in_os_networks_v6 }}"
+      loop_control:
+        label: "{{ item }}"
+      changed_when: true
+
+    - name: ➕ Interfaces in in_chain -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft add rule inet fire_tab in_chain {{ item }} accept
+      loop: "{{ in_interfaces | default([]) }}"
+      loop_control:
+        label: "{{ item }}"
+      changed_when: true
+
+###########################################################################
+# 🧪  out_chain befüllen mit trusted-list
+###########################################################################
+- block:
+    - name: ➕ trusted IPv4-Adressen in out_chain -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft add rule inet fire_tab out_chain ip daddr {{ item }} accept
+      loop: "{{ out_os_networks_v4 }}"
+      loop_control:
+        label: "{{ item }}"
+      changed_when: true
+
+    - name: ➕ trusted IPv6-Adressen in out_chain -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft add rule inet fire_tab out_chain ip6 daddr {{ item }} accept
+      loop: "{{ out_os_networks_v6 }}"
+      loop_control:
+        label: "{{ item }}"
+      changed_when: true
+
+    - name: ➕ Interfaces in out_chain -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft add rule inet fire_tab out_chain {{ item }} accept
+      loop: "{{ out_interfaces | default([]) }}"
+      loop_control:
+        label: "{{ item }}"
+      changed_when: true
+
+###########################################################################
+# 🧪  for_chain befüllen mit trusted-list
+###########################################################################
+- block:
+    - name: ➕ trusted IPv4-Subnetze in for_chain -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft add rule inet fire_tab for_chain ip saddr {{ item }} accept comment '"Trusted Forward IPv4: {{ item }}"'
+      loop: "{{ for_os_networks_v4 | default([]) }}"
+      loop_control:
+        label: "{{ item }}"
+      changed_when: true
+      when: for_os_networks_v4 | default([]) | length > 0
+
+    - name: ➕ trusted IPv6-Subnetze in for_chain -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft add rule inet fire_tab for_chain ip6 saddr {{ item }} accept comment '"Trusted Forward IPv6: {{ item }}"'
+      loop: "{{ for_os_networks_v6 | default([]) }}"
+      loop_control:
+        label: "{{ item }}"
+      changed_when: true
+      when: for_os_networks_v6 | default([]) | length > 0
+
+    - name: ➕ Interfaces in for_chain -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft add rule inet fire_tab for_chain {{ item }} accept comment '"Forward Interface: {{ item }}"'
+      loop: "{{ for_interfaces | default([]) }}"
+      loop_control:
+        label: "{{ item }}"
+      changed_when: true
+      when: for_interfaces | default([]) | length > 0
+
+###########################################################################
+# 📥 Eingehende Ports dynamisch setzen (nftables Variante mit fire_in_parsed)
+###########################################################################
+- name: 🟩 Eingehende Ports anwenden -nftables_firewall_tables.yml
+  vars:
+    _proto: >-
+      {{
+        'tcp'
+        if (item.proto | lower) == 'ssh'
+        else (item.proto | default('tcp'))
+      }}
+    _port: "{{ item.prt | default('') }}"
+    _ip: "{{ item.ip | default('') }}"
+  ansible.builtin.command: >
+    nft add rule inet fire_tab in_chain
+    {{ "ip saddr " + _ip if _ip|length > 0 else "" }}
+    {{ _proto if _port else "" }}
+    {{ "dport " + _port if _port else "" }}
+    ct state new accept comment '"Dynamisch: erlaubter Port {{ _port }} proto {{ _proto }}"'
+  loop: "{{ fire_in_parsed }}"
+  loop_control:
+    label: "Port {{ item.prt }}"
+  changed_when: true
+
+###########################################################################
+# 📤 Ausgehende Ports anwenden (nftables Variante mit fire_out_parsed)
+###########################################################################
+- name: 📤 Ausgehende Ports anwenden -nftables_firewall_tables.yml
+  vars:
+    _proto: >-
+      {{
+        'tcp'
+        if (item.proto | lower) == 'ssh'
+        else (item.proto | default('tcp'))
+      }}
+    _port: "{{ item.prt | default('') }}"
+    _ip: "{{ item.ip | default('') }}"
+  ansible.builtin.command: >
+    nft add rule inet fire_tab out_chain
+    {{ "ip daddr " + _ip if _ip|length > 0 else "" }}
+    {{ _proto if _port else "" }}
+    {{ "dport " + _port if _port else "" }}
+    ct state new accept comment '"Dynamisch: erlaubter Ausgangs-Port {{ _port }} proto {{ _proto }}"'
+  loop: "{{ fire_out_parsed | default([]) }}"
+  loop_control:
+    label: "Port {{ item.prt }}"
+  changed_when: true
+
+###########################################################################
+# 🔀 Weiterleitende Ports anwenden (FORWARD / nftables)
+###########################################################################
+- name: 🔀 Weiterleitende Ports anwenden -nftables_firewall_tables.yml
+  vars:
+    _proto: >-
+      {{
+        'tcp'
+        if (item.proto | lower) == 'ssh'
+        else (item.proto | default('tcp'))
+      }}
+    _port: "{{ item.prt | default('') }}"
+  ansible.builtin.command: >
+    nft add rule inet fire_tab for_chain
+    iifname "cali*" oifname "cali*"
+    {{ _proto if _port else "" }}
+    {{ "dport " + _port if _port else "" }}
+    ct state new accept
+    comment '"Dynamisch: erlaubter Forward-Port {{ _port }} proto {{ _proto }}"'
+  loop: "{{ fire_for_parsed | default([]) }}"
+  loop_control:
+    label: "Forward-Port {{ item.prt }}"
+  changed_when: true
+
+###########################################################################
+# 🔄 Policy für in_chain setzen
+###########################################################################
+- name: 🔄 Setze Policy für in_chain -nftables_firewall_tables.yml
+  ansible.builtin.command: >
+    nft chain inet fire_tab in_chain { policy {{ fire_main_policy_input }}; }
+  changed_when: true
+
+###########################################################################
+# 🔄 Policy für out_chain setzen
+###########################################################################
+- name: 🔄 Setze Policy für out_chain -nftables_firewall_tables.yml
+  ansible.builtin.command: >
+    nft chain inet fire_tab out_chain { policy {{ fire_main_policy_output }}; }
+  changed_when: true
+
+###########################################################################
+# 🔄 Policy für for_chain setzen
+###########################################################################
+- name: 🔄 Setze Policy für for_chain -nftables_firewall_tables.yml
+  ansible.builtin.command: >
+    nft chain inet fire_tab for_chain { policy {{ fire_main_policy_forward }}; }
+  changed_when: true
+
+###########################################################################
+# 🌐 NAT / Masquerade Tabelle anlegen (nur wenn Regeln vorhanden)
+###########################################################################
+- block:
+    - name: ⚙️ Prüfen, ob Tabelle inet 'fire_nat_tab' existiert -nftables_firewall_tables.yml
+      ansible.builtin.shell: nft list table inet fire_nat_tab
+      register: nft_nat_table_check
+      failed_when: false
+      changed_when: false
+
+    - name: 🧱 Tabelle inet 'fire_nat_tab' anlegen, falls nicht vorhanden -nftables_firewall_tables.yml
+      ansible.builtin.command: nft add table inet fire_nat_tab
+      when: nft_nat_table_check.rc != 0
+
+    - name: ⚙️ Prüfen ob NAT postrouting Chain existiert -nftables_firewall_tables.yml
+      ansible.builtin.shell: >
+        nft list chain inet fire_nat_tab nat_postrouting >/dev/null 2>&1
+      register: nft_nat_chain_check
+      failed_when: false
+      changed_when: false
+
+    - name: 🧹 NAT Chain leeren (falls vorhanden) -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft flush chain inet fire_nat_tab nat_postrouting
+      when: nft_nat_chain_check.rc == 0
+      changed_when: true
+      failed_when: false
+
+    - name: 🔗 Alte NAT Chain entfernen (falls vorhanden) -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft delete chain inet fire_nat_tab nat_postrouting
+      when: nft_nat_chain_check.rc == 0
+      changed_when: true
+      failed_when: false
+
+    - name: 🧱 NAT postrouting Chain erstellen -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft add chain inet fire_nat_tab nat_postrouting '{ type nat hook postrouting priority srcnat; policy accept; }'
+      changed_when: true
+
+    - name: ➕ Masquerade-Regeln anwenden -nftables_firewall_tables.yml
+      ansible.builtin.command: >
+        nft add rule inet fire_nat_tab nat_postrouting {{ item }} masquerade comment '"NAT Masquerade"'
+      loop: "{{ nat_masquerade_rules }}"
+      loop_control:
+        label: "{{ item }}"
+      changed_when: true
+
+    - name: 🪵 Debug NAT Ruleset -nftables_firewall_tables.yml
+      ansible.builtin.shell: >
+        nft list table inet fire_nat_tab
+      register: nft_nat_debug
+      changed_when: false
+
+    - name: 📋 Zeige NAT Debug-Ausgabe -nftables_firewall_tables.yml
+      ansible.builtin.debug:
+        var: nft_nat_debug.stdout_lines
+
+  when: nat_masquerade_rules | default([]) | length > 0
+
+###########################################################################
+# 🐛 Debug-Ausgabe des aktuellen Rulesets (auf 100 Zeilen begrenzt)
+###########################################################################
+- block:
+    - name: 🐛 Debug-Ausgabe nftables Ruleset (max 100 Zeilen) -nftables_firewall_tables.yml
+      ansible.builtin.shell: >
+        nft list table inet fire_tab | head -n 100
+      register: nft_ruleset_debug
+      changed_when: false
+
+    - name: 📋 Zeige Debug-Ausgabe -nftables_firewall_tables.yml
+      ansible.builtin.debug:
+        var: nft_ruleset_debug.stdout_lines
+
+###########################################################################
+# 🐛 Firewall Ruleset in Datei speichern - für reboot
+###########################################################################
+- block:
+    - name: 🗑️ Alte firewall_ruleset.nft löschen -nftables_firewall_tables.yml
+      ansible.builtin.file:
+        path: /etc/nftables.d/10_firewall_ruleset.nft
+        state: absent
+
+    - name: 📥 Aktuelle Firewall-Tabelle fire_tab auslesen -nftables_firewall_tables.yml
+      ansible.builtin.command: nft list table inet fire_tab
+      register: fire_tab_dump
+      changed_when: false
+
+    - name: 📥 Aktuelle NAT-Tabelle fire_nat_tab auslesen -nftables_firewall_tables.yml
+      ansible.builtin.command: nft list table inet fire_nat_tab
+      register: fire_nat_tab_dump
+      changed_when: false
+      failed_when: false
+
+    - name: 💾 Firewall-Tabelle fire_tab komplett sichern -nftables_firewall_tables.yml
+      ansible.builtin.copy:
+        dest: /etc/nftables.d/10_firewall_ruleset.nft
+        content: |
+          {{ fire_tab_dump.stdout }}
+          {% if fire_nat_tab_dump.rc == 0 %}
+          {{ fire_nat_tab_dump.stdout }}
+          {% endif %}
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Ensure 00_geoIP_ruleset.nft exists -nftables_firewall_tables.yml
+      ansible.builtin.file:
+        path: /etc/nftables.d/00_geoIP_ruleset.nft
+        state: touch
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Ensure 20_f2b_ruleset.nft exists -nftables_firewall_tables.yml
+      ansible.builtin.file:
+        path: /etc/nftables.d/20_f2b_ruleset.nft
+        state: touch
+        owner: root
+        group: root
+        mode: "0644"

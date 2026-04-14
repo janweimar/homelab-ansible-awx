@@ -1,0 +1,34 @@
+---
+###########################################################################
+# 📊 logrotate Konfiguration
+# Datei: logrotate_task.yml
+# Zweck: /etc/logrotate.conf mit konfigurierbaren Werten deployen
+###########################################################################
+
+- name: Deploye logrotate.conf - logrotate_task.yml
+  ansible.builtin.template:
+    src: templates/logrotate.conf.j2
+    dest: /etc/logrotate.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: yes
+
+- name: Prüfe logrotate Konfiguration - logrotate_task.yml
+  ansible.builtin.command:
+    cmd: logrotate -d /etc/logrotate.conf
+  register: logrotate_check
+  changed_when: false
+  failed_when: false
+
+- name: Zeige logrotate Status - logrotate_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ logrotate konfiguriert"
+      - "Frequency: {{ logrotate_frequency }}"
+      - "Rotate: {{ logrotate_rotate }}"
+      - "Compress: {{ logrotate_compress }}"
+      - "MaxSize: {{ logrotate_maxsize }}"
+      - "MinSize: {{ logrotate_minsize }}"
+      - "MaxAge: {{ logrotate_maxage }} Tage"
+      - "DateExt: {{ logrotate_dateext }}"

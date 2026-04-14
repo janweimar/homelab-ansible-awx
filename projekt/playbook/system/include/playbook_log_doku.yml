@@ -1,0 +1,249 @@
+---
+###########################################################################
+# Playbook Log/Dokumentation erstellen und verteilen
+# Generischer Task für alle Playbooks
+###########################################################################
+# Benötigte Variable vom aufrufenden Playbook:
+#   log_template_file: "{{ doku_paths.xxx_uebersicht }}"
+#
+# Credentials (cred_playbook_log_doku):
+#   log_save_client: true/false
+#   log_save_client_path: (optional, default aus file_paths)
+#   log_save_awx: true/false
+#   log_save_awx_path: (optional, default aus file_paths)
+#   log_send_email: true/false
+#   smtp_user: SMTP-Absender (AWX Credential, aus msmtp-Playbook)
+#   log_save_db: true/false
+#   log_db_type: mysql/postgresql
+#   log_db_host: IP oder Hostname
+#   log_db_port: Port
+#   log_db_name: Datenbankname
+#   log_db_user: Benutzername
+#   log_db_password: Passwort
+#   log_db_table: Tabellenname
+###########################################################################
+
+###########################################################################
+# 1. Validierung
+###########################################################################
+- name: ✅ Prüfe ob log_template_file definiert ist
+  ansible.builtin.fail:
+    msg: "Variable 'log_template_file' muss definiert sein!"
+  when: log_template_file is not defined or log_template_file | length == 0
+
+###########################################################################
+# 2. Generiere Dokumentation aus Template in temporärer Datei
+###########################################################################
+- name: 📁 Generiere Dokumentation aus Template in temporärer Datei
+  block:
+    - name: 📁 Erstelle temporäres Verzeichnis auf Client
+      ansible.builtin.file:
+        path: "/tmp/awx/dok"
+        state: directory
+        mode: "0755"
+
+    - name: 📊 Setze lesbaren Zeitstempel
+      ansible.builtin.set_fact:
+        timestamp_readable: "{{ ansible_date_time.date }}_{{ ansible_date_time.time | replace(':', '-') }}"
+
+    - name: Erstelle eindeutigen File-Namen für Log-Datei
+      ansible.builtin.set_fact:
+        file_name_doku: "{{ pb_doku_template }}_{{ awx_job_id }}_{{ ansible_hostname }}_{{ timestamp_readable }}.md"
+
+    - name: 🔍 DIAGNOSE - Template Pfade prüfen
+      ansible.builtin.debug:
+        msg:
+          - "Quelle (src): >{{ log_template_file | default('NICHTS DEFINIERT') }}<"
+          - "Ziel (dest): >/tmp/awx/dok/{{ file_name_doku }}<"
+          - "Job ID: {{ awx_job_id | default('KEINE JOB ID') }}"
+
+    - name: 📄 Generiere Dokumentation aus Template
+      ansible.builtin.template:
+        src: "{{ log_template_file }}"
+        dest: "/tmp/awx/dok/{{ file_name_doku }}"
+        mode: "0644"
+      register: log_template_result
+
+    - name: 🔍 DIAGNOSE - Ergebnis des Template-Tasks
+      ansible.builtin.debug:
+        var: log_template_result
+
+###########################################################################
+# 3. Template rendern (temporär)
+###########################################################################
+- name: 💾 Speichere Dokumentation auf Client
+  block:
+    - name: 📁 Erstelle Zielverzeichnis auf Client
+      ansible.builtin.file:
+        # ', true' sorgt dafür, dass auch leere Strings aus Credentials
+        # ignoriert werden und der Default-Pfad verwendet wird.
+        path: "{{ log_save_client_path | default(doku_paths.log_doku_client_default, true) }}"
+        state: directory
+        mode: "0755"
+
+    - name: 📄 Kopiere Dokumentation auf Client
+      ansible.builtin.copy:
+        src: "/tmp/awx/dok/{{ file_name_doku }}"
+        dest: "{{ log_save_client_path | default(doku_paths.log_doku_client_default, true) }}/{{ file_name_doku }}"
+        mode: "0644"
+        # DIESE ZEILE MUSS HINZUGEFÜGT WERDEN:
+        remote_src: true
+
+    - name: 🔍 Überprüfe erstellte Dokumentationsdatei
+      ansible.builtin.stat:
+        path: "{{ log_save_client_path | default(doku_paths.log_doku_client_default, true) }}/{{ file_name_doku }}"
+      register: doku_file_stat
+
+    - name: 🛑 Abbruch, falls Datei nicht existiert oder leer ist
+      ansible.builtin.fail:
+        msg: "Fehler: Die Dokumentation wurde nicht korrekt erstellt oder ist leer (0 KB)!"
+      when:
+        - not doku_file_stat.stat.exists
+        - doku_file_stat.stat.size == 0
+
+    - name: ✅ Bestätigung der Dokumentationserstellung
+      ansible.builtin.debug:
+        msg: "Doku wurde erfolgreich erstellt: {{ log_save_client_path | default(doku_paths.log_doku_client_default, true) }}/{{ file_name_doku }} (Größe: {{ (doku_file_stat.stat.size / 1024) | round(2) }} KB)"
+      when: doku_file_stat.stat.exists and doku_file_stat.stat.size > 0
+
+  # Die Bedingung stellt sicher, dass der Block nur läuft, wenn gewünscht
+  when: log_save_client | default(false) | bool
+
+###########################################################################
+# 4. Speicherung und Validierung auf dem AWX Server (Controller)
+###########################################################################
+#- name: 💾 Speichere Dokumentation auf AWX Server
+#  block:
+#    - name: 📥 Hole Dokumentation vom Client
+#      ansible.builtin.fetch:
+#        src: "/tmp/awx/dok/{{ file_name_doku }}"
+#        dest: "/tmp/{{ file_name_doku }}"
+#        flat: true
+#
+#    - name: 📁 Erstelle Zielverzeichnis auf AWX Server
+#      ansible.builtin.file:
+#        path: "{{ log_save_awx_path | default(doku_paths.log_doku_awx_default, true) }}/{{ file_name_doku }}"
+#        state: directory
+#        mode: "0755"
+#      delegate_to: localhost
+#      become: false
+#
+#    - name: 📄 Kopiere Dokumentation auf AWX Server
+#      ansible.builtin.copy:
+#        src: "/tmp/{{ file_name_doku }}"
+#        dest: "{{ log_save_awx_path | default(doku_paths.log_doku_awx_default, true) }}/{{ file_name_doku }}"
+#        mode: "0644"
+#      delegate_to: localhost
+#      become: false
+#
+#    - name: 🔍 Überprüfe erstellte Datei auf AWX Server
+#      ansible.builtin.stat:
+#        path: "{{ log_save_awx_path | default(doku_paths.log_doku_awx_default, true) }}/{{ file_name_doku }}"
+#      register: awx_doku_stat
+#      delegate_to: localhost
+#      become: false
+#
+#    - name: 🛑 Abbruch, falls AWX-Kopie fehlgeschlagen oder leer ist
+#      ansible.builtin.fail:
+#        msg: "Fehler: Die Dokumentation konnte nicht auf den AWX-Server kopiert werden oder ist leer!"
+#      when:
+#        - not awx_doku_stat.stat.exists or awx_doku_stat.stat.size == 0
+#      delegate_to: localhost
+#      become: false
+#
+#    - name: ✅ AWX-Speicherung erfolgreich
+#      ansible.builtin.debug:
+#        msg:
+#          - "------------------------------------------------------------"
+#          - "AWX-DOKUMENTATION ERFOLGREICH GESPEICHERT"
+#          - "Pfad: {{ log_save_awx_path | default(doku_paths.log_doku_awx_default, true) }}/{{ file_name_doku }}"
+#          - "Größe: {{ (awx_doku_stat.stat.size / 1024) | round(2) }} KB"
+#          - "------------------------------------------------------------"
+#      delegate_to: localhost
+#      become: false
+#
+#    - name: 🔍 Wo bin ich? (System-Check)
+#      ansible.builtin.shell: "hostname && whoami && pwd"
+#      delegate_to: localhost
+#      register: system_info
+#
+#- ansible.builtin.debug:
+#    var: system_info.stdout_lines
+#
+#  when: log_save_awx | default(false) | bool
+#
+###########################################################################
+# 5. Email versenden
+###########################################################################
+- name: 📧 Versende Dokumentation per Email
+  block:
+    - name: 📧 Fallback smtp_user = admin_email falls nicht definiert
+      ansible.builtin.set_fact:
+        smtp_user: "{{ admin_email }}"
+      when:
+        - smtp_user is not defined or smtp_user | length == 0
+        - admin_email is defined and admin_email | length > 0
+
+    - name: 📧 Prüfe ob msmtp installiert ist - playbook_log_doku.yml
+      ansible.builtin.command: which msmtp
+      register: msmtp_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: 📧 Sende Email mit Dokumentation - playbook_log_doku.yml
+      ansible.builtin.shell: |
+        printf 'Subject: [{{ urls[ansible_host].msmtp.subject_prefix }}] Playbook Doku - {{ ansible_date_time.iso8601 }}\nFrom: {{ smtp_user }}\nTo: {{ admin_email }}\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\n\n' \
+        | cat - {{ log_save_client_path | default(doku_paths.log_doku_client_default, true) }}/{{ file_name_doku }} \
+        | msmtp -a {{ urls[ansible_host].msmtp.account }} {{ admin_email }}
+      register: email_result
+      retries: 3
+      delay: 10
+      until: email_result.rc == 0
+      when:
+        - msmtp_check.rc == 0
+        - smtp_user is defined
+        - admin_email is defined
+
+    - name: ⚠️ Email übersprungen (smtp_user oder admin_email fehlt) - playbook_log_doku.yml
+      ansible.builtin.debug:
+        msg: "WARNUNG: smtp_user oder admin_email nicht definiert - Email wird übersprungen! SMTP-Credential am JT hinzufügen."
+      when: smtp_user is not defined or admin_email is not defined
+
+    - name: ⚠️ msmtp nicht verfügbar - playbook_log_doku.yml
+      ansible.builtin.debug:
+        msg: "WARNUNG: 'msmtp' nicht installiert - Email wird übersprungen!"
+      when:
+        - msmtp_check.rc != 0
+        - smtp_user is defined
+
+    - name: ✅ Email erfolgreich versendet - playbook_log_doku.yml
+      ansible.builtin.debug:
+        msg: "Dokumentation versendet an: {{ admin_email | default('unbekannt') }}"
+      when:
+        - msmtp_check.rc == 0
+        - smtp_user is defined
+        - admin_email is defined
+  when:
+    - log_send_email | default(false) | bool
+
+###########################################################################
+# 6. In Datenbank schreiben
+###########################################################################
+- name: 🗄️ Speichere Dokumentation in Datenbank
+  ansible.builtin.include_tasks: "{{ include_paths.playbook_log_doku_db }}"
+  when:
+    - log_save_db | default(false) | bool
+    - log_db_host is defined
+    - log_db_name is defined
+    - log_db_user is defined
+    - log_db_password is defined
+    - log_db_table is defined
+    - log_db_type is defined
+
+###########################################################################
+# 7. Temporäre Datei aufräumen
+###########################################################################
+- name: 🗑️ Lösche temporäre Dokumentation
+  ansible.builtin.file:
+    path: "/tmp/awx/dok/{{ file_name_doku }}"
+    state: absent

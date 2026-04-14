@@ -1,0 +1,116 @@
+---
+###########################################################################
+# Hook: Post-Install (nach Installation, vor Deaktivierung/Deinstallation)
+# Wird in allen Playbooks NACH der Installation ausgeführt
+###########################################################################
+# Hier können allgemeine Abschluss-Tasks rein, die für ALLE Playbooks gelten
+# z.B. Dokumentation erstellen, Benachrichtigungen, Cleanup, etc.
+###########################################################################
+
+# Dokumentation erstellen (wenn Template definiert)
+- name: 📄 Erstelle Playbook-Dokumentation
+  ansible.builtin.include_tasks: "{{ include_paths.playbook_log_doku }}"
+  vars:
+    log_template_file: "{{ doku_paths.doku_template_md_j2 }}"
+  when:
+    - doku_paths is defined
+    - doku_paths | length > 0
+    - log_save_client | default(false) | bool or
+      log_save_awx | default(false) | bool or
+      log_send_email | default(false) | bool or
+      log_save_db | default(false) | bool
+
+# README-Verzeichnis erstellen
+- name: 📁 Erstelle README-Verzeichnis
+  ansible.builtin.file:
+    path: "{{ doku_paths.readme_dir }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  when:
+    - pb_doku_template is defined
+    - pb_doku_template | length > 0
+    - doku_paths.readme_dir is defined
+    - allg_status | default('') == 'aktiviert'
+
+# README ins System kopieren (wenn pb_doku_template definiert)
+- name: 📖 Kopiere README nach {{ doku_paths.readme_dir }}
+  ansible.builtin.copy:
+    src: "{{ doku_paths_pb.doku_pb[pb_doku_template].pb_readme }}"
+    dest: "{{ doku_paths.readme_dir }}"
+    mode: '0644'
+    owner: root
+    group: root
+  when:
+    - pb_doku_template is defined
+    - pb_doku_template | length > 0
+    - doku_paths_pb.doku_pb[pb_doku_template].pb_readme is defined
+    - doku_paths_pb.doku_pb[pb_doku_template].pb_readme | default('', true) | length > 0
+    - allg_status | default('') == 'aktiviert'
+
+- name: ⚠️ Keine README definiert für {{ pb_doku_template | default('unbekannt') }} - hook_end_pb.yml
+  ansible.builtin.debug:
+    msg: "⚠️ Keine README-Datei für '{{ pb_doku_template }}' in file_paths.yml definiert (pb_readme ist leer). README wird übersprungen."
+  when:
+    - pb_doku_template is defined
+    - pb_doku_template | length > 0
+    - doku_paths_pb.doku_pb[pb_doku_template].pb_readme | default('', true) | length == 0
+    - allg_status | default('') == 'aktiviert'
+
+###########################################################################
+# Server-State schreiben (ansible_local Custom Facts)
+# Variablen-Liste kommt aus playbook_state_map.yml (geladen in hook_pre_start)
+# Andere JTs lesen via: ansible_local.<section>.*
+###########################################################################
+- name: 💾 Baue Server-State aus Variablen-Liste - hook_end_pb.yml
+  ansible.builtin.set_fact:
+    _server_state: >-
+      {%- set ns = namespace(d={}) -%}
+      {%- for var in _state_var_list | default([]) -%}
+        {%- if var in vars -%}
+          {%- set _ = ns.d.update({var: vars[var]}) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ ns.d }}
+  when:
+    - _state_section is defined
+    - _state_section | length > 0
+    - _state_var_list is defined
+    - _state_var_list | length > 0
+
+- name: 💾 Schreibe Server-State Fact - hook_end_pb.yml
+  ansible.builtin.include_tasks: "{{ include_paths.write_server_state }}"
+  vars:
+    _state_data: "{{ _server_state }}"
+  when:
+    - _state_section is defined
+    - _state_section | length > 0
+    - _server_state is defined
+    - _server_state | length > 0
+
+# Beispiel: Erfolgs-Meldung
+- name: ✅ Hook Post-Install - Installation abgeschlossen
+  ansible.builtin.debug:
+    msg:
+      - "Installation erfolgreich abgeschlossen!"
+      - "Host: {{ ansible_hostname }}"
+      - "Anwendung: {{ var_pack_name | default(['unbekannt']) | join(', ') }}"
+  when: debug_output | default(false) | bool
+  
+###########################################################################
+# rkhunter Baseline aktualisieren (nach Paketaenderungen)
+# Laeuft nur wenn rkhunter installiert ist
+###########################################################################
+- name: 🔍 Pruefe ob rkhunter installiert ist - hook_end_pb.yml
+  ansible.builtin.command: which rkhunter
+  register: rkhunter_installed_check
+  failed_when: false
+  changed_when: false
+
+- name: 🔄 rkhunter Baseline aktualisieren (propupd) - hook_end_pb.yml
+  ansible.builtin.command: rkhunter --propupd
+  when:
+    - rkhunter_installed_check.rc == 0
+    - allg_status | default('') == 'aktiviert'
+  changed_when: false

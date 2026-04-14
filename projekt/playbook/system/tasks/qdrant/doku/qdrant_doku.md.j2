@@ -1,0 +1,11 @@
+## Qdrant Deployment Dokumentation
+
+**Datum:** {{ ansible_date_time.iso8601 }}
+**Server:** {{ ansible_host }} ({{ ansible_hostname }})
+**App:** {{ app_name }}
+**Deploy-Typ:** {{ app_deploy_type | default('docker') }}
+**DB:** Qdrant ist selbst die Vektor-DB
+**Port:** 6333 (HTTP) + 6334 (gRPC)
+**Storage:** {{ _qdrant_storage_size | default('20Gi') }}
+**Cluster-intern:** http://qdrant-service.qdrant.svc.cluster.local:6333
+**Status:** {{ allg_status }}

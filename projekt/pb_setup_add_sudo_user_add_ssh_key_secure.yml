@@ -1,0 +1,153 @@
+###########################################################################
+# 🔐 Benutzer anlegen, SSH-Keys konfigurieren und SSH absichern
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials:
+#   ssh_key: SSH-Zugangsdaten für Server-Zugriff
+#   new_user_password: Passwort für neuen Benutzer (Custom Credential)
+#
+# Beschreibung:
+#   Dieses Playbook erstellt einen neuen Benutzer mit sudo-Rechten,
+#   konfiguriert SSH-Key Authentifizierung und härtet die SSH-Konfiguration.
+#   SSH wird auf Port 2222 umgestellt und Passwort-Login deaktiviert.
+#
+# Hinweise:
+#   - System wird nach SSH-Konfiguration automatisch neu gestartet
+#   - SSH-Port ändert sich von 22 auf 2222
+#   - Nach Reboot nur noch SSH-Key Authentifizierung möglich
+#   - Root-Login wird deaktiviert
+#
+# BEST PRACTICES:
+# - Kein Code im Playbook, alles in pre_task/task ausgelagert
+# - Nicht benötigte Service-Includes wurden gelöscht
+###########################################################################
+
+- name: pb_conf_add_user_add_ssh_key_secure.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars:
+    # Keine Pakete zu installieren (nutzt nur System-Tools)
+    var_pack_name: []
+
+    # Keine Dependencies
+    var_dependencies_list: []
+
+    # Voraussetzungen - müssen bereits installiert sein
+    var_prerequisites:
+      - sshd
+      - sudo
+
+    # Keine Installation, nur Konfiguration
+    var_inst_order: 0
+
+    # Keine speziellen Services
+    var_sonder_start: []
+    var_sonder_autostart: []
+
+    # Nicht unterstützte OS
+    unsupported_systems: []
+
+    # Playbook-Kontext für Template-Auswahl
+    templates_paths_pb:
+    # Playbook-Log-Dokumentation (Template-Pfad)
+    pb_doku_template: add_user_ssh
+
+    # WICHTIG: Folgende Variablen MÜSSEN aus AWX Credentials kommen:
+    # - add_user_sudo: Benutzername (aus Credential)
+    # - new_user_password: Passwort (aus Credential)
+    # - ssh_public_key_file: Dateiname des Public Keys (z.B. "repo_admin.pub")
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden & setzen
+    ###########################################################################
+    - block:
+        # playbook_paths.yml einbinden
+        - name: Lade playbooks_paths.yml
+          include_vars:
+            file: "playbooks_paths.yml"
+
+        - name: Lade alle Variablen-Dateien aus var_list.yml
+          include_vars:
+            file: "{{ item }}"
+          loop: "{{ var_files }}"
+
+        ###########################################################################
+        # Hook: Pre-Start (nach Variablen-Laden)
+        ###########################################################################
+        - name: 🔧 Hook Pre-Start
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+        ###########################################################################
+        # Systemcheck & Prerequisites
+        ###########################################################################
+        - name: 🔄 Importiere Systemcheck
+          ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+        - name: 🔄 Importiere Systemcheck zwingend benötigter Komponenten
+          ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+        ###########################################################################
+        # Standard Pre-Tasks
+        ###########################################################################
+        - block:
+            - name: 🔄 Importiere Paketmanager-Lock prüfen
+              ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+            - name: 🔄 Importiere Debug ausgabe bei Playbook start
+              ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+            - name: 🔄 Importiere Playbook Debug 
+              ansible.builtin.include_tasks: "{{ debug_tasks.add_user_ssh_debug }}"
+
+        ###########################################################################
+        # Playbook-spezifische Pre-Tasks
+        ###########################################################################
+        - block:
+            - name: 🔄 Importiere pre_task
+              ansible.builtin.include_tasks: "{{ task_paths.add_user_ssh_pretask }}"
+
+  tasks:
+    ###########################################################################
+    # Hook: Pre-Install (vor Installation)
+    ###########################################################################
+    - name: 🔧 Hook Pre-Install
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+    ###########################################################################
+    # HAUPTLOGIK - Konfiguration
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Playbook-spezifische Konfiguration
+        ###########################################################################
+        - name: 🔄 Benutzer anlegen und SSH-Key konfigurieren
+          ansible.builtin.include_tasks: "{{ task_paths.add_user_task }}"
+
+        - name: 🔄 SSH-Konfiguration härten
+          ansible.builtin.include_tasks: "{{ task_paths.ssh_secure_task }}"
+
+    ###########################################################################
+    # Hook: end (am Ende des Playbooks)
+    ###########################################################################
+    - name: 🔧 Hook Post-Install
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"
+
+    #- name: Stop playbook execution
+    #  ansible.builtin.meta: end_play
+
+    ###########################################################################
+    # System neu starten
+    ###########################################################################
+    - name: 🔄 System neu starten
+      ansible.builtin.shell: shutdown -r now
+      async: 1
+      poll: 0
+      ignore_errors: true

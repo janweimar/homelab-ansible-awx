@@ -1,0 +1,10 @@
+[sshd]
+enabled  = {{ ssh_enable }}
+filter   = sshd
+bantime  = {{ ssh_bantime }}
+findtime = {{ ssh_findtime }}
+maxretry = {{ ssh_maxretry }}
+port     = {{ ssh_ports }}
+logpath  = /var/log/auth.log
+backend  = systemd
+ignoreip = {{ ignore_ips_v4 | default([]) | join(' ') }} {{ ignore_ips_v6 | default([]) | join(' ') }}

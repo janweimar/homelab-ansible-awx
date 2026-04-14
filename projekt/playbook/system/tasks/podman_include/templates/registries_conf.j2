@@ -1,0 +1,13 @@
+# Podman Registries Konfiguration
+# Verwaltet durch Ansible - manuelle Aenderungen werden ueberschrieben
+
+unqualified-search-registries = ["docker.io"]
+
+[[registry]]
+location = "docker.io"
+
+{% if registry_url is defined and registry_url | length > 0 %}
+[[registry]]
+location = "{{ registry_url }}"
+insecure = true
+{% endif %}

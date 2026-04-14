@@ -1,0 +1,48 @@
+# AppArmor Profile für DeepSeek
+# Generiert durch Ansible
+# Server: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+# Datum: {{ ansible_date_time.iso8601 }}
+
+#include <tunables/global>
+
+/usr/bin/deepseek {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  #include <abstractions/python>
+  
+  # Capabilities
+  capability dac_override,
+  capability setuid,
+  capability setgid,
+  
+  # Netzwerk
+  network inet stream,
+  network inet6 stream,
+  
+  # DeepSeek Binary
+  /usr/bin/deepseek mr,
+  /usr/bin/python3* rix,
+  
+  # Models & Data
+  /opt/deepseek/** rw,
+  /var/lib/deepseek/** rw,
+  
+  # Config
+  /etc/deepseek/** r,
+  
+  # GPU Access
+  /dev/nvidia* rw,
+  /dev/dri/** rw,
+  
+  # Python Libraries
+  /usr/lib/python3*/dist-packages/** r,
+  
+  # Logs
+  /var/log/deepseek/** w,
+  
+  # Temp
+  /tmp/** rw,
+  
+  # Proc
+  @{PROC}/** r,
+}

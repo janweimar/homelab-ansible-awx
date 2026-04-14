@@ -1,0 +1,270 @@
+odoo_custom_apps:
+  - name: odoo
+    url: https://github.com/odoo/odoo.git
+  - name: oca_sale_workflow
+    url: https://github.com/OCA/sale-workflow.git
+  - name: oca_sale_promotion
+    url: https://github.com/OCA/sale-promotion.git
+  - name: oca_purchase_workflow
+    url: https://github.com/OCA/purchase-workflow.git
+  - name: oca_purchase_reporting
+    url: https://github.com/OCA/purchase-reporting.git
+  - name: oca_stock_logistics_warehouse
+    url: https://github.com/OCA/stock-logistics-warehouse.git
+  - name: oca_stock_logistics_workflow
+    url: https://github.com/OCA/stock-logistics-workflow.git
+  - name: oca_stock_logistics_barcode
+    url: https://github.com/OCA/stock-logistics-barcode.git
+  - name: oca_stock_logistics_reporting
+    url: https://github.com/OCA/stock-logistics-reporting.git
+  - name: oca_stock_logistics_transport
+    url: https://github.com/OCA/stock-logistics-transport.git
+  - name: oca_stock_logistics_tracking
+    url: https://github.com/OCA/stock-logistics-tracking.git
+  - name: oca_rma
+    url: https://github.com/OCA/rma.git
+  - name: oca_delivery_carrier
+    url: https://github.com/OCA/delivery-carrier.git
+  - name: oca_product_attribute
+    url: https://github.com/OCA/product-attribute.git
+  - name: oca_product_variant
+    url: https://github.com/OCA/product-variant.git
+  - name: oca_odoo_pim
+    url: https://github.com/OCA/odoo-pim.git
+  - name: oca_partner_contact
+    url: https://github.com/OCA/partner-contact.git
+  - name: oca_crm
+    url: https://github.com/OCA/crm.git
+  - name: oca_project
+    url: https://github.com/OCA/project.git
+  - name: oca_project_agile
+    url: https://github.com/OCA/project-agile.git
+  - name: oca_hr
+    url: https://github.com/OCA/hr.git
+  - name: oca_hr_attendance
+    url: https://github.com/OCA/hr-attendance.git
+  - name: oca_hr_expense
+    url: https://github.com/OCA/hr-expense.git
+  - name: oca_timesheet
+    url: https://github.com/OCA/timesheet.git
+  - name: oca_payroll
+    url: https://github.com/OCA/payroll.git
+  - name: oca_web
+    url: https://github.com/OCA/web.git
+  - name: oca_server_tools
+    url: https://github.com/OCA/server-tools.git
+  - name: oca_server_ux
+    url: https://github.com/OCA/server-ux.git
+  - name: oca_server_auth
+    url: https://github.com/OCA/server-auth.git
+  - name: oca_server_brand
+    url: https://github.com/OCA/server-brand.git
+  - name: oca_server_backend
+    url: https://github.com/OCA/server-backend.git
+  - name: oca_server_env
+    url: https://github.com/OCA/server-env.git
+  - name: oca_rest_framework
+    url: https://github.com/OCA/rest-framework.git
+  - name: oca_queue
+    url: https://github.com/OCA/queue.git
+  - name: oca_account_financial_reporting
+    url: https://github.com/OCA/account-financial-reporting.git
+  - name: oca_account_financial_tools
+    url: https://github.com/OCA/account-financial-tools.git
+  - name: oca_account_invoicing
+    url: https://github.com/OCA/account-invoicing.git
+  - name: oca_account_reconcile
+    url: https://github.com/OCA/account-reconcile.git
+  - name: oca_account_payment
+    url: https://github.com/OCA/account-payment.git
+  - name: oca_account_closing
+    url: https://github.com/OCA/account-closing.git
+  - name: oca_account_analytic
+    url: https://github.com/OCA/account-analytic.git
+  - name: oca_account_budgeting
+    url: https://github.com/OCA/account-budgeting.git
+  - name: oca_account_invoice_reporting
+    url: https://github.com/OCA/account-invoice-reporting.git
+  - name: oca_bank_payment
+    url: https://github.com/OCA/bank-payment.git
+  - name: oca_bank_statement_import
+    url: https://github.com/OCA/bank-statement-import.git
+  - name: oca_margin_analysis
+    url: https://github.com/OCA/margin-analysis.git
+  - name: oca_mis_builder
+    url: https://github.com/OCA/mis-builder.git
+  - name: oca_sale_reporting
+    url: https://github.com/OCA/sale-reporting.git
+  - name: oca_manufacture
+    url: https://github.com/OCA/manufacture.git
+  - name: oca_e_commerce
+    url: https://github.com/OCA/e-commerce.git
+  - name: oca_website
+    url: https://github.com/OCA/website.git
+  - name: oca_reporting_engine
+    url: https://github.com/OCA/reporting-engine.git
+  - name: oca_report_xlsx
+    url: https://github.com/OCA/report-xlsx.git
+  - name: oca_connector
+    url: https://github.com/OCA/connector.git
+  - name: oca_edi
+    url: https://github.com/OCA/edi.git
+  - name: oca_edi_framework
+    url: https://github.com/OCA/edi-framework.git
+  - name: oca_data_protection
+    url: https://github.com/OCA/data-protection.git
+  - name: oca_knowledge
+    url: https://github.com/OCA/knowledge.git
+  - name: oca_dms
+    url: https://github.com/OCA/dms.git
+  - name: oca_mail
+    url: https://github.com/OCA/mail.git
+  - name: oca_social
+    url: https://github.com/OCA/social.git
+  - name: oca_survey
+    url: https://github.com/OCA/survey.git
+  - name: oca_helpdesk
+    url: https://github.com/OCA/helpdesk.git
+  - name: oca_field_service
+    url: https://github.com/OCA/field-service.git
+  - name: oca_contract
+    url: https://github.com/OCA/contract.git
+  - name: oca_agreement
+    url: https://github.com/OCA/agreement.git
+  - name: oca_pos
+    url: https://github.com/OCA/pos.git
+  - name: oca_vertical_hotel
+    url: https://github.com/OCA/vertical-hotel.git
+  - name: oca_vertical_medical
+    url: https://github.com/OCA/vertical-medical.git
+  - name: oca_vertical_association
+    url: https://github.com/OCA/vertical-association.git
+  - name: oca_storage
+    url: https://github.com/OCA/storage.git
+  - name: oca_iot
+    url: https://github.com/OCA/iot.git
+  - name: oca_interface_github
+    url: https://github.com/OCA/interface-github.git
+  - name: oca_geospatial
+    url: https://github.com/OCA/geospatial.git
+  - name: oca_multi_company
+    url: https://github.com/OCA/multi-company.git
+  - name: oca_operating_unit
+    url: https://github.com/OCA/operating-unit.git
+  - name: oca_maintenance
+    url: https://github.com/OCA/maintenance.git
+  - name: oca_fleet
+    url: https://github.com/OCA/fleet.git
+  - name: oca_event
+    url: https://github.com/OCA/event.git
+  - name: oca_commission
+    url: https://github.com/OCA/commission.git
+  - name: oca_business_requirement
+    url: https://github.com/OCA/business-requirement.git
+  - name: oca_management_system
+    url: https://github.com/OCA/management-system.git
+  #  - name: oca_property_management
+  #    url: https://github.com/OCA/management-system.git
+  - name: oca_ai
+    url: https://github.com/OCA/ai.git
+  - name: oca_l10n_germany
+    url: https://github.com/OCA/l10n-germany.git
+  - name: oca_OCB
+    url: https://github.com/OCA/OCB.git
+  - name: oca_OpenUpgrade
+    url: https://github.com/OCA/OpenUpgrade.git
+
+  - name: avanzosc_mrp_addons
+    url: https://github.com/avanzosc/mrp-addons.git
+  - name: avanzosc_odoo_addons
+    url: https://github.com/avanzosc/odoo-addons.git
+  - name: avanzosc_sale_addons
+    url: https://github.com/avanzosc/sale-addons.git
+  - name: avanzosc_stock_logistics_reservation
+    url: https://github.com/avanzosc/stock-logistics-reservation.git
+  - name: avanzosc_mrp_repair_addons
+    url: https://github.com/avanzosc/mrp-repair-addons.git
+  - name: avanzosc_project_addons
+    url: https://github.com/avanzosc/project-addons.git
+  - name: avanzosc_custom_addons
+    url: https://github.com/avanzosc/custom-addons.git
+  - name: avanzosc_hr_addons
+    url: https://github.com/avanzosc/hr-addons.git
+  - name: avanzosc_crm_addons
+    url: https://github.com/avanzosc/crm-addons.git
+  - name: avanzosc_external
+    url: https://github.com/avanzosc/external.git
+  - name: avanzosc_stock_logistics_workflow
+    url: https://github.com/avanzosc/stock-logistics-workflow.git
+  - name: avanzosc_product_attribute
+    url: https://github.com/avanzosc/product-attribute.git
+  - name: avanzosc_stock_logistics_barcode
+    url: https://github.com/avanzosc/stock-logistics-barcode.git
+  - name: avanzosc_l10n_spain
+    url: https://github.com/avanzosc/l10n-spain.git
+  - name: avanzosc_sale_workflow
+    url: https://github.com/avanzosc/sale-workflow.git
+  - name: avanzosc_repair
+    url: https://github.com/avanzosc/repair.git
+  - name: avanzosc_manufacture
+    url: https://github.com/avanzosc/manufacture.git
+  - name: avanzosc_education
+    url: https://github.com/avanzosc/education.git
+  - name: avanzosc_server_tools
+    url: https://github.com/avanzosc/server-tools.git
+  - name: avanzosc_crm
+    url: https://github.com/avanzosc/crm.git
+  - name: avanzosc_odoo
+    url: https://github.com/avanzosc/odoo.git
+  - name: avanzosc_account_payment
+    url: https://github.com/avanzosc/account-payment.git
+  - name: avanzosc_server_ux
+    url: https://github.com/avanzosc/server-ux.git
+  - name: avanzosc_project
+    url: https://github.com/avanzosc/project.git
+  - name: avanzosc_timesheet
+    url: https://github.com/avanzosc/timesheet.git
+  - name: avanzosc_commission
+    url: https://github.com/avanzosc/commission.git
+  - name: avanzosc_account_invoice_reporting
+    url: https://github.com/avanzosc/account-invoice-reporting.git
+  - name: avanzosc_event_wip
+    url: https://github.com/avanzosc/event-wip.git
+  - name: avanzosc_e_commerce
+    url: https://github.com/avanzosc/e-commerce.git
+  - name: avanzosc_BaserrikoPlaza
+    url: https://github.com/avanzosc/BaserrikoPlaza.git
+  - name: avanzosc_bank_payment
+    url: https://github.com/avanzosc/bank-payment.git
+  - name: avanzosc_purchase_workflow
+    url: https://github.com/avanzosc/purchase-workflow.git
+  - name: avanzosc_account_budgeting
+    url: https://github.com/avanzosc/account-budgeting.git
+  - name: avanzosc_stock_logistics_warehouse
+    url: https://github.com/avanzosc/stock-logistics-warehouse.git
+  - name: avanzosc_maintainer_quality_tools
+    url: https://github.com/avanzosc/maintainer-quality-tools.git
+  - name: avanzosc_account_invoicing
+    url: https://github.com/avanzosc/account-invoicing.git
+  - name: avanzosc_account_financial_tools
+    url: https://github.com/avanzosc/account-financial-tools.git
+  - name: avanzosc_contract
+    url: https://github.com/avanzosc/contract.git
+  - name: avanzosc_partner_contact
+    url: https://github.com/avanzosc/partner-contact.git
+  - name: avanzosc_account_analytic
+    url: https://github.com/avanzosc/account-analytic.git
+  - name: avanzosc_community_data_files
+    url: https://github.com/avanzosc/community-data-files.git
+  - name: avanzosc_Test
+    url: https://github.com/avanzosc/Test.git
+  - name: avanzosc_migrations
+    url: https://github.com/avanzosc/migrations.git
+  - name: avanzosc_UPV
+    url: https://github.com/avanzosc/UPV.git
+  - name: avanzosc_cost_simulator
+    url: https://github.com/avanzosc/cost_simulator.git
+  - name: avanzosc_gollum
+    url: https://github.com/avanzosc/gollum.git
+  - name: avanzosc6_1
+    url: https://github.com/avanzosc/avanzosc6.1.gitn

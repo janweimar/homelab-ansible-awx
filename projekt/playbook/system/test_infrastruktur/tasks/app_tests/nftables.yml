@@ -1,0 +1,73 @@
+---
+###########################################################################
+# 🔥 Spezialtest: nftables
+# =========================================================================
+# READ-ONLY — keine Änderungen am System!
+###########################################################################
+
+- name: "NFT | Paket installiert"
+  ansible.builtin.command: dpkg -s nftables
+  register: reg_nft_pkg
+  changed_when: false
+  failed_when: false
+
+- name: "NFT | Service aktiv"
+  ansible.builtin.command: systemctl is-active nftables
+  register: reg_nft_active
+  changed_when: false
+  failed_when: false
+
+- name: "NFT | Regeln geladen"
+  ansible.builtin.command: nft list ruleset
+  register: reg_nft_regeln
+  changed_when: false
+  failed_when: false
+
+- name: "NFT | Regelanzahl zählen"
+  ansible.builtin.shell: nft list ruleset 2>/dev/null | grep -c "rule" || echo 0
+  register: reg_nft_regelanzahl
+  changed_when: false
+  failed_when: false
+
+- name: "NFT | SSH Port offen prüfen"
+  ansible.builtin.shell: nft list ruleset 2>/dev/null | grep -c "22" || echo 0
+  register: reg_nft_ssh
+  changed_when: false
+  failed_when: false
+
+- name: "NFT | Ergebnis in app_results speichern"
+  ansible.builtin.set_fact:
+    app_results: >-
+      {{
+        app_results + [{
+          'app': 'nftables',
+          'typ': 'spezial',
+          'status': (
+            'FEHLER' if reg_nft_active.stdout != 'active'
+            else 'FEHLER' if (reg_nft_regelanzahl.stdout | int) == 0
+            else 'OK'
+          ),
+          'details': [
+            {
+              'name': 'Service aktiv',
+              'status': 'OK' if reg_nft_active.stdout == 'active' else 'FEHLER',
+              'wert': reg_nft_active.stdout,
+              'hinweis': 'nftables läuft nicht — kein Firewall-Schutz!' if reg_nft_active.stdout != 'active' else ''
+            },
+            {
+              'name': 'Regeln geladen',
+              'status': 'OK' if (reg_nft_regelanzahl.stdout | int) > 0 else 'FEHLER',
+              'wert': reg_nft_regelanzahl.stdout | trim + ' Regeln',
+              'hinweis': 'Keine Firewall-Regeln geladen!' if (reg_nft_regelanzahl.stdout | int) == 0 else ''
+            },
+            {
+              'name': 'SSH Port (22)',
+              'status': 'OK' if (reg_nft_ssh.stdout | int) > 0 else 'WARNUNG',
+              'wert': 'in Regeln vorhanden' if (reg_nft_ssh.stdout | int) > 0 else 'nicht gefunden',
+              'hinweis': 'SSH Port 22 nicht in nftables-Regeln' if (reg_nft_ssh.stdout | int) == 0 else ''
+            }
+          ],
+          'spezialtest': true
+        }]
+      }}
+  when: reg_nft_pkg.rc == 0

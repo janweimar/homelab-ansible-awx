@@ -1,0 +1,80 @@
+---
+# ============================================================
+# Docker-Modus
+# ============================================================
+- block:
+    - name: Directus Container und Volumes entfernen - directus_deinstall.yml
+      ansible.builtin.command:
+        cmd: docker compose down -v
+        chdir: /opt/directus
+      changed_when: true
+      failed_when: false
+
+    - name: Directus Verzeichnis entfernen - directus_deinstall.yml
+      ansible.builtin.file:
+        path: /opt/directus
+        state: absent
+
+  when: app_deploy_type | default('docker') == 'docker'
+
+# ============================================================
+# Kubernetes-Modus
+# ============================================================
+- block:
+    - name: Alle Directus Ressourcen löschen - directus_deinstall.yml
+      ansible.builtin.command: kubectl delete all --all -n directus
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      failed_when: false
+      changed_when: true
+
+    - name: PVCs löschen - directus_deinstall.yml
+      ansible.builtin.command: kubectl delete pvc --all -n directus
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      failed_when: false
+      changed_when: true
+
+    - name: Secrets löschen - directus_deinstall.yml
+      ansible.builtin.command: kubectl delete secrets --all -n directus
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      failed_when: false
+      changed_when: true
+
+    - name: Namespace löschen - directus_deinstall.yml
+      ansible.builtin.command: kubectl delete namespace directus
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      failed_when: false
+      changed_when: true
+
+  when: app_deploy_type | default('docker') == 'kubernetes'
+
+# ============================================================
+# nginx vHost entfernen (beide Modi)
+# ============================================================
+- name: Entferne nginx Domain vHost - directus_deinstall.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ urls[ansible_host][_app_base_name | default(app_name)].domain | default('') }}.conf"
+    state: absent
+  failed_when: false
+  when: urls[ansible_host][_app_base_name | default(app_name)].domain | default('') | length > 0
+
+- name: Entferne nginx VPN vHost - directus_deinstall.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ app_name }}_vpn.conf"
+    state: absent
+  failed_when: false
+
+- name: Restart nginx - directus_deinstall.yml
+  ansible.builtin.command: "{{ command.nginx_restart[ansible_os_family] }}"
+  failed_when: false

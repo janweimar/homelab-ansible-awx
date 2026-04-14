@@ -1,0 +1,157 @@
+---
+###########################################################################
+# 📚 BookStack Backup Task
+# Sichert Datenbank und Storage vor Änderungen
+###########################################################################
+
+- name: 📁 Erstelle Backup-Verzeichnis - bookstack_backup.yml
+  ansible.builtin.file:
+    path: "{{ paths.bookstack_backup[ansible_os_family] }}"
+    state: directory
+    mode: '0700'
+    owner: root
+    group: root
+
+- name: 🕐 Setze Backup-Timestamp - bookstack_backup.yml
+  ansible.builtin.set_fact:
+    backup_timestamp: "{{ ansible_date_time.iso8601_basic_short }}"
+
+- name: 📊 Debug – Backup Info - bookstack_backup.yml
+  ansible.builtin.debug:
+    msg:
+      - "📦 BookStack Backup wird erstellt..."
+      - "  - Timestamp: {{ backup_timestamp }}"
+      - "  - Ziel: {{ paths.bookstack_backup[ansible_os_family] }}"
+      - "  - DB-Container: bookstack_db"
+
+# ============================================================
+# DATENBANK BACKUP
+# ============================================================
+- name: 🗄️ Prüfe ob DB-Container läuft - bookstack_backup.yml
+  ansible.builtin.command: docker ps -q -f name=bookstack_db
+  register: db_container_running
+  changed_when: false
+  failed_when: false
+
+- block:
+    - name: 💾 Erstelle Datenbank-Backup - bookstack_backup.yml
+      ansible.builtin.shell: |
+        docker exec bookstack_db mariadb-dump \
+          -u bookstack \
+          -p'{{ bookstack_db_password }}' \
+          --single-transaction \
+          --routines \
+          --triggers \
+          bookstack > {{ paths.bookstack_backup[ansible_os_family] }}/bookstack_db_{{ backup_timestamp }}.sql
+      register: db_backup_result
+      changed_when: true
+      failed_when: db_backup_result.rc != 0
+
+    - name: 🗜️ Komprimiere DB-Backup - bookstack_backup.yml
+      ansible.builtin.command: >
+        gzip -f {{ paths.bookstack_backup[ansible_os_family] }}/bookstack_db_{{ backup_timestamp }}.sql
+      changed_when: true
+
+    - name: 📊 DB-Backup erfolgreich - bookstack_backup.yml
+      ansible.builtin.debug:
+        msg: "✅ Datenbank-Backup: bookstack_db_{{ backup_timestamp }}.sql.gz"
+
+  when: 
+    - db_container_running.stdout != ""
+    - bookstack_db_password is defined
+
+- name: ⚠️ Warnung – DB-Container läuft nicht - bookstack_backup.yml
+  ansible.builtin.debug:
+    msg: "⚠️ DB-Container läuft nicht - Datenbank-Backup übersprungen"
+  when: db_container_running.stdout == ""
+
+# ============================================================
+# DATA BACKUP (Public Uploads)
+# ============================================================
+- name: 📦 Prüfe ob Data-Verzeichnis existiert - bookstack_backup.yml
+  ansible.builtin.stat:
+    path: "{{ paths.bookstack_data[ansible_os_family] }}"
+  register: data_exists
+
+- block:
+    - name: 💾 Erstelle Data-Backup - bookstack_backup.yml
+      ansible.builtin.command: >
+        tar -czf 
+        {{ paths.bookstack_backup[ansible_os_family] }}/bookstack_data_{{ backup_timestamp }}.tar.gz
+        -C {{ paths.bookstack_base[ansible_os_family] }}
+        data/
+      register: data_backup_result
+      changed_when: true
+
+    - name: 📊 Data-Backup erfolgreich - bookstack_backup.yml
+      ansible.builtin.debug:
+        msg: "✅ Data-Backup: bookstack_data_{{ backup_timestamp }}.tar.gz"
+
+  when: data_exists.stat.exists
+
+# ============================================================
+# STORAGE BACKUP (Storage Uploads)
+# ============================================================
+- name: 📦 Prüfe ob Storage-Verzeichnis existiert - bookstack_backup.yml
+  ansible.builtin.stat:
+    path: "{{ paths.bookstack_storage[ansible_os_family] }}"
+  register: storage_exists
+
+- block:
+    - name: 💾 Erstelle Storage-Backup - bookstack_backup.yml
+      ansible.builtin.command: >
+        tar -czf 
+        {{ paths.bookstack_backup[ansible_os_family] }}/bookstack_storage_{{ backup_timestamp }}.tar.gz
+        -C {{ paths.bookstack_base[ansible_os_family] }}
+        storage/
+      register: storage_backup_result
+      changed_when: true
+
+    - name: 📊 Storage-Backup erfolgreich - bookstack_backup.yml
+      ansible.builtin.debug:
+        msg: "✅ Storage-Backup: bookstack_storage_{{ backup_timestamp }}.tar.gz"
+
+  when: storage_exists.stat.exists
+
+# ============================================================
+# DOCKER-COMPOSE BACKUP
+# ============================================================
+- name: 📄 Prüfe ob docker-compose.yml existiert - bookstack_backup.yml
+  ansible.builtin.stat:
+    path: "{{ paths.bookstack_base[ansible_os_family] }}/docker-compose.yml"
+  register: compose_exists
+
+- name: 💾 Kopiere docker-compose.yml - bookstack_backup.yml
+  ansible.builtin.copy:
+    src: "{{ paths.bookstack_base[ansible_os_family] }}/docker-compose.yml"
+    dest: "{{ paths.bookstack_backup[ansible_os_family] }}/docker-compose_{{ backup_timestamp }}.yml"
+    remote_src: yes
+    mode: '0600'
+  when: compose_exists.stat.exists
+
+# ============================================================
+# BACKUP-ZUSAMMENFASSUNG
+# ============================================================
+- name: 📊 Liste aktuelle Backups - bookstack_backup.yml
+  ansible.builtin.find:
+    paths: "{{ paths.bookstack_backup[ansible_os_family] }}"
+    patterns:
+      - "bookstack_db_*.sql.gz"
+      - "bookstack_data_*.tar.gz"
+      - "bookstack_storage_*.tar.gz"
+  register: current_backups
+
+- name: 📊 Backup-Zusammenfassung - bookstack_backup.yml
+  ansible.builtin.debug:
+    msg:
+      - "✅ BookStack Backup abgeschlossen!"
+      - ""
+      - "📁 Backup-Verzeichnis: {{ paths.bookstack_backup[ansible_os_family] }}"
+      - "📊 Anzahl Backups: {{ current_backups.files | length }}"
+      - "🕐 Timestamp: {{ backup_timestamp }}"
+      - ""
+      - "💾 Gesichert:"
+      - "  - Datenbank: bookstack_db_{{ backup_timestamp }}.sql.gz"
+      - "  - Data: bookstack_data_{{ backup_timestamp }}.tar.gz"
+      - "  - Storage: bookstack_storage_{{ backup_timestamp }}.tar.gz"
+      - "  - Config: docker-compose_{{ backup_timestamp }}.yml"

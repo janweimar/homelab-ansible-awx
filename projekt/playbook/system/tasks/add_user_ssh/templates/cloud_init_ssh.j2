@@ -1,0 +1,6 @@
+# Cloud-Init SSH Override
+# Generiert durch Ansible - pb_conf_add_user_add_ssh_key_secure.yml
+# Steuert ob cloud-init Password-Auth bei Reboot wieder aktiviert
+disable_root: {{ '1' if not enable_root_login | bool else '0' }}
+ssh_pwauth: {{ '1' if enable_password_auth | bool else '0' }}
+ssh_deletekeys: 0

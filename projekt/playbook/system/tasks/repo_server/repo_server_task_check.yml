@@ -1,0 +1,38 @@
+---
+###########################################################################
+# repo_server_task_check.yml
+# Debug-Ausgabe: Status und URLs des Repo-Servers nach Installation
+###########################################################################
+
+- name: 🔍 Prüfe nginx Status - repo_server_task_check.yml
+  ansible.builtin.command: "{{ command.nginx_test[ansible_os_family] }}"
+  register: _repo_nginx_test
+  changed_when: false
+  failed_when: false
+
+- name: 🔍 Prüfe aptly Status - repo_server_task_check.yml
+  ansible.builtin.command: aptly version
+  register: _repo_aptly_version
+  changed_when: false
+  failed_when: false
+
+- name: 🔍 Prüfe cgit Status - repo_server_task_check.yml
+  ansible.builtin.stat:
+    path: "{{ paths.cgit_config[ansible_os_family] }}"
+  register: _repo_cgitrc_stat
+  failed_when: false
+
+- name: 📊 Repo-Server Status - repo_server_task_check.yml
+  ansible.builtin.debug:
+    msg:
+      - "================================================================"
+      - "📦 REPO-SERVER STATUS"
+      - "================================================================"
+      - "  Host:    {{ ansible_hostname }}"
+      - "  nginx:   {{ 'OK' if _repo_nginx_test.rc == 0 else 'FEHLER' }}"
+      - "  aptly:   {{ _repo_aptly_version.stdout | default('nicht gefunden') }}"
+      - "  cgitrc:  {{ 'vorhanden' if _repo_cgitrc_stat.stat.exists | default(false) else 'nicht vorhanden' }}"
+      - "================================================================"
+      - "  URL apt:  {{ server_urls.repo_server_apt.url | default('n/a') }}"
+      - "  URL cgit: {{ server_urls.repo_server_cgit.url | default('n/a') }}"
+      - "================================================================"

@@ -1,0 +1,14 @@
+# CRONJOBS - SYSTEM KONFIGURATION
+
+## ⏰ DEPLOYED CRONJOBS
+
+{% if cronjobs is defined %}
+- **Anzahl:** {{ cronjobs | length }}
+{% for job in cronjobs %}
+- {{ job.name }}: {{ job.schedule }}
+{% endfor %}
+{% endif %}
+
+---
+
+**Status:** ✅ Cronjobs konfiguriert

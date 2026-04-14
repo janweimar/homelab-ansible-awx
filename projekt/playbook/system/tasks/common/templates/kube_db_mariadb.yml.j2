@@ -1,0 +1,109 @@
+---
+###########################################################################
+# MariaDB Kubernetes Manifest (wiederverwendbar)
+# Variablen: app_name, app_db_password
+# Erstellt: Secret, PVC, StatefulSet, Headless Service
+###########################################################################
+
+# MariaDB Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ app_name }}-db-secret
+  namespace: {{ app_name }}
+type: Opaque
+stringData:
+  MARIADB_ROOT_PASSWORD: "{{ app_db_password }}"
+  MARIADB_DATABASE: "{{ app_name }}"
+  MARIADB_USER: "{{ app_name }}"
+  MARIADB_PASSWORD: "{{ app_db_password }}"
+---
+# MariaDB PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ app_name }}-db-pvc
+  namespace: {{ app_name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+# MariaDB StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ app_name }}-mariadb
+  namespace: {{ app_name }}
+spec:
+  serviceName: {{ app_name }}-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ app_name }}-mariadb
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}-mariadb
+    spec:
+      containers:
+        - name: mariadb
+          image: mariadb:11
+{% if app_no_update | default(false) | bool %}
+          imagePullPolicy: IfNotPresent
+{% endif %}
+          ports:
+            - containerPort: 3306
+          envFrom:
+            - secretRef:
+                name: {{ app_name }}-db-secret
+          resources:
+            requests:
+              memory: "{{ app_resources[app_name + '-db'].memory_request }}"
+              cpu: "{{ app_resources[app_name + '-db'].cpu_request }}"
+            limits:
+              memory: "{{ app_resources[app_name + '-db'].memory_limit }}"
+              cpu: "{{ app_resources[app_name + '-db'].cpu_limit }}"
+          volumeMounts:
+            - name: db-data
+              mountPath: /var/lib/mysql
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - mariadb-admin ping -h localhost -u root -p$MARIADB_ROOT_PASSWORD
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 10
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - mariadb-admin ping -h localhost -u root -p$MARIADB_ROOT_PASSWORD
+            initialDelaySeconds: 120
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 10
+      volumes:
+        - name: db-data
+          persistentVolumeClaim:
+            claimName: {{ app_name }}-db-pvc
+---
+# MariaDB Headless Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ app_name }}-db
+  namespace: {{ app_name }}
+spec:
+  selector:
+    app: {{ app_name }}-mariadb
+  ports:
+    - port: 3306
+      targetPort: 3306
+  clusterIP: None

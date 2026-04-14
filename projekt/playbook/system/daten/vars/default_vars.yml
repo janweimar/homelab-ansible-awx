@@ -1,0 +1,26 @@
+default_vars:
+  <ip_repo_server>:
+    # ===================================================================
+    # pb_inst_conf_auto_update.yml
+    # ===================================================================
+    auto_update_interval: "1"
+    auto_update_reboot_time: "02:00"
+
+    # ===================================================================
+    # pb_conf_cronjobs.yml - Zentrale Cronjob-Verwaltung
+    # ===================================================================
+    # Bestehende Crons (alerting, certbot) bleiben in ihren Playbooks.
+    # Format: name, zeitplan (minute, hour, day, month, weekday), job, enabled
+    # ===================================================================
+    cronjobs:
+      # --- System Cleanup (apt autoremove + tmp) ---
+      system_cleanup:
+        enabled: true
+        minute: "30"
+        hour: "4"
+        day: "*"
+        month: "*"
+        weekday: "0"
+        job: "apt-get -y autoremove --purge && apt-get -y autoclean && find /tmp -type f -atime +7 -delete 2>/dev/null"
+        user: "root"
+        comment: "System - Cleanup (sonntags 04:30)"

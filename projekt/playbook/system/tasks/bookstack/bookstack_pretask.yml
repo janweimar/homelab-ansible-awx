@@ -1,0 +1,30 @@
+---
+###########################################################################
+# 📚 BookStack Pre-Task
+# Vorbereitung vor der Installation
+###########################################################################
+
+- name: 📁 Erstelle BookStack Verzeichnisstruktur - bookstack_pretask.yml
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  loop:
+    - "{{ paths.bookstack_base[ansible_os_family] }}"
+    - "{{ paths.bookstack_data[ansible_os_family] }}"
+    - "{{ paths.bookstack_storage[ansible_os_family] }}"
+    - "{{ paths.bookstack_db[ansible_os_family] }}"
+
+- name: 🧩 Debug - BookStack Konfiguration - bookstack_pretask.yml
+  ansible.builtin.debug:
+    msg:
+      - "📚 BookStack Konfiguration:"
+      - "  - App URL: {{ server_urls.bookstack.url }}"
+      - "  - Port: {{ server_urls.bookstack.port }}"
+      - "  - Domain: {{ server_urls.bookstack.domain }}"
+      - "  - nginx Integration: {{ bookstack_nginx_integration }}"
+      - "  - SSL: {{ server_ssl }}"
+      - "  - ModSecurity: {{ nginx_modsecurity }}"
+      - "  - Verzeichnis: {{ paths.bookstack_base[ansible_os_family] }}"

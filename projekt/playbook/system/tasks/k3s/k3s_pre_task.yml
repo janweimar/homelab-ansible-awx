@@ -1,0 +1,50 @@
+---
+#####################################################################
+# 🧊 k3s_pre_task.yml
+# Vorbereitungen für K3s Installation
+#####################################################################
+
+# ============================================================
+# Swap deaktivieren (Kubernetes-Voraussetzung)
+# ============================================================
+- name: 🔧 Disable swap immediately - k3s_pre_task.yml
+  ansible.builtin.command: swapoff -a
+  when: ansible_swaptotal_mb > 0
+
+- name: 🔧 Remove swap from fstab - k3s_pre_task.yml
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^\s*([^#]\S*\s+swap\s+)'
+    replace: '# \1'
+
+# ============================================================
+# kube User erstellen
+# ============================================================
+- name: 👤 Ensure kube user exists - k3s_pre_task.yml
+  ansible.builtin.user:
+    name: "{{ kube_user }}"
+    create_home: true
+    shell: /bin/bash
+    password: "{{ kube_password | password_hash('sha512') }}"
+    update_password: always
+    state: present
+
+# ============================================================
+# Altes K3s entfernen (falls vorhanden, für saubere Installation)
+# ============================================================
+- name: 🔍 Prüfe ob K3s bereits installiert ist - k3s_pre_task.yml
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary_exists
+
+- name: 🔍 Prüfe K3s Service-Status - k3s_pre_task.yml
+  ansible.builtin.command: systemctl is-active k3s
+  register: k3s_service_status
+  changed_when: false
+  failed_when: false
+
+- name: 📊 Debug K3s Vorinstallation - k3s_pre_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "K3s Binary: {{ 'vorhanden' if k3s_binary_exists.stat.exists else 'nicht installiert' }}"
+      - "K3s Service: {{ k3s_service_status.stdout | default('nicht gefunden') }}"

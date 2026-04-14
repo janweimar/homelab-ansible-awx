@@ -1,0 +1,22 @@
+---
+###########################################################################
+# Debug-Ausgabe fuer AWX Kube Playbook
+###########################################################################
+
+- name: "📋 Debug: AWX Kube Variablen - awx_kube_debug.yml"
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "AWX Kubernetes Installation"
+      - "=========================================="
+      - "allg_status:          {{ allg_status }}"
+      - "kube_user:            {{ kube_user | default('nicht gesetzt') }}"
+      - "=========================================="
+      - "AWX Profil (helm_app):"
+      - "  beschreibung:       {{ helm_app.beschreibung | default('nicht gesetzt') }}"
+      - "  operator_version:   {{ helm_app.operator_version | default('nicht gesetzt') }}"
+      - "  awx_version:        {{ helm_app.awx_version | default('nicht gesetzt') }}"
+      - "  namespace:          {{ helm_app.namespace | default('nicht gesetzt') }}"
+      - "  ingress_domain:     {{ helm_app.ingress_domain | default('nicht gesetzt') }}"
+      - "=========================================="
+  when: helm_app is defined

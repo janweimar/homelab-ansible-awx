@@ -1,0 +1,86 @@
+# ═══════════════════════════════════════════════════════════════
+# Wazuh Templates - Variablen Referenz
+# Steuerung ueber ansible_host (IP) - KEINE Rollen noetig
+# ═══════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────
+# SERVER ZUORDNUNG (automatisch ueber ansible_host)
+# ───────────────────────────────────────────────────────────────
+#
+# Das Template erkennt den Server automatisch anhand der IP:
+#
+#   <ip_vpn_server>  →  VPN Server       (Basis + WireGuard, kein nginx)
+#   <ip_wazuh_server>     →  Wazuh Manager    (Basis + nginx + Manager-Configs)
+#   <ip_mail_server>   →  Mail Server      (Basis + nginx + Postfix/Dovecot/Mailcow)
+#   <ip_repo_server>     →  Repo/Jump Server (Basis + nginx + Aptly/cgit/Docker)
+#   <ip_ai_server>    →  AI Server        (Basis + nginx + Ollama/Open-WebUI)
+#   <ip_odoo_server>  →  Odoo Server      (Basis + nginx + Odoo/PostgreSQL)
+#   <ip_awx_server>  →  AWX Server       (Basis + nginx + Kubernetes/containerd)
+#
+# Du musst KEINE extra Variable setzen - ansible_host reicht!
+
+# ───────────────────────────────────────────────────────────────
+# PFLICHT-VARIABLEN
+# ───────────────────────────────────────────────────────────────
+
+# Nur fuer Manager Template:
+wazuh_email_to: "admin@deine-domain.de"
+
+# ───────────────────────────────────────────────────────────────
+# OPTIONALE VARIABLEN (mit Defaults)
+# ───────────────────────────────────────────────────────────────
+
+# --- Agent Verbindung ---
+wazuh_manager_ip: "10.200.0.20" # Default: 10.200.0.20
+wazuh_agent_groups: "linux,ubuntu" # Optional: Agent-Gruppen
+wazuh_ssh_user: "max" # Optional: SSH User fuer .ssh Monitoring
+
+# --- FIM ---
+wazuh_fim_frequency: "43200" # Default: 43200 (12h) in Sekunden
+
+# --- Rootcheck ---
+wazuh_rootcheck_frequency: "43200" # Default: 43200 (12h) in Sekunden
+
+# --- Syscollector (Schwachstellen) ---
+wazuh_syscollector_interval: "1h" # Default: 1h
+
+# --- SCA (CIS Benchmarks) ---
+wazuh_sca_interval: "12h" # Default: 12h
+
+# --- E-Mail Alerting (nur Manager) ---
+wazuh_smtp_server: "127.0.0.1" # Default: 127.0.0.1 (msmtp)
+wazuh_email_from: "wazuh@deine-domain.de"
+wazuh_email_maxperhour: "12" # Default: 12
+wazuh_email_alert_level: "7" # Default: 7 (1-15)
+
+# --- Vulnerability Detector (nur Manager) ---
+wazuh_vuln_interval: "5m" # Default: 5m
+wazuh_vuln_full_scan: "6h" # Default: 6h
+
+# --- Active Response Timeouts (nur Manager) ---
+wazuh_ar_ssh_timeout: "1800" # Default: 1800 (30 Min)
+wazuh_ar_generic_timeout: "600" # Default: 600 (10 Min)
+wazuh_ar_web_timeout: "3600" # Default: 3600 (60 Min)
+wazuh_ar_disable_account: "yes" # Default: yes (deaktiviert!)
+
+# --- Agent Disconnect (nur Manager) ---
+wazuh_agent_disconnect_time: "10m" # Default: 10m
+
+# --- Compliance (nur Manager) ---
+wazuh_show_hipaa: "no" # Default: no
+wazuh_show_nist: "no" # Default: no
+wazuh_show_tsc: "no" # Default: no
+
+# --- Labels ---
+wazuh_environment: "production" # Default: production
+wazuh_server_location: "contabo-de" # Optional
+
+# --- Cluster (nur Manager) ---
+wazuh_cluster_name: "wazuh" # Default: wazuh
+wazuh_node_name: "manager01" # Default: manager01
+
+
+# --- Custom Listen (nur Manager) ---
+# wazuh_custom_lists:                     # Optional: eigene CDB Listen
+#   - "ip-blacklist"
+#   - "suspicious-programs"

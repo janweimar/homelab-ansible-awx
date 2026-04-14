@@ -1,0 +1,17 @@
+###########################################################################
+# 🔁 Fallback-Mechanismus – Automatischer Reset -> Bereinigung am Ende
+###########################################################################
+- name: ⏱️ Fallback – nftables-Reset in {{ rollback_timeout | default(4) }} Minuten planen
+  ansible.builtin.shell: |
+    echo "nft flush ruleset" | at now + {{ rollback_timeout | default(4) }} minutes
+  args:
+    executable: /bin/bash
+  become: true
+  changed_when: true
+
+- name: 🧾 Debug – geplanter Sicherheits-Fallback
+  ansible.builtin.debug:
+    msg:
+      - "🕐 nftables-Sicherheits-Fallback aktiviert."
+      - "⏳ In {{ rollback_timeout | default(4) }} Minuten wird automatisch ein 'nft flush ruleset' ausgeführt, falls kein manuelles Cancel erfolgt."
+      - "💡 Den Fallback kannst du mit 'atrm $(atq | awk '{print $1}')' manuell entfernen."

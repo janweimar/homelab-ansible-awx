@@ -1,0 +1,50 @@
+# BOOKSTACK - SYSTEM KONFIGURATION
+
+## INSTALLATIONS-STATUS
+
+{% if allg_status == "aktiviert" %}
+**Status:** ✅ BookStack erfolgreich installiert
+
+### Zugriff
+{% if bookstack_nginx_integration | bool %}
+**URL:** {{ server_urls.bookstack.url }}
+{% else %}
+**URL:** http://{{ inventory_hostname }}:{{ server_urls.bookstack.port }}
+{% endif %}
+
+### Deployed Installation
+- **Base-Verzeichnis:** `{{ paths.bookstack_base[ansible_os_family] }}`
+- **Docker Compose:** `{{ paths.bookstack_base[ansible_os_family] }}/docker-compose.yml`
+- **Credentials:** `{{ paths.bookstack_base[ansible_os_family] }}/.credentials`
+
+### Docker-Container
+- **BookStack:** solidnerd/bookstack:latest
+- **MariaDB:** mariadb:11.2
+
+### Ports
+{% if bookstack_nginx_integration | bool %}
+- **Container (intern):** {{ server_urls.bookstack.port }}
+- **nginx (extern):** 80/443
+{% else %}
+- **Container:** {{ server_urls.bookstack.port }}
+{% endif %}
+
+### nginx Integration
+**Status:** {{ 'Aktiviert ✅' if bookstack_nginx_integration | bool else 'Deaktiviert ❌' }}
+
+{% if bookstack_nginx_integration | bool %}
+- **Domain:** {{ server_urls.bookstack.domain }}
+- **SSL:** {{ 'Aktiviert ✅ (Let\'s Encrypt)' if server_ssl | bool else 'Deaktiviert ❌' }}
+- **ModSecurity:** {{ 'Aktiviert ✅' if nginx_modsecurity | bool else 'Deaktiviert ❌' }}
+- **Konfiguration:** `{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ server_urls.bookstack.domain }}.conf`
+{% endif %}
+
+{% elif allg_status == "deaktiviert" %}
+**Status:** ⏸️ BookStack Container gestoppt
+{% elif allg_status == "deinstalliert" %}
+**Status:** 🗑️ BookStack deinstalliert
+{% endif %}
+
+---
+
+**Status:** ✅ BookStack {{ allg_status }}

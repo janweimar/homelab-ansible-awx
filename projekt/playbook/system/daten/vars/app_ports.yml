@@ -1,0 +1,49 @@
+---
+###########################################################################
+# 📦 app_ports.yml
+# Zentrale Port-Verwaltung für alle Apps
+#
+# Felder pro Port-Eintrag:
+#   port:    TCP-Port
+#   name:    Beschreibung
+#   public:  true = öffentlich erreichbar, false = VPN/intern only
+#   http:    true = HTTP-Test (uri), false/fehlt = TCP-Test (wait_for)
+#
+# Verwendung:
+#   - include_tasks: "{{ task_paths.port_test }}"
+#   → liest app_ports[app_name] und testet jeden Port
+###########################################################################
+
+app_ports:
+
+  stalwart:
+    - { port: 25,   name: "SMTP",       public: true,  http: false }
+    - { port: 587,  name: "Submission", public: true,  http: false }
+    - { port: 465,  name: "SMTPS",      public: true,  http: false }
+    - { port: 143,  name: "IMAP",       public: true,  http: false }
+    - { port: 993,  name: "IMAPS",      public: true,  http: false }
+    - { port: 8080, name: "Admin-GUI",  public: false, http: true,  http_path: "/healthz/live", http_status: [200] }
+
+  mailu:
+    - { port: 25,   name: "SMTP",        public: true,  http: false }
+    - { port: 587,  name: "Submission",  public: true,  http: false }
+    - { port: 993,  name: "IMAPS",       public: true,  http: false }
+    - { port: 8080, name: "Admin-GUI",   public: false, http: true,  http_path: "/admin", http_status: [200, 302] }
+
+  directus:
+    - { port: 8055, name: "API",         public: false, http: true,  http_path: "/server/health", http_status: [200] }
+
+  bookstack:
+    - { port: 8080, name: "Web-UI",      public: false, http: true,  http_path: "/",     http_status: [200, 302] }
+
+  ollama:
+    - { port: 11434, name: "API",        public: false, http: true,  http_path: "/",     http_status: [200] }
+
+  open-webui:
+    - { port: 3000, name: "Web-UI",      public: false, http: true,  http_path: "/",     http_status: [200] }
+
+  qdrant:
+    - { port: 6333, name: "API",         public: false, http: true,  http_path: "/",     http_status: [200] }
+
+  openclaw:
+    - { port: 18789, name: "Gateway",    public: false, http: true,  http_path: "/",     http_status: [200, 404] }

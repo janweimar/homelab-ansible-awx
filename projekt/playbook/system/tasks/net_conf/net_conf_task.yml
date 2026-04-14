@@ -1,0 +1,33 @@
+---
+###########################################################################
+# Haupt-Tasks für Netzwerk-Konfiguration
+###########################################################################
+
+###########################################################################
+# 1. nload Installation (Netzwerk-Monitoring)
+###########################################################################
+- name: 🔄 nload Installation
+  ansible.builtin.apt:
+    name: nload
+    state: present
+  when: ansible_os_family == "Debian"
+
+###########################################################################
+# 2. gai.conf konfigurieren (IPv4/IPv6 Priorisierung)
+###########################################################################
+- block:
+    - name: 🗑️ gai.conf entfernen
+      ansible.builtin.file:
+        path: "/etc/gai.conf"
+        state: absent
+
+    - name: 📄 gai.conf aus Template rendern
+      ansible.builtin.template:
+        src: "{{ file_paths.gai_conf[ansible_default_ipv4.address] }}"
+        dest: "/etc/gai.conf"
+        owner: root
+        group: root
+        mode: "0644"
+  when:
+    - gai_conf_template is defined
+    - gai_conf_template | bool

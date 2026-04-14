@@ -1,0 +1,14 @@
+# APTLY MIRRORS - SYSTEM KONFIGURATION
+
+## 🪞 DEPLOYED MIRRORS
+
+{% if aptly_mirrors is defined %}
+- **Anzahl:** {{ aptly_mirrors | length }}
+{% for mirror in aptly_mirrors %}
+- {{ mirror.name }}: {{ mirror.url }}
+{% endfor %}
+{% endif %}
+
+---
+
+**Status:** ✅ Aptly Mirrors konfiguriert

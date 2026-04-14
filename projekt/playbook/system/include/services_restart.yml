@@ -1,0 +1,16 @@
+###########################################################################
+# ⚙️ Restart ausführen
+###########################################################################
+- name: 🔄 Restart ausführen
+  ansible.builtin.command: "{{ services[item].restart[ansible_os_family] }}"
+  loop: >-
+    {{ (var_pack_name | list)
+       if var_pack_name is iterable and (var_pack_name is not string)
+       else [var_pack_name] }}
+  when: restart | default(true)
+  changed_when: false
+  ignore_errors: true
+
+- name: 💤 Info
+  ansible.builtin.debug:
+    msg: "Restart für {{ var_pack_name }} wurde ausgeführt."

@@ -1,0 +1,27 @@
+---
+# ------------------------------------------------------------
+# TASK: Git-Batch verarbeiten (einzelner Batch)
+# Wird pro Batch vom Haupt-Task aufgerufen
+# ------------------------------------------------------------
+
+- name: DEBUG – Batch Info - process_git_batch.yml
+  ansible.builtin.debug:
+    msg: |
+      ════════════════════════════════════════
+      📦 BATCH {{ batch_index + 1 }}/{{ total_batches }} → CLIENT
+      ════════════════════════════════════════
+      Anzahl Repos: {{ current_batch | length }}
+      Repos in diesem Batch:
+      {% for repo in current_batch %}
+        - {{ repo.name }}
+      {% endfor %}
+      ════════════════════════════════════════
+
+- name: GIT – Batch {{ batch_index + 1 }} verarbeiten - process_git_batch.yml
+  ansible.builtin.command: >
+    ansible-playbook /root/git_repo/localhost_conf_git_add.yml
+    -e '{"current_add_batch": {{ current_batch | to_json }}, "batch_number": {{ batch_index + 1 }}, "awx_job_id": {{ awx_job_id | default("manual") | to_json }}}'
+  async: 7200
+  poll: 30
+  register: batch_result
+  become: yes

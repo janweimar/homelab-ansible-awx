@@ -1,0 +1,616 @@
+---
+###########################################################################
+# stalwart_kube_manifests.yml.j2
+# Stalwart Mail Server — K3s Kubernetes Manifest
+#
+# Enthält:
+#   - PVC (Mail-Daten)
+#   - Secret (Admin-Passwort)
+#   - ConfigMap: init-script (Python — setzt Admin-PW vor Erststart)
+#   - ConfigMap: bootstrap-script (Python — vollständige Serverkonfiguration)
+#   - ConfigMap: CSV-Daten (domains, groups, lists, accounts)
+#   - Deployment (mit InitContainer)
+#   - Service: Admin (NodePort)
+#   - Service: Mail-Ports (NodePort)
+###########################################################################
+
+# PersistentVolumeClaim — Mail-Daten + Config (RocksDB)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ app_name }}-data-pvc
+  namespace: {{ app_name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ _stalwart_storage_size | default('10Gi') }}
+---
+# Secret — Admin-Passwort (Klartext für InitContainer + Bootstrap-Job)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ app_name }}-secret
+  namespace: {{ app_name }}
+type: Opaque
+stringData:
+  admin_password: "{{ app_admin_password }}"
+---
+# ConfigMap — InitContainer Script
+# Erstellt config.toml mit bekanntem Admin-PW vor dem ersten Stalwart-Start
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ app_name }}-init-script
+  namespace: {{ app_name }}
+data:
+  init.py: |
+{% raw %}
+    import crypt, os, sys
+    cfg = '/opt/stalwart/etc/config.toml'
+    if os.path.exists(cfg):
+        print('Config exists - skipping init')
+        sys.exit(0)
+    os.makedirs('/opt/stalwart/etc', exist_ok=True)
+    os.makedirs('/opt/stalwart/data', exist_ok=True)
+    os.makedirs('/opt/stalwart/logs', exist_ok=True)
+    pw = os.environ.get('ADMIN_PASSWORD', 'changeme')
+    h = crypt.crypt(pw, crypt.mksalt(crypt.METHOD_SHA512))
+    lines = [
+        '[server.listener.smtp]',
+        'bind = "[::]:25"',
+        'protocol = "smtp"',
+        '',
+        '[server.listener.submission]',
+        'bind = "[::]:587"',
+        'protocol = "smtp"',
+        '',
+        '[server.listener.submissions]',
+        'bind = "[::]:465"',
+        'protocol = "smtp"',
+        'tls.implicit = true',
+        '',
+        '[server.listener.imap]',
+        'bind = "[::]:143"',
+        'protocol = "imap"',
+        '',
+        '[server.listener.imaptls]',
+        'bind = "[::]:993"',
+        'protocol = "imap"',
+        'tls.implicit = true',
+        '',
+        '[server.listener.pop3]',
+        'bind = "[::]:110"',
+        'protocol = "pop3"',
+        '',
+        '[server.listener.pop3s]',
+        'bind = "[::]:995"',
+        'protocol = "pop3"',
+        'tls.implicit = true',
+        '',
+        '[server.listener.sieve]',
+        'bind = "[::]:4190"',
+        'protocol = "managesieve"',
+        '',
+        '[server.listener.https]',
+        'protocol = "http"',
+        'bind = "[::]:443"',
+        'tls.implicit = true',
+        '',
+        '[server.listener.http]',
+        'protocol = "http"',
+        'bind = "[::]:8080"',
+        '',
+        '[storage]',
+        'data = "rocksdb"',
+        'fts = "rocksdb"',
+        'blob = "rocksdb"',
+        'lookup = "rocksdb"',
+        'directory = "internal"',
+        '',
+        '[store.rocksdb]',
+        'type = "rocksdb"',
+        'path = "/opt/stalwart/data"',
+        'compression = "lz4"',
+        '',
+        '[directory.internal]',
+        'type = "internal"',
+        'store = "rocksdb"',
+        '',
+        '[tracer.log]',
+        'type = "log"',
+        'level = "info"',
+        'path = "/opt/stalwart/logs"',
+        'prefix = "stalwart.log"',
+        'rotate = "daily"',
+        'ansi = false',
+        'enable = true',
+        '',
+        '[authentication.fallback-admin]',
+        'user = "admin"',
+        'secret = "' + h + '"',
+    ]
+    open(cfg, 'w').write('\n'.join(lines) + '\n')
+    print('Config created with hashed admin password')
+{% endraw %}
+---
+# ConfigMap — Bootstrap Script (Python)
+# Vollständige Serverkonfiguration per Stalwart REST-API
+# Läuft als K3s Job nach dem Deployment
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ app_name }}-bootstrap-script
+  namespace: {{ app_name }}
+data:
+  bootstrap.py: |
+{% raw %}
+    #!/usr/bin/env python3
+    """
+    Stalwart Mail Server — Bootstrap Script
+    Konfiguriert den Server komplett per REST-API.
+    Liest Daten aus CSV-Dateien (einzige Wahrheit).
+    """
+    import urllib.request
+    import urllib.error
+    import json
+    import csv
+    import time
+    import os
+    import base64
+    import sys
+
+    API_BASE = "http://stalwart-service.stalwart.svc.cluster.local:8080"
+    API_URL  = API_BASE + "/api"
+    ADMIN    = "admin"
+    PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+    HOSTNAME = os.environ.get("STALWART_HOSTNAME", "mail.example.org")
+    CSV_DIR  = "/csv"
+
+    # --------------------------------------------------------
+    # Hilfsfunktionen
+    # --------------------------------------------------------
+    def api(method, path, data=None, ok_status=None):
+        url = API_URL + path
+        cred = base64.b64encode((ADMIN + ":" + PASSWORD).encode()).decode()
+        headers = {
+            "Authorization": "Basic " + cred,
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+        body = json.dumps(data).encode() if data is not None else None
+        req = urllib.request.Request(url, data=body, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=15) as r:
+                content = r.read()
+                return r.status, json.loads(content) if content else {}
+        except urllib.error.HTTPError as e:
+            content = e.read()
+            try:
+                resp = json.loads(content)
+            except Exception:
+                resp = {}
+            if ok_status and e.code in ok_status:
+                return e.code, resp
+            return e.code, resp
+        except Exception as ex:
+            return 0, {"error": str(ex)}
+
+    def split_pipe(value):
+        if not value:
+            return []
+        return [x.strip() for x in value.split("|") if x.strip()]
+
+    def read_csv(filename):
+        path = os.path.join(CSV_DIR, filename)
+        rows = []
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    cleaned = {k.strip(): v.strip() for k, v in row.items() if k}
+                    if any(v for v in cleaned.values()):
+                        rows.append(cleaned)
+        except FileNotFoundError:
+            print("  WARN: " + path + " nicht gefunden")
+        return rows
+
+    def get_existing(ptype):
+        status, data = api("GET", "/principal?types=" + ptype + "&limit=1000")
+        if status == 200:
+            items = data.get("data", {}).get("items", [])
+            return {item["name"] for item in items}
+        return set()
+
+    def wait_for_api():
+        print("Warte auf Stalwart API...")
+        for i in range(60):
+            try:
+                req = urllib.request.Request(API_BASE + "/healthz/live")
+                with urllib.request.urlopen(req, timeout=5) as r:
+                    if r.status == 200:
+                        print("API erreichbar!")
+                        return True
+            except Exception:
+                pass
+            print("  Versuch " + str(i+1) + "/60 ...")
+            time.sleep(5)
+        print("FEHLER: API nicht erreichbar!")
+        return False
+
+    # --------------------------------------------------------
+    # Server-Einstellungen
+    # --------------------------------------------------------
+    def configure_server():
+        print("\n=== SERVER SETTINGS ===")
+        settings = [
+            {"type": "set", "prefix": "server.hostname", "value": HOSTNAME},
+            {"type": "set", "prefix": "session.ehlo.reject-non-fqdn", "value": "false"},
+            {"type": "set", "prefix": "auth.iprev.verify", "value": "relaxed"},
+        ]
+        status, resp = api("POST", "/settings", settings)
+        print("  Hostname (" + HOSTNAME + "): HTTP " + str(status))
+        if status not in (200, 204):
+            print("  Response: " + str(resp))
+
+        # Reload nach Settings
+        status, _ = api("GET", "/reload/")
+        print("  Config reload: HTTP " + str(status))
+
+    # --------------------------------------------------------
+    # Domains
+    # --------------------------------------------------------
+    def sync_domains(domains):
+        print("\n=== DOMAINS ===")
+        existing = get_existing("domain")
+        csv_names = {d["name"] for d in domains}
+
+        # Loeschen
+        for name in existing - csv_names:
+            status, _ = api("DELETE", "/principal/" + name)
+            print("  DEL " + name + ": HTTP " + str(status))
+
+        # Anlegen / Aktualisieren
+        for d in domains:
+            name = d["name"]
+            desc = d.get("description", name)
+            if name in existing:
+                status, resp = api("PATCH", "/principal/" + name, [
+                    {"action": "set", "field": "description", "value": desc}
+                ])
+                print("  UPD " + name + ": HTTP " + str(status))
+            else:
+                status, resp = api("POST", "/principal", {
+                    "type": "domain",
+                    "name": name,
+                    "description": desc
+                }, ok_status=[409])
+                print("  ADD " + name + ": HTTP " + str(status) + " " + str(resp))
+
+            # DKIM Ed25519
+            status, _ = api("POST", "/dkim", {"algorithm": "Ed25519", "domain": name}, ok_status=[409])
+            print("  DKIM Ed25519 " + name + ": HTTP " + str(status))
+
+            # DKIM RSA
+            status, _ = api("POST", "/dkim", {"algorithm": "Rsa", "domain": name}, ok_status=[409])
+            print("  DKIM RSA " + name + ": HTTP " + str(status))
+
+        # Reload
+        api("GET", "/reload/")
+
+        # DNS-Records ausgeben
+        print("\n=== DNS RECORDS (bitte setzen!) ===")
+        for d in domains:
+            status, resp = api("GET", "/dns/records/" + d["name"])
+            if status == 200:
+                records = resp.get("data", [])
+                print("\n  Domain: " + d["name"])
+                print("  " + "-" * 60)
+                for r in records:
+                    rtype = r.get("type", "")
+                    rname = r.get("name", "")
+                    rcontent = r.get("content", "")
+                    print("  " + rtype.ljust(8) + rname)
+                    print("         " + rcontent)
+
+    # --------------------------------------------------------
+    # Gruppen
+    # --------------------------------------------------------
+    def sync_groups(groups):
+        print("\n=== GROUPS ===")
+        existing = get_existing("group")
+        csv_names = {g["name"] for g in groups}
+
+        for name in existing - csv_names:
+            status, _ = api("DELETE", "/principal/" + name)
+            print("  DEL " + name + ": HTTP " + str(status))
+
+        for g in groups:
+            name = g["name"]
+            members = split_pipe(g.get("members", ""))
+            if name in existing:
+                status, _ = api("PATCH", "/principal/" + name, [
+                    {"action": "set", "field": "description", "value": g.get("description", "")},
+                    {"action": "set", "field": "members", "value": members}
+                ])
+                print("  UPD " + name + ": HTTP " + str(status))
+            else:
+                status, resp = api("POST", "/principal", {
+                    "type": "group",
+                    "name": name,
+                    "description": g.get("description", ""),
+                    "members": members
+                }, ok_status=[409])
+                print("  ADD " + name + " (members: " + str(members) + "): HTTP " + str(status) + " " + str(resp))
+
+    # --------------------------------------------------------
+    # Mailinglisten
+    # --------------------------------------------------------
+    def sync_lists(lists):
+        print("\n=== LISTS ===")
+        existing = get_existing("list")
+        csv_names = {l["name"] for l in lists}
+
+        for name in existing - csv_names:
+            status, _ = api("DELETE", "/principal/" + name)
+            print("  DEL " + name + ": HTTP " + str(status))
+
+        for l in lists:
+            name = l["name"]
+            emails  = split_pipe(l.get("emails", ""))
+            members = split_pipe(l.get("members", ""))
+            if name in existing:
+                status, _ = api("PATCH", "/principal/" + name, [
+                    {"action": "set", "field": "description", "value": l.get("description", "")},
+                    {"action": "set", "field": "emails",      "value": emails},
+                    {"action": "set", "field": "members",     "value": members}
+                ])
+                print("  UPD " + name + ": HTTP " + str(status))
+            else:
+                status, resp = api("POST", "/principal", {
+                    "type": "list",
+                    "name": name,
+                    "description": l.get("description", ""),
+                    "emails": emails,
+                    "members": members
+                }, ok_status=[409])
+                print("  ADD " + name + ": HTTP " + str(status) + " " + str(resp))
+
+    # --------------------------------------------------------
+    # Accounts
+    # --------------------------------------------------------
+    def sync_accounts(accounts):
+        print("\n=== ACCOUNTS ===")
+        existing = get_existing("individual") - {"admin"}
+        csv_names = {a["name"] for a in accounts}
+
+        for name in existing - csv_names:
+            status, _ = api("DELETE", "/principal/" + name)
+            print("  DEL " + name + ": HTTP " + str(status))
+
+        for a in accounts:
+            name    = a["name"]
+            email   = a.get("email", "")
+            aliases = split_pipe(a.get("aliases", ""))
+            emails  = ([email] if email else []) + aliases
+            groups  = split_pipe(a.get("groups", ""))
+            lists   = split_pipe(a.get("lists", ""))
+            quota   = int(a.get("quota_bytes", "0") or "0")
+            role    = a.get("role", "user")
+            pw      = a.get("password", "")
+
+            if name in existing:
+                status, _ = api("PATCH", "/principal/" + name, [
+                    {"action": "set", "field": "description", "value": a.get("description", "")},
+                    {"action": "set", "field": "emails",      "value": emails},
+                    {"action": "set", "field": "quota",       "value": quota},
+                    {"action": "set", "field": "roles",       "value": [role]},
+                    {"action": "set", "field": "memberOf",    "value": groups},
+                    {"action": "set", "field": "lists",       "value": lists}
+                ])
+                print("  UPD " + name + " (" + email + "): HTTP " + str(status))
+            else:
+                body = {
+                    "type": "individual",
+                    "name": name,
+                    "description": a.get("description", ""),
+                    "secrets": [pw],
+                    "emails": emails,
+                    "quota": quota,
+                    "roles": [role],
+                    "memberOf": groups,
+                    "lists": lists
+                }
+                status, resp = api("POST", "/principal", body, ok_status=[409])
+                print("  ADD " + name + " (" + email + "): HTTP " + str(status) + " " + str(resp))
+
+    # --------------------------------------------------------
+    # Main
+    # --------------------------------------------------------
+    def main():
+        print("=" * 60)
+        print("STALWART BOOTSTRAP - " + HOSTNAME)
+        print("=" * 60)
+
+        if not wait_for_api():
+            sys.exit(1)
+
+        configure_server()
+
+        domains  = read_csv("domains.csv")
+        groups   = read_csv("groups.csv")
+        lists    = read_csv("lists.csv")
+        accounts = read_csv("accounts.csv")
+
+        print("\nCSV: " + str(len(domains)) + " Domains | " +
+              str(len(groups)) + " Groups | " +
+              str(len(lists)) + " Lists | " +
+              str(len(accounts)) + " Accounts")
+
+        sync_domains(domains)
+        sync_groups(groups)
+        sync_lists(lists)
+        sync_accounts(accounts)
+
+        # Finaler Reload
+        api("GET", "/reload/")
+
+        print("\n" + "=" * 60)
+        print("BOOTSTRAP ABGESCHLOSSEN!")
+        print("=" * 60)
+
+    if __name__ == "__main__":
+        main()
+{% endraw %}
+---
+# ConfigMap — CSV Dateien
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ app_name }}-csv
+  namespace: {{ app_name }}
+data:
+  domains.csv: |
+    {{ _stalwart_csv_domains | indent(4) }}
+  groups.csv: |
+    {{ _stalwart_csv_groups | indent(4) }}
+  lists.csv: |
+    {{ _stalwart_csv_lists | indent(4) }}
+  accounts.csv: |
+    {{ _stalwart_csv_accounts | indent(4) }}
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ app_name }}
+  namespace: {{ app_name }}
+  labels:
+    app: {{ app_name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ app_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}
+    spec:
+      initContainers:
+        - name: init-config
+          image: python:3.11-alpine
+          command: ["python3", "/init/init.py"]
+          env:
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ app_name }}-secret
+                  key: admin_password
+          volumeMounts:
+            - name: data
+              mountPath: /opt/stalwart
+            - name: init-script
+              mountPath: /init
+      containers:
+        - name: stalwart
+          image: stalwartlabs/stalwart:latest
+{% if app_no_update | default(false) | bool %}
+          imagePullPolicy: IfNotPresent
+{% else %}
+          imagePullPolicy: Always
+{% endif %}
+          ports:
+            - containerPort: 25
+              name: smtp
+            - containerPort: 587
+              name: submission
+            - containerPort: 465
+              name: smtps
+            - containerPort: 143
+              name: imap
+            - containerPort: 993
+              name: imaps
+            - containerPort: 8080
+              name: http
+          resources:
+            requests:
+              memory: "{{ app_resources[app_name].memory_request }}"
+              cpu: "{{ app_resources[app_name].cpu_request }}"
+            limits:
+              memory: "{{ app_resources[app_name].memory_limit }}"
+              cpu: "{{ app_resources[app_name].cpu_limit }}"
+          volumeMounts:
+            - name: data
+              mountPath: /opt/stalwart
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz/live
+              port: 8080
+            initialDelaySeconds: 120
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ app_name }}-data-pvc
+        - name: init-script
+          configMap:
+            name: {{ app_name }}-init-script
+---
+# Service — Admin-GUI (NodePort für nginx)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ app_name }}-service
+  namespace: {{ app_name }}
+spec:
+  type: NodePort
+  selector:
+    app: {{ app_name }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+# Service — Mail-Ports (öffentlich)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ app_name }}-mail-service
+  namespace: {{ app_name }}
+spec:
+  type: NodePort
+  selector:
+    app: {{ app_name }}
+  ports:
+    - name: smtp
+      port: 25
+      targetPort: 25
+      nodePort: 30025
+    - name: submission
+      port: 587
+      targetPort: 587
+      nodePort: 30587
+    - name: smtps
+      port: 465
+      targetPort: 465
+      nodePort: 30465
+    - name: imap
+      port: 143
+      targetPort: 143
+      nodePort: 30143
+    - name: imaps
+      port: 993
+      targetPort: 993
+      nodePort: 30993

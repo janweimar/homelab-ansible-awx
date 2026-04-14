@@ -1,0 +1,155 @@
+# Fail2Ban configuration file
+#
+# Custom nftables action - 1:1 Nachbau des Originals
+# Aenderungen gegenueber Original:
+#   - actionunban DEAKTIVIERT (dauerhafte Banns)
+#   - actionstop LEER (Tabelle/Chain/Sets bleiben bei Stop erhalten)
+#   - Eigene Tabellen-/Chain-/Set-Namen (f2b_tab, f2b_chain)
+#   - updatesicher: wird nicht durch apt ueberschrieben
+#
+# Original: /etc/fail2ban/action.d/nftables.conf
+
+[INCLUDES]
+
+after = nftables-common.local
+
+[Definition]
+
+# Option:  type
+# Notes.:  type of the action.
+# Values:  [ multiport | allports ]  Default: multiport
+#
+type = multiport
+
+rule_match-custom =
+rule_match-allports = meta l4proto \{ <protocol> \}
+rule_match-multiport = $proto dport \{ $(echo '<port>' | sed s/:/-/g) \}
+match = <rule_match-<type>>
+
+# Option:  rule_stat
+# Notes.:  statement for nftables filter rule.
+#          leaving it empty will block all (include udp and icmp)
+# Values:  nftables statement
+#
+rule_stat = %(match)s <addr_family> saddr @<addr_set> <blocktype>
+
+# optional iterator over protocol's:
+_nft_for_proto-custom-iter =
+_nft_for_proto-custom-done =
+_nft_for_proto-allports-iter =
+_nft_for_proto-allports-done =
+_nft_for_proto-multiport-iter = for proto in $(echo '<protocol>' | sed 's/,/ /g'); do
+_nft_for_proto-multiport-done = done
+
+_nft_list = <nftables> -a list chain <table_family> <table> <chain>
+_nft_get_handle_id = grep -oP '@<addr_set>\s+.*\s+\Khandle\s+(\d+)$'
+
+_nft_add_set = <nftables> add set <table_family> <table> <addr_set> \{ type <addr_type>\; \}
+              <_nft_for_proto-<type>-iter>
+              <nftables> add rule <table_family> <table> <chain> %(rule_stat)s
+              <_nft_for_proto-<type>-done>
+_nft_del_set = { %(_nft_list)s | %(_nft_get_handle_id)s; } | while read -r hdl; do
+               <nftables> delete rule <table_family> <table> <chain> $hdl; done
+              <nftables> delete set <table_family> <table> <addr_set>
+
+# Option:  actionstart
+# Notes.:  command executed on demand at the first ban (or at the start of Fail2Ban if actionstart_on_demand is set to false).
+#          Erstellt Tabelle, Chain, Set und Drop-Regel.
+# Values:  CMD
+#
+actionstart = <nftables> add table <table_family> <table>
+              <nftables> -- add chain <table_family> <table> <chain> \{ type <chain_type> hook <chain_hook> priority <chain_priority> \; \}
+              %(_nft_add_set)s
+
+# Option:  actionflush
+# Notes.:  command executed once to flush IPS, by shutdown (resp. by stop of the jail or this action);
+#          uses 'nft flush set ...' and as fallback (e. g. unsupported) recreates the set (with references)
+# Values:  CMD
+#
+actionflush = { <nftables> flush set <table_family> <table> <addr_set> 2> /dev/null; } || {
+              %(_nft_del_set)s
+              %(_nft_add_set)s
+              }
+
+# Option:  actionstop
+# Notes.:  LEER - Tabelle, Chain und Sets bleiben erhalten.
+#          Banns sollen dauerhaft sein und nach Reboot wiederhergestellt werden.
+#          Original waere: %(_nft_del_set)s + _nft_shutdown_table
+# Values:  CMD
+#
+actionstop =
+
+# Option:  actioncheck
+# Notes.:  command executed once before each actionban command
+# Values:  CMD
+#
+actioncheck = <nftables> list chain <table_family> <table> <chain> | grep -q '@<addr_set>[ \t]'
+
+# Option:  actionban
+# Notes.:  command executed when banning an IP. Take care that the
+#          command is executed with Fail2Ban user rights.
+# Tags:    See jail.conf(5) man page
+# Values:  CMD
+#
+actionban = <nftables> add element <table_family> <table> <addr_set> \{ <ip> \}
+
+# Option:  actionunban
+# Notes.:  DEAKTIVIERT - Banns sind dauerhaft.
+#          IP-Adressen werden NICHT automatisch entbannt.
+#          Manuelles Entbannen:
+#            nft delete element inet f2b_tab addr-set-JAILNAME { IP }
+#            nft delete element inet f2b_tab addr6-set-JAILNAME { IPv6 }
+# Values:  CMD
+#
+# actionunban = <nftables> delete element <table_family> <table> <addr_set> \{ <ip> \}
+
+[Init]
+
+# Option:  table
+table = f2b_tab
+
+# Option:  table_family
+table_family = inet
+
+# Option:  chain
+chain = f2b_chain
+
+# Option:  chain_type
+chain_type = filter
+
+# Option:  chain_hook
+chain_hook = input
+
+# Option:  chain_priority
+chain_priority = -1
+
+# Option:  addr_type
+addr_type = ipv4_addr
+
+# Default name of the filtering set
+name = default
+
+# Option:  port
+port = ssh
+
+# Option:  protocol
+protocol = tcp
+
+# Option:  blocktype
+blocktype = reject
+
+# Option:  nftables
+nftables = nft
+
+# Option: addr_set
+# Notes.: The name of the nft set used to store banned addresses (uses <name> from jail action call)
+addr_set = addr-set-<name>
+
+# Option: addr_family
+# Notes.: The family of the banned addresses
+addr_family = ip
+
+[Init?family=inet6]
+addr_family = ip6
+addr_type = ipv6_addr
+addr_set = addr6-set-<name>

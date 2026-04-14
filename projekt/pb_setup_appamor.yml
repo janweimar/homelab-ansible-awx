@@ -1,0 +1,212 @@
+###########################################################################
+# 🔒 AppArmor Installation und Konfiguration
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials:
+#   ssh_key: SSH-Zugangsdaten für die Zielserver
+#
+# Beschreibung:
+#   Installiert und konfiguriert AppArmor (Mandatory Access Control System)
+#   für erweiterte Sicherheitsrichtlinien auf Linux-Systemen.
+#
+# Hinweise:
+#   - AppArmor schützt das System durch verbindliche Zugriffskontrolle
+#   - Profile müssen nach Installation aktiviert werden
+#   - Nicht unterstützt: RedHat (nutzt SELinux), Archlinux, FreeBSD
+###########################################################################
+
+- name: pb_setup_apparmor.yml
+  hosts: all
+  become: true # mit root-Rechten arbeiten
+  gather_facts: true # Systeminformationen sammeln
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  #
+  # Lädt OS-spezifische Variablen aus daten/vars/:
+  # - os_packages.yml: Paketnamen je OS
+  # - os_services.yml: Service-Befehle (start/stop/enable/status)
+  # - os_paths.yml: Pfade je OS
+  # - os_command.yml: Befehle je OS
+  #
+  # Wichtig: Für neue Anwendungen müssen Einträge in diesen Dateien erstellt werden!
+  ###########################################################################
+  vars_files:
+    - daten/vars/var_list.yml
+
+  vars:
+    # Hauptanwendung(en) - wird bei start/stop/enable/deinstall berücksichtigt
+    # Beispiel: - app1
+    #           - app2
+    var_pack_name:
+      - apparmor
+
+    # Abhängigkeiten - werden installiert, aber NICHT bei start/stop berücksichtigt
+    var_dependencies_list:
+
+    # Voraussetzungen - müssen bereits installiert sein (werden NICHT installiert)
+    var_prerequisites:
+
+    # Installationsreihenfolge: 0 = erst Hauptanwendung dann Dependencies | 1 = umgekehrt
+    var_inst_order: 0
+
+    # Zusätzliche Services für start/autostart
+    var_sonder_start:
+
+    var_sonder_autostart:
+
+    # Nicht unterstützte OS (Debian, RedHat, Suse, Archlinux, FreeBSD)
+    unsupported_systems:
+      - RedHat
+      - Archlinux
+      - FreeBSD
+
+    # Playbook-Kontext für Template-Auswahl
+    templates_paths_pb:
+
+    # Playbook-Log-Dokumentation (Template-Pfad)
+    pb_doku_template: apparmor
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden & setzen
+    ###########################################################################
+    - block:
+        - name: Lade playbooks_paths.yml
+          include_vars:
+            file: "playbooks_paths.yml"
+
+        - name: Lade alle Variablen-Dateien aus var_list.yml
+          include_vars:
+            file: "{{ item }}"
+          loop: "{{ var_files }}"
+
+    ###########################################################################
+    # Hook: Pre-Start (nach Variablen-Laden)
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck & Prerequisites
+    ###########################################################################
+    - name: 🔄 Importiere Systemcheck
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Importiere Systemcheck zwingend benötigter Komponenten
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks (für alle Playbooks)
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Paketmanager-Lock & Debug
+        ###########################################################################
+        - name: 🔄 Importiere Paketmanager-Lock prüfen
+          ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+        ###########################################################################
+        # Debug-Ausgabe
+        ###########################################################################
+        - name: 🔄 Importiere Debug ausgabe bei Playbook start
+          ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+        - name: 🔄 Importiere Playbook Debug
+          ansible.builtin.include_tasks: "{{ debug_tasks.apparmor_debug }}"
+
+    ###########################################################################
+    # Hook: Pre-Install (vor Installation)
+    ###########################################################################
+    - name: 🔧 Hook Pre-Install
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+    ###########################################################################
+    # Playbook-spezifische Pre-Tasks
+    ###########################################################################
+    - block:
+        - name: 🔄 Importiere pre_task
+          ansible.builtin.include_tasks: "{{ task_paths.apparmor_pretask }}"
+      when: allg_status == "aktiviert"
+
+  tasks:
+    ###########################################################################
+    # HAUPTLOGIK - Installation
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Standard-Installation
+        ###########################################################################
+        - name: 🔄 Komplette installation von var_pack_name und var_dependencies_list
+          ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+        ###########################################################################
+        # Playbook-spezifische Konfiguration
+        ###########################################################################
+        - name: 🔄 Ausführen der komplette konfiguration
+          ansible.builtin.include_tasks: "{{ task_paths.apparmor_task }}"
+
+        ###########################################################################
+        # Service-Management
+        ###########################################################################
+        - block:
+            - name: 🔄 Startet Hauptdienst
+              ansible.builtin.include_tasks: "{{ include_paths.services_start }}"
+
+            - name: 🔄 Autostart aktivieren
+              ansible.builtin.include_tasks: "{{ include_paths.services_autostart }}"
+
+            - name: 🔄 Restart ausführen
+              ansible.builtin.include_tasks: "{{ include_paths.services_restart }}"
+
+            - name: 🔄 Status prüfen
+              ansible.builtin.include_tasks: "{{ include_paths.status_inst }}"
+
+            - name: 🔄 Autostart prüfen
+              ansible.builtin.include_tasks: "{{ include_paths.services_is_enable }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # Deaktivierung
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Dienste stoppen
+        ###########################################################################
+        - name: 🔄 Dienste stoppen
+          ansible.builtin.include_tasks: "{{ include_paths.services_stop }}"
+
+        ###########################################################################
+        # Playbook-spezifische Deaktivierung
+        ###########################################################################
+
+      when: allg_status == "deaktiviert"
+
+    ###########################################################################
+    # Deinstallation
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Standard-Deinstallation
+        ###########################################################################
+        - name: 🔄 Deinstallationsscript mit debug Ausgabe
+          ansible.builtin.include_tasks: "{{ include_paths.deinstall_allg }}"
+
+        ###########################################################################
+        # Playbook-spezifische Deinstallation
+        ###########################################################################
+
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # Hook: end (am Ende des Playbooks)
+    ###########################################################################
+    - name: 🔧 Hook Post-Install
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"
+##
+# - name: Stop playbook execution
+#   ansible.builtin.meta: end_play
+##

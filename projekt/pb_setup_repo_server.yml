@@ -1,0 +1,230 @@
+---
+###########################################################################
+# 🧱 Repo-Server Installation (aptly + cgit + helm + nginx)
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials:
+#   0300_repo_machine_max:                 SSH-Zugangsdaten (machine credential)
+#   0000_global_smtp_admin_mail:           Admin-Mail + SMTP
+#   0000_global_doku_log:                  AWX API für Dokumentation
+#   0300_repo_server_status:               Repo-Server Konfiguration
+#     - allg_status:                       aktiviert/deaktiviert/deinstalliert
+#     - update_before_install:             System-Update vor Installation
+#     - install_cgit:                      cgit/Git Repository installieren
+#     - install_aptly:                     aptly APT Repository installieren
+#     - install_helm:                      Helm Chart Cache installieren
+#     - server_ssl:                        SSL/HTTPS aktivieren
+#     - nginx_modsecurity:                 ModSecurity WAF aktivieren
+#
+# Beschreibung:
+#   Installation & Grundkonfiguration von aptly, cgit, Helm Chart Cache
+#   nginx Read-Only Auslieferung (aptly + cgit + helm)
+#   KEINE Repos, KEINE Mirrors, KEIN Publish, KEINE GPG-Keys
+#
+# Hinweise:
+#   - Bewusst auf Debian-basierte Systeme begrenzt (aptly + apt)
+#   - Apache2 wird deaktiviert/entfernt (Port-Konflikt mit nginx)
+#   - Helm Chart Cache: Charts werden später über pb_conf_helm_charts_repo_server.yml gecacht
+#
+# BEST PRACTICES:
+# - Wenn möglich kein Code im Playbook, sondern in pre_task/task auslagern
+# - Nicht benötigte Service-Includes löschen (nicht auskommentieren)
+###########################################################################
+
+- name: pb_setup_repo_server.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+    - playbooks_paths.yml
+
+  vars:
+    # Hauptanwendung(en) - wird bei start/stop/enable/deinstall berücksichtigt
+    var_pack_name:
+      - nginx
+
+    # Abhängigkeiten - werden installiert, aber NICHT bei start/stop berücksichtigt
+    var_dependencies_list:
+      - repo
+
+    # Voraussetzungen - müssen bereits installiert sein (werden NICHT installiert)
+    var_prerequisites: []
+
+    # Installationsreihenfolge: 0 = erst Hauptanwendung dann Dependencies | 1 = umgekehrt
+    var_inst_order: 1
+
+    # Zusätzliche Services für start/autostart
+    var_sonder_start: []
+
+    var_sonder_autostart: []
+
+    # Nicht unterstützte OS (Debian, RedHat, Suse, Archlinux, FreeBSD)
+    unsupported_systems:
+      - RedHat
+      - Suse
+      - Archlinux
+      - FreeBSD
+
+    # Playbook-Log-Dokumentation (Template-Pfad)
+    pb_doku_template: repo_server_doku
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden & setzen
+    ###########################################################################
+    - block:
+        - name: Lade alle Variablen-Dateien aus var_list.yml - pb_setup_repo_server.yml
+          include_vars:
+            file: "{{ item }}"
+          loop: "{{ var_files }}"
+
+        - name: Setze server_urls fuer aktuellen Host - pb_setup_repo_server.yml
+          ansible.builtin.set_fact:
+            server_urls: "{{ urls[ansible_host] }}"
+
+    ###########################################################################
+    # Hook: Pre-Start (nach Variablen-Laden)
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start - pb_setup_repo_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck & Prerequisites
+    ###########################################################################
+    - name: 🔄 Importiere Systemcheck - pb_setup_repo_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Importiere Systemcheck zwingend benötigter Komponenten - pb_setup_repo_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks (für alle Playbooks)
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Paketmanager-Lock & Debug
+        ###########################################################################
+        - name: 🔄 Importiere Paketmanager-Lock prüfen - pb_setup_repo_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+        ###########################################################################
+        # Debug-Ausgabe
+        ###########################################################################
+        - name: 🔄 Importiere Debug ausgabe bei Playbook start - pb_setup_repo_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+        - name: 🔄 Importiere Playbook Debug - pb_setup_repo_server.yml
+          ansible.builtin.include_tasks: "{{ debug_tasks.repo_server_debug }}"
+
+  tasks:
+    ###########################################################################
+    # HAUPTLOGIK - Installation
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Hook: Pre-Install (vor Installation)
+        ###########################################################################
+        - name: 🔧 Hook Pre-Install - pb_setup_repo_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        ###########################################################################
+        # Standard-Installation
+        ###########################################################################
+        - name: 🔄 Komplette installation von var_pack_name und var_dependencies_list - pb_setup_repo_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.install_allg }}"
+
+        ###########################################################################
+        # Apache2 deaktivieren/entfernen
+        ###########################################################################
+        - name: 🔄 Apache2 deaktivieren und entfernen - pb_setup_repo_server.yml
+          ansible.builtin.include_tasks: "{{ task_paths.repo_server_remove_apache }}"
+
+        ###########################################################################
+        # Playbook-spezifische Konfiguration
+        ###########################################################################
+        - name: 🔄 Ausführen der komplette konfiguration - pb_setup_repo_server.yml
+          ansible.builtin.include_tasks: "{{ task_paths.repo_server_task }}"
+
+        ###########################################################################
+        # GPG-Key für eigenes Repository erzeugen
+        ###########################################################################
+        - name: 🔄 Konfiguration key - pb_setup_repo_server.yml
+          ansible.builtin.include_tasks: "{{ task_paths.generate_key_repo_server_post_task }}"
+
+        ###########################################################################
+        # Service-Management (nicht benötigte Includes löschen!)
+        ###########################################################################
+        - block:
+            - name: 🔄 Teste Hauptdienst - pb_setup_repo_server.yml
+              ansible.builtin.include_tasks: "{{ include_paths.services_test }}"
+
+            - name: 🔄 Startet Hauptdienst - pb_setup_repo_server.yml
+              ansible.builtin.include_tasks: "{{ include_paths.services_start }}"
+
+            - name: 🔄 Reload ausführen - pb_setup_repo_server.yml
+              ansible.builtin.include_tasks: "{{ include_paths.services_reload }}"
+
+            - name: 🔄 Autostart aktivieren - pb_setup_repo_server.yml
+              ansible.builtin.include_tasks: "{{ include_paths.services_autostart }}"
+
+            - name: 🔄 Status prüfen - pb_setup_repo_server.yml
+              ansible.builtin.include_tasks: "{{ include_paths.status_inst }}"
+
+            - name: 🔄 Autostart prüfen - pb_setup_repo_server.yml
+              ansible.builtin.include_tasks: "{{ include_paths.services_is_enable }}"
+
+        ###########################################################################
+        # Debug check
+        ###########################################################################
+        - name: 🔄 debug ausgabe - pb_setup_repo_server.yml
+          ansible.builtin.include_tasks: "{{ task_paths.repo_server_task_check }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # Deaktivierung
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Dienste stoppen
+        ###########################################################################
+        - name: 🔄 Dienste stoppen - pb_setup_repo_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.services_stop }}"
+
+        ###########################################################################
+        # Playbook-spezifische Deaktivierung
+        ###########################################################################
+
+      when: allg_status == "deaktiviert"
+
+    ###########################################################################
+    # Deinstallation
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Standard-Deinstallation
+        ###########################################################################
+        - name: 🔄 Deinstallationsscript mit debug Ausgabe - pb_setup_repo_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.deinstall_allg }}"
+
+        ###########################################################################
+        # Playbook-spezifische Deinstallation
+        ###########################################################################
+
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # Hook: end (am Ende des Playbooks)
+    ###########################################################################
+    - name: 🔧 Hook Post-Install - pb_setup_repo_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"
+##
+# - name: Stop playbook execution
+#   ansible.builtin.meta: end_play
+##

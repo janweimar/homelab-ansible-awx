@@ -1,0 +1,102 @@
+---
+###########################################################################
+# OS-spezifische Sonderkonfigurationen
+# AppArmor Profile pro Server
+###########################################################################
+# Format:
+#   apparmor_d:
+#     <server-ip>:
+#       enforce:   [ Template-Pfade ] → Enforce-Modus (blockiert)
+#       complain:  [ Template-Pfade ] → Complain-Modus (nur loggt)
+###########################################################################
+
+apparmor_d:
+  ##########################################################################
+  # VPN Server — <ip_vpn_server>
+  ##########################################################################
+  <ip_vpn_server>:
+    enforce:
+      - templates/sshd.j2
+      - templates/fail2ban.j2
+      - templates/auditd.j2
+      - templates/cron.j2
+    complain: []
+
+  ##########################################################################
+  # Wazuh Manager — <ip_wazuh_server>
+  ##########################################################################
+  <ip_wazuh_server>:
+    enforce:
+      - templates/sshd.j2
+      - templates/fail2ban.j2
+      - templates/auditd.j2
+      - templates/cron.j2
+    complain:
+      - templates/nginx_cgit_aptly_docker.j2
+
+  ##########################################################################
+  # Mail Server — <ip_mail_server>
+  ##########################################################################
+  <ip_mail_server>:
+    enforce:
+      - templates/sshd.j2
+      - templates/fail2ban.j2
+      - templates/auditd.j2
+      - templates/cron.j2
+    complain:
+      - templates/nginx_cgit_aptly_docker.j2
+
+  ##########################################################################
+  # Repo/Jump Server — <ip_repo_server>
+  ##########################################################################
+  <ip_repo_server>:
+    enforce:
+      - templates/sshd.j2
+      - templates/fail2ban.j2
+      - templates/auditd.j2
+      - templates/cron.j2
+    complain:
+      - templates/nginx_cgit_aptly_docker.j2
+
+  ##########################################################################
+  # AI Server — <ip_ai_server>
+  ##########################################################################
+  <ip_ai_server>:
+    enforce:
+      - templates/sshd.j2
+      - templates/fail2ban.j2
+      - templates/auditd.j2
+      - templates/cron.j2
+    complain:
+      - templates/nginx_cgit_aptly_docker.j2
+      - templates/ollama.j2
+      - templates/open_webui.j2
+      - templates/qdrant.j2
+
+  ##########################################################################
+  # Odoo Server — <ip_odoo_server>
+  ##########################################################################
+  <ip_odoo_server>:
+    enforce:
+      - templates/sshd.j2
+      - templates/fail2ban.j2
+      - templates/auditd.j2
+      - templates/cron.j2
+    complain:
+      - templates/nginx_cgit_aptly_docker.j2
+      - templates/odoo19.j2
+      - templates/postgresql.j2
+
+  ##########################################################################
+  # AWX Server — <ip_awx_server>
+  ##########################################################################
+  <ip_awx_server>:
+    enforce:
+      - templates/sshd.j2
+      - templates/fail2ban.j2
+      - templates/auditd.j2
+      - templates/cron.j2
+    complain:
+      - templates/nginx_cgit_aptly_docker.j2
+      - templates/containerd.j2
+      - templates/awx.j2

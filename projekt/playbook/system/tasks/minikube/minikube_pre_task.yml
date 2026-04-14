@@ -1,0 +1,82 @@
+---
+#####################################################################
+# 🧊 minikube_pre_task.yml
+# Vorbereitungen für Minikube Installation
+#####################################################################
+
+# ============================================================
+# Swap deaktivieren (Kubernetes-Voraussetzung)
+# ============================================================
+- name: 🔧 Disable swap immediately - minikube_pre_task.yml
+  ansible.builtin.command: swapoff -a
+  when: ansible_swaptotal_mb > 0
+
+- name: 🔧 Remove swap from fstab - minikube_pre_task.yml
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^\s*([^#]\S*\s+swap\s+)'
+    replace: '# \1'
+
+# ============================================================
+# kube User erstellen + Docker-Gruppe
+# ============================================================
+- name: 👤 Ensure kube user exists - minikube_pre_task.yml
+  ansible.builtin.user:
+    name: "{{ kube_user }}"
+    create_home: true
+    shell: /bin/bash
+    password: "{{ kube_password | password_hash('sha512') }}"
+    update_password: always
+    groups: docker
+    append: true
+    state: present
+
+# ============================================================
+# Docker konfigurieren + DNS-Fix
+# ============================================================
+# Docker/Minikube manipuliert iptables und stört systemd-resolved (127.0.0.53).
+# Lösung: Docker echte DNS-Server geben via daemon.json.
+# ============================================================
+- name: 🔍 Ermittle echte DNS-Server vom Host - minikube_pre_task.yml
+  ansible.builtin.shell: "resolvectl status | grep 'DNS Servers' | head -1 | sed 's/.*DNS Servers: //'"
+  register: _host_dns
+  changed_when: false
+
+- name: 📊 Debug DNS-Server - minikube_pre_task.yml
+  ansible.builtin.debug:
+    msg: "Host DNS-Server: {{ _host_dns.stdout }}"
+
+- name: 🔧 Setze Docker DNS-Server Liste - minikube_pre_task.yml
+  ansible.builtin.set_fact:
+    _docker_dns: "{{ _host_dns.stdout.split() | select('match', '^[0-9]') | list }}"
+
+- name: 📊 Debug Docker DNS - minikube_pre_task.yml
+  ansible.builtin.debug:
+    msg: "Docker DNS: {{ _docker_dns }}"
+
+- name: 🔧 Erstelle /etc/docker/daemon.json mit echten DNS-Servern - minikube_pre_task.yml
+  ansible.builtin.copy:
+    content: "{{ {'dns': _docker_dns} | to_nice_json }}\n"
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: '0644'
+  register: docker_daemon_json
+
+- name: ▶️ Ensure Docker is running - minikube_pre_task.yml
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: 🔄 Restart Docker (daemon.json geändert) - minikube_pre_task.yml
+  ansible.builtin.service:
+    name: docker
+    state: restarted
+  when: docker_daemon_json.changed
+
+- name: 🔍 Prüfe ob Docker funktioniert - minikube_pre_task.yml
+  ansible.builtin.command: docker info
+  register: docker_info
+  changed_when: false
+  failed_when: docker_info.rc != 0

@@ -1,0 +1,23 @@
+---
+###########################################################################
+# Cleanup-Tasks für Netzwerk-Konfiguration
+# Entfernt alle Konfigurationen und Pakete
+###########################################################################
+
+###########################################################################
+# 1. nload deinstalliert
+###########################################################################
+- name: 🗑️ nload deinstalliert
+  ansible.builtin.apt:
+    name: nload
+    state: absent
+    purge: true
+  when: ansible_os_family == "Debian"
+
+###########################################################################
+# 2. gai.conf entfernen
+###########################################################################
+- name: 🗑️ gai.conf entfernen
+  ansible.builtin.file:
+    path: "/etc/gai.conf"
+    state: absent

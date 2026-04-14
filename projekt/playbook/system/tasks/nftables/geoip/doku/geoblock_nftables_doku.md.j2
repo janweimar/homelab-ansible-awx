@@ -1,0 +1,30 @@
+# GEOIP BLOCKING NFTABLES - SYSTEM KONFIGURATION
+
+## 🌍 GEOIP-KONFIGURATION
+
+### Deployed Einstellungen
+- **Status**: {{ allg_status }}
+- **Modus**: {{ geo_mode | default('nicht gesetzt') }}
+- **Ausgewählte Länder**: {{ geo_countries | default('keine') }}
+- **AWX-Rechner Land**: {{ fire_geo_awx_country }}
+
+### Netzwerk-Freigaben
+- **Allow HTTP**: {{ allow_http }}
+- **Allow HTTPS**: {{ allow_https }}
+- **Trusted IPv4**: {{ in_os_networks_v4 }}
+- **Trusted IPv6**: {{ in_os_networks_v6 }}
+
+### Rollback-Schutz
+- **Rollback Timer**: {{ rollback_timeout | default('nicht gesetzt') }}
+
+---
+
+## 📜 AKTIVES GEOIP RULESET
+
+```
+{{ geoip_table_output | default('Keine Ausgabe verfügbar') }}
+```
+
+---
+
+**Status:** ✅ GeoIP Blocking erfolgreich konfiguriert

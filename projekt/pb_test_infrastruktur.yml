@@ -1,0 +1,196 @@
+---
+###########################################################################
+# 🔍 Infrastruktur Analyse Playbook
+# =========================================================================
+# Zweck    : Vollständige READ-ONLY Analyse eines Linux-Clients
+# Prinzip  : NUR LESEN - keine Änderungen am System!
+#            Kein Schreiben, keine Installationen, keine Konfiguration.
+# Ablauf   : Alle Module sammeln Daten → vars → Report-Template → Bericht
+# Autor    : max
+# Version  : 1.0
+# =========================================================================
+# Credentials: Keine benötigt (read-only)
+# =========================================================================
+# Aufruf:
+#   Alle Module:   ansible-playbook pb_test_infrastruktur.yml
+#   Nur bestimmte: ansible-playbook pb_test_infrastruktur.yml --tags "netzwerk,services"
+#   Nur Report:    ansible-playbook pb_test_infrastruktur.yml --tags "report"
+###########################################################################
+
+- name: "🔍 Infrastruktur Analyse - {{ inventory_hostname }}"
+  hosts: all
+  gather_facts: true
+  become: true
+
+  # =========================================================================
+  # Variablen-Struktur
+  # Jedes Modul schreibt NUR in seine eigene Variable.
+  # Alle Variablen folgen dem einheitlichen Schema:
+  #   <modul>_results:
+  #     status: "OK | WARNUNG | FEHLER"
+  #     zusammenfassung: { ok: N, warnungen: N, fehler: N }
+  #     details: [ { name, status, wert, hinweis } ]
+  # =========================================================================
+  vars:
+    # Pfad zur app.yml (Spezial-Prüfliste)
+    var_app_liste: "{{ playbook_dir }}/playbook/system/test_infrastruktur/app.yml"
+
+    # Pfad zu den Task-Dateien
+    var_task_pfad: "{{ playbook_dir }}/playbook/system/test_infrastruktur/tasks"
+
+    # Report-Ablage (auf dem Controller, NICHT auf dem Client)
+    var_report_pfad: "{{ playbook_dir }}/reports"
+
+    # Zeitstempel für Dateiname
+    var_timestamp: "{{ ansible_date_time.iso8601_basic_short }}"
+
+    # -----------------------------------------------------------------------
+    # Initialisierung aller Ergebnis-Variablen
+    # Jedes Modul überschreibt seine Variable mit echten Daten
+    # -----------------------------------------------------------------------
+    system_info_results: {}
+    pakete_results: {}
+    services_results: {}
+    benutzer_results: {}
+    netzwerk_results: {}
+    ressourcen_results: {}
+    logs_results: {}
+    sicherheit_results: {}
+    container_results: {}
+    hardware_results: {}
+    app_results: []
+
+  # =========================================================================
+  # Pre-Tasks: Vorbereitungen auf dem Controller
+  # =========================================================================
+  pre_tasks:
+    - name: "📁 Report-Verzeichnis auf Controller anlegen"
+      ansible.builtin.file:
+        path: "{{ var_report_pfad }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+      tags: always
+
+    - name: "📋 Lade App-Liste (app.yml)"
+      ansible.builtin.include_vars:
+        file: "{{ var_app_liste }}"
+        name: app_liste
+      tags: always
+
+    - name: "ℹ️  Analyse gestartet"
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "🔍 INFRASTRUKTUR ANALYSE GESTARTET"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Host    : {{ inventory_hostname }}"
+          - "OS      : {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "Datum   : {{ ansible_date_time.iso8601 }}"
+          - "Modus   : READ-ONLY (keine Änderungen am System)"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      tags: always
+
+  # =========================================================================
+  # Haupt-Tasks: Alle Module werden als includes eingebunden
+  # Jedes Modul ist eigenständig und unabhängig testbar
+  # =========================================================================
+  tasks:
+    # -----------------------------------------------------------------------
+    # Modul 01 — Systeminfo: Kernel, OS, Basis-Informationen
+    # -----------------------------------------------------------------------
+    - name: "🖥️  Modul 01 — Systeminfo"
+      ansible.builtin.include_tasks: "{{ var_task_pfad }}/01_system_info.yml"
+      tags: ["system", "system_info"]
+
+    # -----------------------------------------------------------------------
+    # Modul 02 — Pakete: Alle installierten Pakete erfassen und analysieren
+    # -----------------------------------------------------------------------
+    - name: "📦 Modul 02 — Pakete"
+      ansible.builtin.include_tasks: "{{ var_task_pfad }}/02_pakete.yml"
+      tags: ["pakete"]
+
+    # -----------------------------------------------------------------------
+    # Modul 03 — Services: Alle Systemd-Units, Prozesse, Cronjobs
+    # -----------------------------------------------------------------------
+    - name: "⚙️  Modul 03 — Services & Prozesse"
+      ansible.builtin.include_tasks: "{{ var_task_pfad }}/03_services.yml"
+      tags: ["services"]
+
+    # -----------------------------------------------------------------------
+    # Modul 04 — Benutzer: User, Gruppen, sudo, SSH, Logins
+    # -----------------------------------------------------------------------
+    - name: "👤 Modul 04 — Benutzer & Berechtigungen"
+      ansible.builtin.include_tasks: "{{ var_task_pfad }}/04_benutzer.yml"
+      tags: ["benutzer"]
+
+    # -----------------------------------------------------------------------
+    # Modul 05 — Netzwerk: Ports, Firewall, ausgehende Verbindungen
+    # -----------------------------------------------------------------------
+    - name: "🌐 Modul 05 — Netzwerk & Konnektivität"
+      ansible.builtin.include_tasks: "{{ var_task_pfad }}/05_netzwerk.yml"
+      tags: ["netzwerk"]
+
+    # -----------------------------------------------------------------------
+    # Modul 06 — Ressourcen: CPU, RAM, Disk, I/O
+    # -----------------------------------------------------------------------
+    - name: "📊 Modul 06 — Systemressourcen & Performance"
+      ansible.builtin.include_tasks: "{{ var_task_pfad }}/06_ressourcen.yml"
+      tags: ["ressourcen"]
+
+    # -----------------------------------------------------------------------
+    # Modul 07 — Logs: journalctl, auth.log, Login-Analyse
+    # -----------------------------------------------------------------------
+    - name: "📋 Modul 07 — Logs & Auditing"
+      ansible.builtin.include_tasks: "{{ var_task_pfad }}/07_logs.yml"
+      tags: ["logs"]
+
+    # -----------------------------------------------------------------------
+    # Modul 08 — Sicherheit: SIEM, auditd, Updates, Malware-Scanner
+    # -----------------------------------------------------------------------
+    - name: "🔒 Modul 08 — Sicherheitshärtung"
+      ansible.builtin.include_tasks: "{{ var_task_pfad }}/08_sicherheit.yml"
+      tags: ["sicherheit"]
+
+    # -----------------------------------------------------------------------
+    # Modul 09 — Container: Docker, Containerd, Images, Volumes
+    # -----------------------------------------------------------------------
+    - name: "🐳 Modul 09 — Container-Infrastruktur"
+      ansible.builtin.include_tasks: "{{ var_task_pfad }}/09_container.yml"
+      tags: ["container"]
+
+    # -----------------------------------------------------------------------
+    # Modul 10 — Hardware: CPU-Info, RAID, Netzwerkadapter
+    # -----------------------------------------------------------------------
+    - name: "🔧 Modul 10 — Hardware-Ressourcen"
+      ansible.builtin.include_tasks: "{{ var_task_pfad }}/10_hardware.yml"
+      tags: ["hardware"]
+
+    # -----------------------------------------------------------------------
+    # App-Tests: Generisch (alle Apps) + Spezialtests (app.yml)
+    # -----------------------------------------------------------------------
+    - name: "🧪 App-Tests — Alle installierten Apps prüfen"
+      ansible.builtin.include_tasks: "{{ var_task_pfad }}/app_tests/test_runner.yml"
+      tags: ["apps", "app_tests"]
+
+    # -----------------------------------------------------------------------
+    # Report: Alle Variablen zusammenführen → Bericht generieren
+    # -----------------------------------------------------------------------
+    - name: "📄 Report — Abschlussbericht generieren"
+      ansible.builtin.include_tasks: "{{ var_task_pfad }}/report.yml"
+      tags: ["report", "always"]
+
+  # =========================================================================
+  # Post-Tasks: Abschlussmeldung
+  # =========================================================================
+  post_tasks:
+    - name: "✅ Analyse abgeschlossen"
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "✅ INFRASTRUKTUR ANALYSE ABGESCHLOSSEN"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Report: {{ var_report_pfad }}/analyse_{{ inventory_hostname }}_{{ var_timestamp }}.md"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      tags: always

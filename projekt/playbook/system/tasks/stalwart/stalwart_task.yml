@@ -1,0 +1,161 @@
+---
+###########################################################################
+# stalwart_task.yml
+# Stalwart Mail Server — universelles Deployment (NUR Installation)
+#
+# Unterstützte Deploy-Typen:
+#   k3s / minikube / k8s → Kubernetes
+#   docker               → Docker Compose
+#
+# API-Konfiguration + CSV-Import läuft SEPARAT nach nginx
+# via stalwart_csv_import.yml
+###########################################################################
+
+# ============================================================
+# 0) Variablen setzen
+# ============================================================
+- name: 🔧 Setze Stalwart Variablen - stalwart_task.yml
+  ansible.builtin.set_fact:
+    _stalwart_storage_size: "10Gi"
+    _stalwart_mail_domain: "{{ urls[ansible_host].stalwart.mail_domain }}"
+    _stalwart_hostname: "{{ urls[ansible_host].stalwart.hostname }}"
+
+- name: 📋 CSV-Dateien lesen - stalwart_task.yml
+  ansible.builtin.set_fact:
+    _stalwart_csv_domains:  "{{ lookup('file', playbook_dir + '/playbook/system/tasks/stalwart/daten/domains.csv') }}"
+    _stalwart_csv_groups:   "{{ lookup('file', playbook_dir + '/playbook/system/tasks/stalwart/daten/groups.csv') }}"
+    _stalwart_csv_lists:    "{{ lookup('file', playbook_dir + '/playbook/system/tasks/stalwart/daten/lists.csv') }}"
+    _stalwart_csv_accounts: "{{ lookup('file', playbook_dir + '/playbook/system/tasks/stalwart/daten/accounts.csv') }}"
+
+- name: 📊 DEBUG Eingangsvariablen - stalwart_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "📧 Stalwart Mail Server"
+      - "=========================================="
+      - "app_name:     {{ app_name }}"
+      - "deploy_type:  {{ _deploy_type_base }}"
+      - "Kubernetes:   {{ _is_kubernetes | bool }}"
+      - "app_port:     {{ app_port | default('8080') }}"
+      - "Mail-Domain:  {{ _stalwart_mail_domain }}"
+      - "Hostname:     {{ _stalwart_hostname }}"
+      - "=========================================="
+
+# ============================================================
+# KUBERNETES (k3s / minikube / k8s)
+# ============================================================
+- block:
+
+    - name: 🧹 Alte Installation aufräumen - stalwart_task.yml
+      ansible.builtin.include_tasks: "{{ task_paths.kube_app_cleanup }}"
+
+    - name: 📁 Namespace erstellen - stalwart_task.yml
+      ansible.builtin.command: kubectl create namespace {{ app_name }}
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      register: _ns_result
+      failed_when:
+        - _ns_result.rc != 0
+        - "'already exists' not in _ns_result.stderr"
+      changed_when: "'created' in _ns_result.stdout"
+
+    - name: 📁 Manifests-Verzeichnis sicherstellen - stalwart_task.yml
+      ansible.builtin.file:
+        path: "/home/{{ kube_user }}/manifests"
+        state: directory
+        owner: "{{ kube_user }}"
+        group: "{{ kube_user }}"
+        mode: "0755"
+
+    - name: 📝 Stalwart Manifest erstellen - stalwart_task.yml
+      ansible.builtin.template:
+        src: playbook/system/tasks/stalwart/templates/stalwart_kube_manifests.yml.j2
+        dest: "/home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml"
+        owner: "{{ kube_user }}"
+        group: "{{ kube_user }}"
+        mode: "0644"
+
+    - name: 🚀 Stalwart deployen - stalwart_task.yml
+      ansible.builtin.command: kubectl apply -f /home/{{ kube_user }}/manifests/{{ app_name }}_app.yaml
+      become_user: "{{ kube_user }}"
+      environment:
+        HOME: "/home/{{ kube_user }}"
+        KUBECONFIG: "/home/{{ kube_user }}/.kube/config"
+      register: _deploy_result
+      changed_when: "'created' in _deploy_result.stdout or 'configured' in _deploy_result.stdout"
+
+    - name: ⏳ Warte auf Stalwart Pod - stalwart_task.yml
+      ansible.builtin.include_tasks: "{{ task_paths.kube_app_wait_ready }}"
+      vars:
+        _app_pod_label: "{{ app_name }}"
+        _expected_ready: 1
+
+    - name: 🔌 Setze domain_port für nginx - stalwart_task.yml
+      ansible.builtin.include_tasks: "{{ task_paths.kube_set_domain_port }}"
+
+  when: _is_kubernetes | bool
+
+# ============================================================
+# DOCKER
+# ============================================================
+- block:
+
+    - name: 🛑 Alte Container stoppen - stalwart_task.yml
+      ansible.builtin.command:
+        cmd: docker compose down --remove-orphans
+        chdir: /opt/stalwart
+      changed_when: true
+      failed_when: false
+
+    - name: 🗑️ Alte Konfiguration löschen - stalwart_task.yml
+      ansible.builtin.file:
+        path: /opt/stalwart/docker-compose.yml
+        state: absent
+
+    - name: 📁 Verzeichnisse anlegen - stalwart_task.yml
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      loop:
+        - /opt/stalwart
+        - /opt/stalwart/data
+
+    - name: 📝 docker-compose.yml deployen - stalwart_task.yml
+      ansible.builtin.template:
+        src: playbook/system/tasks/stalwart/templates/docker-compose.yml.j2
+        dest: /opt/stalwart/docker-compose.yml
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: 🚀 Stalwart Container starten - stalwart_task.yml
+      ansible.builtin.command:
+        cmd: docker compose up -d
+        chdir: /opt/stalwart
+      changed_when: true
+
+    - name: 🔌 Setze domain_port für nginx (Docker) - stalwart_task.yml
+      ansible.builtin.set_fact:
+        domain_port: "127.0.0.1/{{ app_port | default('8080') }}"
+      when: app_nginx_integration | default(false) | bool
+
+  when: _deploy_type_base == 'docker'
+
+# ============================================================
+# Status
+# ============================================================
+- name: ✅ Stalwart Installation abgeschlossen - stalwart_task.yml
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "✅ Stalwart installiert — nginx folgt"
+      - "=========================================="
+      - "📧 Mail-Domain: {{ _stalwart_mail_domain }}"
+      - "🌐 Hostname:    {{ _stalwart_hostname }}"
+      - "⚠️  Nächster Schritt: stalwart_csv_import JT starten!"
+      - "=========================================="

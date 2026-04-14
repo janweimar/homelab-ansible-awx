@@ -1,0 +1,16 @@
+---
+###########################################################################
+# 📧 msmtp Pre-Task
+# Datei: msmtp_pretask.yml
+# Zweck: Vorbereitungen vor der msmtp-Installation
+###########################################################################
+
+- name: Prüfe ob /var/log/msmtp.log existiert - msmtp_pretask.yml
+  ansible.builtin.file:
+    path: /var/log/msmtp.log
+    state: touch
+    owner: root
+    group: adm
+    mode: "0640"
+    modification_time: preserve
+    access_time: preserve

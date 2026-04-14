@@ -1,0 +1,19 @@
+###########################################################################
+# 🟢 Dienste stoppen
+# Nutzt die OS‑abhängigen Start‑Kommandos aus services[..].stop[..]
+# Funktioniert mit String ("fail2ban") oder Liste (["fail2ban","nftables"])
+###########################################################################
+- name: 🚀 Stoppe Hauptdienst(e)
+  ansible.builtin.command: "{{ services[item].stop[ansible_os_family] }}"
+  loop: >-
+    {{ (var_pack_name | list)
+       if var_pack_name is iterable and (var_pack_name is not string)
+       else [var_pack_name] }}
+  changed_when: false
+  failed_when: false
+  when:
+    - (var_pack_name | default([])) | length > 0
+
+- name: 💤 Info
+  ansible.builtin.debug:
+    msg: "Dienst(e) {{ var_pack_name }} wurden gestoppt und Regeln geladen (falls vorhanden)."

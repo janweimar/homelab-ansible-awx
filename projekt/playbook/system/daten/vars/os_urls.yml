@@ -1,0 +1,165 @@
+###########################################################################
+# Zentrale URL-Verwaltung
+# Wird von allen Playbooks geladen (ueber var_files)
+# Zugriff: urls.<server_ip>.<dienst>.<attribut>
+###########################################################################
+
+urls:
+  # VPN Server
+  <ip_vpn_server>:
+    msmtp:
+      account: "web"
+      host: "smtp.web.de"
+      port: 587
+      test_to: "<email> "
+      subject_prefix: "VPN Server - <ip_vpn_server>"
+      sudoers_user: "max"
+
+  # Wazuh Manager
+  <ip_wazuh_server>:
+    wazuh:
+      domain: wazuh.allgemeinhobby.de
+      url: https://wazuh.allgemeinhobby.de
+      port: 443
+    msmtp:
+      account: "web"
+      host: "smtp.web.de"
+      port: 587
+      test_to: "<email> "
+      subject_prefix: "Wazuh Manager - <ip_wazuh_server>"
+      sudoers_user: "max"
+
+  # Mail Server
+  <ip_mail_server>:
+    msmtp:
+      account: "web"
+      host: "smtp.web.de"
+      port: 587
+      test_to: "<email> "
+      subject_prefix: "Mail Server - <ip_mail_server>"
+      sudoers_user: "max"
+
+  # Repo/Jump Server
+  <ip_repo_server>:
+    # AWX Execution Environment - Docker Registry
+    awx_ee:
+      domain: awx-ee.allgemeinhobby.de
+      url: https://awx-ee.allgemeinhobby.de
+      port: 5000
+      registry: awx-ee.allgemeinhobby.de
+
+    # Repo-Server (nginx - gemeinsame Domain fuer cgit + aptly)
+    repo_server_apt:
+      domain: repo.allgemeinhobby.de
+      url: https://repo.allgemeinhobby.de/aptly
+    repo_server_cgit:
+      domain: repo.allgemeinhobby.de
+      url: https://repo.allgemeinhobby.de/cgit
+
+    # BookStack - Dokumentation
+    bookstack:
+      domain: bookstack.allgemeinhobby.de
+      url: https://bookstack.allgemeinhobby.de
+      port: 8080
+
+    # msmtp - SMTP Mail-Versand
+    msmtp:
+      account: "web"
+      host: "smtp.web.de"
+      port: 587
+      test_to: "<email> "
+      subject_prefix: "Repo Server - <ip_repo_server>"
+      sudoers_user: "max"
+
+  # AI Server
+  <ip_ai_server>:
+    # Nginx Steuerung (VPN-only — kein SSL/ModSecurity nötig)
+    server_ssl: false
+    nginx_modsecurity: false
+
+    # Ollama AI Runtime (API Backend, VPN-only)
+    ollama:
+      domain: ai.allgemeinhobby.de
+      url: http://ai.allgemeinhobby.de
+      port: 80
+
+    # Open WebUI: kein nginx, direkt über NodePort 30080 (http://10.200.0.23:30080)
+
+    msmtp:
+      account: "web"
+      host: "smtp.web.de"
+      port: 587
+      test_to: "<email> "
+      subject_prefix: "AI Server - <ip_ai_server>"
+      sudoers_user: "max"
+
+  # Odoo Server
+  <ip_odoo_server>:
+    # Nginx Steuerung
+    server_ssl: true
+    nginx_modsecurity: true
+
+    # Odoo ERP (Kubernetes/K3s)
+    odoo:
+      domain: odoo.allgemeinhobby.de
+      url: https://odoo.allgemeinhobby.de
+      port: 443
+
+    msmtp:
+      account: "web"
+      host: "smtp.web.de"
+      port: 587
+      test_to: "<email> "
+      subject_prefix: "Odoo Server - <ip_odoo_server>"
+      sudoers_user: "max"
+
+  # AWX Server
+  <ip_awx_server>:
+    # Nginx Steuerung
+    server_ssl: true
+    nginx_modsecurity: true
+
+    # AWX Web-UI (Kubernetes/Minikube)
+    awx:
+      domain: awx.allgemeinhobby.de
+      url: https://awx.allgemeinhobby.de
+      port: 443
+
+    # Directus CMS (Kubernetes/Minikube)
+    directus:
+      domain: directus.allgemeinhobby.de
+      url: https://directus.allgemeinhobby.de
+      port: 443
+
+    # Stalwart Mail Server Admin-GUI (VPN-only)
+    stalwart:
+      domain: mail.allgemeinhobby.de
+      url: http://mail.allgemeinhobby.de
+      port: 80
+      mail_domain: allgemeinhobby.de
+      hostname: mail.allgemeinhobby.de
+
+    # Mailu Mail-Server Admin-GUI (VPN-only)
+    mailu:
+      domain: mailu.allgemeinhobby.de
+      url: http://mailu.allgemeinhobby.de
+      port: 80
+      mail_domain: allgemeinhobby.de
+      hostname: mail.allgemeinhobby.de
+
+    msmtp:
+      account: "web"
+      host: "smtp.web.de"
+      port: 587
+      test_to: "<email> "
+      subject_prefix: "AWX Server - <ip_awx_server>"
+      sudoers_user: "max"
+
+  PLATZHALTER_IP:
+    msmtp:
+      account: "web"
+      host: "smtp.web.de"
+      port: 587
+      test_to: "<email> "
+      subject_prefix: "Simulation Server - PLATZHALTER_IP"
+      sudoers_user: "max"

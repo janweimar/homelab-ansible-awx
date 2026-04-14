@@ -1,0 +1,9 @@
+[awx]
+enabled  = {{ awx_enable }}
+filter   = nginx-http-auth
+bantime  = {{ awx_bantime }}
+findtime = {{ awx_findtime }}
+maxretry = {{ awx_maxretry }}
+port     = {{ awx_ports }}
+action   = nftables_custom[name=AWX, port="{{ awx_ports }}"]
+logpath  = /var/log/nginx/awx_error.log

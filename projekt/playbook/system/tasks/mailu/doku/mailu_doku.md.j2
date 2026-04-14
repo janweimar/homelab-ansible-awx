@@ -1,0 +1,23 @@
+## Mailu Deployment Dokumentation
+
+**Datum:** {{ ansible_date_time.iso8601 }}
+**Server:** {{ ansible_host }} ({{ ansible_hostname }})
+**App:** {{ app_name }}
+**Deploy-Typ:** {{ app_deploy_type | default('docker') }}
+**Port Admin-GUI:** {{ app_port | default('8080') }}
+**Domain:** {{ urls[ansible_host][app_name].domain | default('nicht konfiguriert') }}
+**Mail-Domain:** {{ urls[ansible_host][app_name].mail_domain | default('nicht konfiguriert') }}
+**Hostname:** {{ urls[ansible_host][app_name].hostname | default('nicht konfiguriert') }}
+**Admin:** {{ app_admin_email | default('nicht gesetzt') }}
+**SSL:** {{ app_ssl | default(false) }}
+**ModSecurity:** {{ app_modsecurity | default(false) }}
+**VPN-only GUI:** {{ app_vpn_only | default(false) }}
+**Status:** {{ allg_status }}
+
+### Ports
+| Port | Protokoll | Erreichbarkeit |
+|------|-----------|----------------|
+| 25   | SMTP      | öffentlich     |
+| 587  | Submission| öffentlich     |
+| 993  | IMAPS     | öffentlich     |
+| {{ app_port | default('8080') }} | Admin-GUI | VPN-only (nginx) |

@@ -1,0 +1,62 @@
+---
+###########################################################################
+# 🗑️ openclaw_deinstall.yml
+# OpenClaw vollständig deinstallieren (Nativ)
+###########################################################################
+
+# Nativ-Modus
+- block:
+    - name: ⏸️ OpenClaw Gateway stoppen - openclaw_deinstall.yml
+      ansible.builtin.systemd:
+        name: openclaw-gateway
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: 🗑️ Systemd Service entfernen - openclaw_deinstall.yml
+      ansible.builtin.file:
+        path: /etc/systemd/system/openclaw-gateway.service
+        state: absent
+
+    - name: 🔄 Systemd daemon-reload - openclaw_deinstall.yml
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: 🗑️ OpenClaw Binary entfernen - openclaw_deinstall.yml
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /usr/local/bin/openclaw
+        - /usr/bin/openclaw
+
+    - name: 🗑️ OpenClaw Config entfernen - openclaw_deinstall.yml
+      ansible.builtin.file:
+        path: "/home/{{ ansible_user }}/.config/openclaw"
+        state: absent
+
+  when: app_deploy_type | default('nativ') == 'nativ'
+
+# ============================================================
+# nginx vHost entfernen (Domain + VPN)
+# ============================================================
+- name: 🗑️ Entferne nginx Domain vHost - openclaw_deinstall.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ urls[ansible_host][_app_base_name | default(app_name)].domain | default('') }}.conf"
+    state: absent
+  failed_when: false
+  when: urls[ansible_host][_app_base_name | default(app_name)].domain | default('') | length > 0
+
+- name: 🗑️ Entferne nginx VPN vHost - openclaw_deinstall.yml
+  ansible.builtin.file:
+    path: "{{ paths.nginx_sites_enabled[ansible_os_family] }}/{{ app_name }}_vpn.conf"
+    state: absent
+  failed_when: false
+
+- name: 🔄 Restart nginx - openclaw_deinstall.yml
+  ansible.builtin.command: "{{ command.nginx_restart[ansible_os_family] }}"
+  failed_when: false
+
+- name: 📊 DEBUG Deinstallation abgeschlossen - openclaw_deinstall.yml
+  ansible.builtin.debug:
+    msg: "🗑️ {{ app_name }} vollständig deinstalliert ({{ app_deploy_type | default('nativ') }})"

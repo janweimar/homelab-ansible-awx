@@ -1,0 +1,149 @@
+---
+###########################################################################
+# 🔔 Alerting - E-Mail-Benachrichtigungen bei kritischen Events
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials (AWX):
+#   allg_status:                aktiviert | deaktiviert | deinstalliert
+#   alerting_disk_threshold:    Disk-Warnung ab X Prozent (z.B. 80)
+#   alerting_services:          Kommaseparierte Service-Liste (z.B. "nginx,docker,sshd")
+#   alerting_check_interval:    Minuten zwischen Checks (z.B. 5)
+#   alerting_enable_disk:       true | false
+#   alerting_enable_services:   true | false
+#   alerting_enable_fail2ban:   true | false
+#   alerting_enable_ssh:        true | false
+#   alerting_enable_nginx:      true | false
+#   smtp_user:                  SMTP-Absender (AWX Credential) ⚠️ PFLICHT!
+#   smtp_password:              SMTP-Passwort (AWX Credential) ⚠️ PFLICHT!
+#   ssh_key:                    SSH-Zugangsdaten
+#
+# ⚠️ WICHTIG: Das SMTP-Credential (smtp_user + smtp_password) muss dem
+#   AWX Job Template zugewiesen sein, sonst schlaegt das Deploying fehl!
+#
+# Feste Werte (os_urls.yml):
+#   msmtp.admin_email:          Empfaenger fuer Alarme
+#   msmtp.account:              msmtp Account-Name
+#
+# Beschreibung:
+# Richtet automatische E-Mail-Alarme ein fuer:
+# - Disk-Space Warnungen (ab konfigurierbarem Threshold)
+# - Service-Ausfaelle (systemd Services)
+# - fail2ban IP-Sperrungen
+# - SSH Login-Versuche (fehlgeschlagene)
+# - nginx Ausfall
+#
+# Hinweise:
+# - Setzt msmtp als installierten SMTP-Client voraus
+# - Monitoring-Script: /usr/local/bin/alerting_check.sh
+# - Cron-Job: alle X Minuten
+# - fail2ban: eigene Action-Config fuer msmtp-Mails
+#
+# BEST PRACTICES:
+# - Wenn moeglich kein Code im Playbook, sondern in task auslagern
+# - Nicht benoetigte Service-Includes loeschen (nicht auskommentieren)
+###########################################################################
+
+- name: pb_inst_conf_alerting.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+    - playbooks_paths.yml
+
+  vars:
+    # Hauptanwendung - kein eigenes Paket noetig
+    var_pack_name:
+
+    # Abhängigkeiten
+    var_dependencies_list:
+
+    # Voraussetzungen
+    var_prerequisites:
+
+    # Installationsreihenfolge
+    var_inst_order: 0
+
+    # Kein Service-Start (laeuft ueber cron)
+    var_sonder_start:
+    var_sonder_autostart:
+
+    # Nicht unterstützte OS
+    unsupported_systems:
+
+    # Playbook-Kontext
+    templates_paths_pb: alerting
+    pb_doku_template: alerting_doku
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden
+    ###########################################################################
+    - name: Lade alle Variablen-Dateien - pb_inst_conf_alerting.yml
+      ansible.builtin.include_vars:
+        file: "{{ item }}"
+      loop: "{{ var_files }}"
+
+    ###########################################################################
+    # Hook: Pre-Start
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start - pb_inst_conf_alerting.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck
+    ###########################################################################
+    - name: 🔄 Systemcheck - pb_inst_conf_alerting.yml
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Systemcheck Prerequisites - pb_inst_conf_alerting.yml
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks
+    ###########################################################################
+    - name: 🔄 Paketmanager-Lock prüfen - pb_inst_conf_alerting.yml
+      ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+    - name: 🔄 Debug Ausgabe Playbook-Start - pb_inst_conf_alerting.yml
+      ansible.builtin.include_tasks: "{{ include_paths.debug_start }}"
+
+  tasks:
+    ###########################################################################
+    # KONFIGURATION
+    ###########################################################################
+    - block:
+        - name: 🔧 Hook Pre-Install - pb_inst_conf_alerting.yml
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        - name: Alerting Konfiguration - pb_inst_conf_alerting.yml
+          ansible.builtin.include_tasks: "{{ task_paths.alerting_task }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # DEAKTIVIERUNG
+    ###########################################################################
+    - block:
+        - name: 🔄 Entferne Alerting Cron-Job - pb_inst_conf_alerting.yml
+          ansible.builtin.cron:
+            name: "alerting_check"
+            state: absent
+
+        - name: 🔄 Entferne Alerting Script - pb_inst_conf_alerting.yml
+          ansible.builtin.file:
+            path: /usr/local/bin/alerting_check.sh
+            state: absent
+
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # Hook: End
+    ###########################################################################
+    - name: 🔧 Hook End - pb_inst_conf_alerting.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

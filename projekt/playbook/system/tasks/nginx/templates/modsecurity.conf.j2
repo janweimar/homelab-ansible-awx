@@ -1,0 +1,144 @@
+# ============================================================
+# 🛡️ ModSecurity Konfiguration (maximale Sicherheit)
+# ============================================================
+# Template: modsecurity.conf.j2
+# Erstellt: {{ ansible_date_time.iso8601 }}
+# OWASP CRS: {{ paths.owasp_crs[ansible_os_family] }}
+#
+# Alle Variablen haben sichere Defaults — können bei Bedarf
+# über Ansible-Variablen überschrieben werden.
+# ============================================================
+
+# ── Engine ────────────────────────────────────────────────
+# On = aktiver Schutz (blockiert Angriffe mit 403)
+# DetectionOnly = nur Logging (zum Testen)
+SecRuleEngine {{ modsec_rule_engine | default('On') }}
+
+# ── Request Body ──────────────────────────────────────────
+# Request-Body prüfen (POST-Daten, Formulare, JSON)
+SecRequestBodyAccess {{ modsec_request_body_access | default('On') }}
+
+# Max. Request-Body-Größe: 10 MB (für Datei-Uploads)
+SecRequestBodyLimit {{ modsec_request_body_limit | default('10485760') }}
+
+# Max. Body-Größe OHNE Dateien: 128 KB (Formulardaten)
+SecRequestBodyNoFilesLimit {{ modsec_request_body_nofiles_limit | default('131072') }}
+
+# Überschreitung = Request ablehnen (nicht teilweise verarbeiten!)
+SecRequestBodyLimitAction {{ modsec_request_body_limit_action | default('Reject') }}
+
+# Max. JSON-Verschachtelungstiefe (verhindert JSON-Bombs)
+SecRequestBodyJsonDepthLimit {{ modsec_request_body_json_depth | default('512') }}
+
+# Max. Anzahl Argumente (verhindert Parameter-Flooding)
+SecArgumentsLimit {{ modsec_arguments_limit | default('1000') }}
+
+# ── Response Body ─────────────────────────────────────────
+# Antwort-Body prüfen (Data Leakage Prevention)
+SecResponseBodyAccess {{ modsec_response_body_access | default('On') }}
+
+# Nur diese MIME-Typen prüfen (nicht Bilder/Videos/Downloads)
+SecResponseBodyMimeType {{ modsec_response_body_mime | default('text/plain text/html text/xml application/json') }}
+
+# Max. Antwortgröße: 1 MB (größere Antworten nicht prüfen)
+SecResponseBodyLimit {{ modsec_response_body_limit | default('1048576') }}
+
+# Bei Überschreitung: trotzdem durchlassen (sonst blockiert es Downloads)
+SecResponseBodyLimitAction {{ modsec_response_body_limit_action | default('ProcessPartial') }}
+
+# ── PCRE Limits (DoS-Schutz) ─────────────────────────────
+# Begrenzt Regex-Operationen (verhindert ReDoS-Angriffe)
+SecPcreMatchLimit {{ modsec_pcre_match_limit | default('100000') }}
+SecPcreMatchLimitRecursion {{ modsec_pcre_recursion_limit | default('100000') }}
+
+# ── Audit Logging ─────────────────────────────────────────
+# RelevantOnly = nur verdächtige/blockierte Requests loggen
+SecAuditEngine {{ modsec_audit_engine | default('RelevantOnly') }}
+
+# Welche HTTP-Status-Codes loggen (alles außer 2xx/3xx)
+SecAuditLogRelevantStatus {{ modsec_audit_status | default('"^(?:5|4(?!04))"') }}
+
+# Welche Teile des Requests loggen
+# A=Header, B=Body, C=Response-Header, E=Response-Body,
+# F=Final-Header, H=Audit-Log-Footer, I=Alternative-Body, Z=End
+SecAuditLogParts {{ modsec_audit_parts | default('ABCFHZ') }}
+
+# Log-Typ: Serial (eine Datei) — einfacher für Homelab
+SecAuditLogType {{ modsec_audit_type | default('Serial') }}
+
+# Audit-Log Pfad
+SecAuditLog {{ paths.nginx_log_dir[ansible_os_family] }}/modsec_audit.log
+
+# ── Debug Logging ─────────────────────────────────────────
+# Level 0 = aus (Produktion), 1-9 = Debug (nur zum Testen!)
+SecDebugLog {{ paths.nginx_log_dir[ansible_os_family] }}/modsec_debug.log
+SecDebugLogLevel {{ modsec_debug_level | default('0') }}
+
+# ── Verzeichnisse ─────────────────────────────────────────
+SecTmpDir {{ paths.modsecurity_tmp[ansible_os_family] }}
+SecDataDir {{ paths.modsecurity_data[ansible_os_family] }}
+
+# ── Upload-Handling ───────────────────────────────────────
+# Upload-Verzeichnis (für temporäre Datei-Prüfung)
+SecUploadDir {{ paths.modsecurity_tmp[ansible_os_family] }}
+
+# Uploads nach Prüfung NICHT behalten
+SecUploadKeepFiles {{ modsec_upload_keep_files | default('Off') }}
+
+# Max. Dateigröße für Upload-Prüfung: 10 MB
+SecUploadFileLimit {{ modsec_upload_file_limit | default('10') }}
+
+# ── Cookie/Session Schutz ─────────────────────────────────
+# Cookie-Format v0 (Standard-Cookies) + v1 (RFC 2109)
+SecCookieFormat {{ modsec_cookie_format | default('0') }}
+
+# ── Zeichenkodierung ─────────────────────────────────────
+SecUnicodeMapFile {{ paths.nginx_conf_dir[ansible_os_family] }}/unicode.mapping 20127
+
+# ── Status Engine ─────────────────────────────────────────
+# ModSecurity Telemetrie deaktivieren (kein Phone-Home!)
+SecStatusEngine {{ modsec_status_engine | default('Off') }}
+
+# ── Zusätzliche Sicherheitsregeln ─────────────────────────
+
+# Server-Banner verstecken (wird in nginx.conf via server_tokens off gesteuert)
+# SecServerSignature — NICHT unterstützt in nginx ModSecurity!
+
+# HTTP-Methoden einschränken (nur sichere Methoden erlauben)
+# GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS = Standard REST
+# TRACE, TRACK = immer blockieren (XST-Angriffe)
+SecRule REQUEST_METHOD "^(?:TRACE|TRACK)" \
+    "id:900001,\
+    phase:1,\
+    deny,\
+    status:405,\
+    msg:'Unsichere HTTP-Methode blockiert',\
+    severity:CRITICAL,\
+    tag:'POLICY/METHOD_NOT_ALLOWED'"
+
+# Leere User-Agent blockieren (typisch für Scanner/Bots)
+SecRule REQUEST_HEADERS:User-Agent "^$" \
+    "id:900002,\
+    phase:1,\
+    deny,\
+    status:403,\
+    msg:'Leerer User-Agent blockiert',\
+    severity:WARNING,\
+    tag:'POLICY/EMPTY_USER_AGENT'"
+
+# Leere Host-Header blockieren (HTTP/1.1 Pflicht)
+SecRule REQUEST_HEADERS:Host "^$" \
+    "id:900003,\
+    phase:1,\
+    deny,\
+    status:400,\
+    msg:'Leerer Host-Header blockiert',\
+    severity:WARNING,\
+    tag:'POLICY/EMPTY_HOST_HEADER'"
+
+# ── OWASP Core Rule Set einbinden ─────────────────────────
+# CRS Setup (Paranoia-Level, Anomaly-Scoring etc.)
+Include {{ paths.owasp_crs[ansible_os_family] }}/crs-setup.conf
+
+# Alle CRS-Regeln laden (~800 Regeln)
+Include {{ paths.owasp_crs[ansible_os_family] }}/rules/*.conf

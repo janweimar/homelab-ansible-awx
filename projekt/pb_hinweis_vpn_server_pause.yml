@@ -1,0 +1,46 @@
+---
+###########################################################################
+# ⏸️ VPN Server Workflow - Pause zwischen Teil 1 und Teil 2
+# Gibt Anweisung aus und beendet sich
+###########################################################################
+# Dieses Playbook ist der letzte Schritt in _wf_vpn_server_teil1.
+# Es macht NICHTS ausser eine Anweisung auszugeben.
+#
+# Workflow-Ablauf:
+#   Teil 1: user_ssh → msmtp → network → firewall → geoblock →
+#           fail2ban → logrotate → auto_update → audit → vpn_server →
+#           >>> dieses Playbook <<<
+#
+#   --- MANUELLER SCHRITT: Wazuh Manager aufsetzen ---
+#
+#   Teil 2: wazuh_agent → apparmor
+###########################################################################
+
+- name: pb_hinweis_vpn_server_pause.yml
+  hosts: all
+  become: false
+  gather_facts: false
+
+  tasks:
+    - name: ⏸️ ANWEISUNG - Naechster manueller Schritt
+      ansible.builtin.debug:
+        msg:
+          - "============================================================"
+          - "⏸️  VPN SERVER WORKFLOW TEIL 1 ABGESCHLOSSEN"
+          - "============================================================"
+          - ""
+          - "Naechste Schritte (manuell):"
+          - ""
+          - "  1. Wazuh Manager auf <ip_wazuh_server> installieren"
+          - "     → Eigener Workflow: _wf_wazuh_manager"
+          - "     → VPN-IP: 10.200.0.20"
+          - ""
+          - "  2. Pruefen ob Wazuh Manager laeuft:"
+          - "     → ping 10.200.0.20 (vom VPN-Server)"
+          - "     → Port 1514/1515 erreichbar"
+          - ""
+          - "  3. Danach: _wf_vpn_server_teil2 starten"
+          - "     → Wazuh Agent (registriert sich beim Manager)"
+          - "     → AppArmor (letzter Schritt)"
+          - ""
+          - "============================================================"

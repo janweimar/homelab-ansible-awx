@@ -1,0 +1,47 @@
+---
+###########################################################################
+# 📦 ModSecurity + OWASP CRS Setup
+# Wiederverwendbar für nginx/Apache
+###########################################################################
+
+- name: 📁 Erstelle ModSecurity Verzeichnisse - task_modsecurity.yml
+  ansible.builtin.file:
+    path: "{{ paths.modsecurity_base[ansible_os_family] }}"
+    state: directory
+    mode: "0755"
+
+- name: 📥 Clone OWASP Core Rule Set - task_modsecurity.yml
+  ansible.builtin.git:
+    repo: https://github.com/coreruleset/coreruleset.git
+    dest: "{{ paths.owasp_crs[ansible_os_family] }}"
+    update: yes
+    force: yes
+
+- name: 📋 Kopiere CRS Setup - task_modsecurity.yml
+  ansible.builtin.copy:
+    src: "{{ paths.owasp_crs[ansible_os_family] }}/crs-setup.conf.example"
+    dest: "{{ paths.owasp_crs[ansible_os_family] }}/crs-setup.conf"
+    remote_src: yes
+    backup: yes
+
+- name: 🗑️ Lösche alte ModSecurity Config (Force Recreate) - task_modsecurity.yml
+  ansible.builtin.file:
+    path: "{{ paths.modsecurity_conf[ansible_os_family] }}"
+    state: absent
+
+- name: 📝 Erstelle ModSecurity Konfiguration - task_modsecurity.yml
+  ansible.builtin.template:
+    src: "{{ nginx_paths[ansible_host].modsecurity }}"
+    dest: "{{ paths.modsecurity_conf[ansible_os_family] }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: yes
+
+- name: 🧹 Entferne alte ModSecurity Backups - task_modsecurity.yml
+  ansible.builtin.shell: |
+    find {{ paths.modsecurity_base[ansible_os_family] }} -type f -name "*.conf.*~" -delete
+  args:
+    executable: /bin/bash
+  changed_when: false
+  ignore_errors: yes

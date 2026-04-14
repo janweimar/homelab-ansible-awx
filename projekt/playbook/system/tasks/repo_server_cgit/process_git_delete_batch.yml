@@ -1,0 +1,27 @@
+---
+# ------------------------------------------------------------
+# TASK: Git-Lösch-Batch verarbeiten (einzelner Batch)
+# Wird pro Batch vom Haupt-Task aufgerufen
+# ------------------------------------------------------------
+
+- name: DEBUG – Lösch-Batch Info - process_git_delete_batch.yml
+  ansible.builtin.debug:
+    msg: |
+      ════════════════════════════════════════
+      🗑️  LÖSCH-BATCH {{ batch_index + 1 }}/{{ total_batches }} → CLIENT
+      ════════════════════════════════════════
+      Anzahl Repos: {{ current_batch | length }}
+      Repos in diesem Batch:
+      {% for repo in current_batch %}
+        - {{ repo }}
+      {% endfor %}
+      ════════════════════════════════════════
+
+- name: GIT – Lösch-Batch {{ batch_index + 1 }} verarbeiten - process_git_delete_batch.yml
+  ansible.builtin.command: >
+    ansible-playbook /root/git_repo/localhost_conf_git_remove.yml
+    -e '{"current_delete_batch": {{ current_batch | to_json }}}'
+  async: 7200
+  poll: 30
+  register: batch_result
+  become: yes

@@ -1,0 +1,18 @@
+max@vmd183688:~$ sudo ls -la /etc/update-motd.d/
+[sudo] password for max:
+total 60
+drwxr-xr-x   2 root root 4096 Feb  3 20:12 .
+drwxr-xr-x 106 root root 4096 Feb  4 21:30 ..
+-rwxr-xr-x   1 root root 1220 Apr 22  2024 00-header
+-rwxr-xr-x   1 root root 1151 Apr 22  2024 10-help-text
+lrwxrwxrwx   1 root root   46 Dec 13 13:55 50-landscape-sysinfo -> /usr/share/landscape/landscape-sysinfo.wrapper
+-rwxr-xr-x   1 root root 5023 Apr 22  2024 50-motd-news
+-rwxr-xr-x   1 root root   84 Jul 11  2025 85-fwupd
+-rwxr-xr-x   1 root root  218 Apr  2  2025 90-updates-available
+-rwxr-xr-x   1 root root  296 Apr  2  2024 91-contract-ua-esm-status
+-rwxr-xr-x   1 root root  558 Jul 25  2025 91-release-upgrade
+-rwxr-xr-x   1 root root  165 Feb 12  2024 92-unattended-upgrades
+-rwxr-xr-x   1 root root  379 Apr  2  2025 95-hwe-eol
+-rwxr-xr-x   1 root root  111 Jul  3  2024 97-overlayroot
+-rwxr-xr-x   1 root root  142 Apr  2  2025 98-fsck-at-reboot
+-rwxr-xr-x   1 root root  144 Apr  2  2025 98-reboot-required

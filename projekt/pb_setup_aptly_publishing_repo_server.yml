@@ -1,0 +1,135 @@
+---
+###########################################################################
+# 🧱 pb_conf_aptly_publishing_repo_server.yml
+# Multi-OS | idempotent | AWX-kompatibel
+###########################################################################
+# Credentials:
+#   ssh_key: SSH-Zugangsdaten
+#
+# Beschreibung:
+#   Aptly Publishing - Snapshots erstellen und veröffentlichen
+#   - IST/SOLL-Vergleich aus repo_self_list
+#   - Snapshot-Management (erstellen/mergen/filtern)
+#   - GPG-signierte Publikation
+#   - nginx liefert aus: /root/.aptly/public
+#
+# Hinweise:
+#   - Benötigt pb_conf_aptly_mirrors_repo_server.yml (Mirrors müssen existieren)
+#   - Arbeitet mit repo_self_list Variable (freeze-Pakete)
+#   - Nur Debian-basierte Systeme (aptly)
+###########################################################################
+
+- name: pb_conf_aptly_publishing_repo_server.yml
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # Externe Variablen (OS-spezifische Daten)
+  ###########################################################################
+  vars_files:
+    - playbooks_paths.yml
+
+  vars:
+    var_prerequisites:
+
+    unsupported_systems:
+      - RedHat
+      - Suse
+      - Archlinux
+      - FreeBSD
+
+    templates_paths_pb: aptly_publish
+    pb_doku_template: aptly_publish
+
+  #############################################################################
+
+  pre_tasks:
+    ###########################################################################
+    # Variablen laden & setzen
+    ###########################################################################
+    - block:
+        - name: Lade alle Variablen-Dateien aus var_list.yml - pb_conf_aptly_publishing_repo_server.yml
+          include_vars:
+            file: "{{ item }}"
+          loop: "{{ var_files }}"
+
+    ###########################################################################
+    # Hook: Pre-Start (nach Variablen-Laden)
+    ###########################################################################
+    - name: 🔧 Hook Pre-Start - pb_conf_aptly_publishing_repo_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_pre_start }}"
+
+    ###########################################################################
+    # Systemcheck & Prerequisites
+    ###########################################################################
+    - name: 🔄 Importiere Systemcheck - pb_conf_aptly_publishing_repo_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.systemcheck }}"
+
+    - name: 🔄 Importiere Systemcheck zwingend benötigter Komponenten - pb_conf_aptly_publishing_repo_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.prereq_check }}"
+
+    ###########################################################################
+    # Standard Pre-Tasks
+    ###########################################################################
+    - block:
+        - name: 🔄 Importiere Paketmanager-Lock prüfen - pb_conf_aptly_publishing_repo_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.check_pkg_lock }}"
+
+        - name: 🔄 Importiere Debug ausgabe bei Playbook start - pb_conf_aptly_publishing_repo_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.debug_start_config }}"
+
+  tasks:
+    ###########################################################################
+    # Voraussetzung: install_aptly muss in pb_setup_repo_server aktiviert sein
+    ###########################################################################
+    - name: ❓ Prüfe ob aptly auf dem Repo-Server aktiviert ist - pb_conf_aptly_publishing_repo_server.yml
+      ansible.builtin.assert:
+        that:
+          - ansible_local.repo_server.install_aptly | default('False') | bool
+        fail_msg: >
+          ❌ ABBRUCH: aptly ist auf diesem Server nicht aktiviert!
+          Bitte zuerst pb_setup_repo_server.yml mit install_aptly=true ausführen.
+        success_msg: "✅ aptly ist aktiviert — fahre fort."
+
+    ###########################################################################
+    # HAUPTLOGIK - Publishing
+    ###########################################################################
+    - block:
+        ###########################################################################
+        # Hook: Pre-Install (vor Konfiguration)
+        ###########################################################################
+        - name: 🔧 Hook Pre-Install - pb_conf_aptly_publishing_repo_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.hook_pre_install }}"
+
+        ###########################################################################
+        # Playbook-spezifische Konfiguration
+        ###########################################################################
+        - name: 🔄 Aptly Publishing Konfiguration - pb_conf_aptly_publishing_repo_server.yml
+          ansible.builtin.include_tasks: "{{ task_paths.conf_aptly_publishing_server_task }}"
+
+      when: allg_status == "aktiviert"
+
+    ###########################################################################
+    # Deaktivierung
+    ###########################################################################
+    - block:
+        - name: 🔄 Aptly Publikation deaktivieren - pb_conf_aptly_publishing_repo_server.yml
+          ansible.builtin.include_tasks: "{{ task_paths.aptly_publish_deactivate }}"
+
+      when: allg_status == "deaktiviert"
+
+    ###########################################################################
+    # Deinstallation
+    ###########################################################################
+    - block:
+        - name: 🔄 Cleanup Konfiguration - pb_conf_aptly_publishing_repo_server.yml
+          ansible.builtin.include_tasks: "{{ include_paths.cleanup }}"
+
+      when: allg_status == "deinstalliert"
+
+    ###########################################################################
+    # Hook: end (am Ende des Playbooks)
+    ###########################################################################
+    - name: 🔧 Hook Post-Install - pb_conf_aptly_publishing_repo_server.yml
+      ansible.builtin.include_tasks: "{{ include_paths.hook_end_pb }}"

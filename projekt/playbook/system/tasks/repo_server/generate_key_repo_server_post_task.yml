@@ -1,0 +1,210 @@
+---
+# ============================================================
+# GPG-Keys für Git + APT Repository (VORGEFERTIGT)
+# ============================================================
+# Keys wurden vorab erstellt und liegen in templates/key_gpg/.gnupg/
+# Aptly Key ID: 7DE3CA01DC097508 (aptly_key)
+# Git Key ID: A5C8568E7D859EAF (git_repo)
+# ============================================================
+
+# --------------------------------------------------------
+# GPG Keyring komplett kopieren
+# --------------------------------------------------------
+- name: GPG – Altes Keyring entfernen - generate_key_repo_server_post_task.yml
+  ansible.builtin.file:
+    path: /root/.gnupg
+    state: absent
+
+- name: GPG – Keyring-Verzeichnis kopieren - generate_key_repo_server_post_task.yml
+  ansible.builtin.copy:
+    src: "{{ file_paths.key_gpg_paths }}"
+    dest: /root/.gnupg/
+    owner: root
+    group: root
+    mode: preserve
+
+- name: GPG – Haupt-Verzeichnis Permissions - generate_key_repo_server_post_task.yml
+  ansible.builtin.file:
+    path: /root/.gnupg
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: GPG – Private Keys Permissions - generate_key_repo_server_post_task.yml
+  ansible.builtin.file:
+    path: /root/.gnupg/private-keys-v1.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+    recurse: yes
+
+# --------------------------------------------------------
+# Alte Agent-Sockets entfernen
+# --------------------------------------------------------
+- name: GPG – Alte Agent-Sockets entfernen - generate_key_repo_server_post_task.yml
+  ansible.builtin.shell: |
+    rm -f /root/.gnupg/S.gpg-agent*
+    rm -f /root/.gnupg/gpg-agent.conf
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+# --------------------------------------------------------
+# GPG-Agent für batch operations konfigurieren
+# --------------------------------------------------------
+- name: GPG – Agent Konfiguration anlegen - generate_key_repo_server_post_task.yml
+  ansible.builtin.copy:
+    dest: /root/.gnupg/gpg-agent.conf
+    content: |
+      allow-preset-passphrase
+      default-cache-ttl 86400
+      max-cache-ttl 86400
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: GPG – GPG Konfiguration anlegen - generate_key_repo_server_post_task.yml
+  ansible.builtin.copy:
+    dest: /root/.gnupg/gpg.conf
+    content: |
+      use-agent
+      pinentry-mode loopback
+      batch
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: GPG – Agent beenden und neu starten - generate_key_repo_server_post_task.yml
+  ansible.builtin.shell: |
+    gpgconf --kill gpg-agent 2>/dev/null || true
+    sleep 1
+    gpg-agent --daemon 2>/dev/null || true
+  environment:
+    GNUPGHOME: /root/.gnupg
+  changed_when: false
+  failed_when: false
+
+# --------------------------------------------------------
+# Aptly Key Keygrip ermitteln und Passphrase cachen
+# --------------------------------------------------------
+- name: GPG – Aptly Key Keygrip ermitteln - generate_key_repo_server_post_task.yml
+  ansible.builtin.shell: |
+    gpg --with-keygrip --list-secret-keys {{ aptly_publish_defaults.gpg_apt_key_id }} 2>/dev/null | grep -A1 "^sec" | grep "Keygrip" | awk '{print $3}'
+  register: aptly_keygrip
+  changed_when: false
+  failed_when: false
+  environment:
+    GNUPGHOME: /root/.gnupg
+
+- name: GPG – Aptly Passphrase in Agent cachen - generate_key_repo_server_post_task.yml
+  ansible.builtin.shell: |
+    echo "{{ aptly_publish_defaults.gpg_passphrase }}" | /usr/lib/gnupg/gpg-preset-passphrase --preset {{ aptly_keygrip.stdout }}
+  environment:
+    GNUPGHOME: /root/.gnupg
+  changed_when: false
+  failed_when: false
+  when: aptly_keygrip.stdout | length > 0
+
+- name: GPG – Keys validieren - generate_key_repo_server_post_task.yml
+  ansible.builtin.command: gpg --list-secret-keys
+  register: gpg_keys_check
+  changed_when: false
+  failed_when: false
+  environment:
+    GNUPGHOME: /root/.gnupg
+
+- name: DEBUG – Importierte Keys - generate_key_repo_server_post_task.yml
+  ansible.builtin.debug:
+    var: gpg_keys_check.stdout_lines
+
+# --------------------------------------------------------
+# APTLY – Public-Verzeichnis sicherstellen
+# --------------------------------------------------------
+- name: APTLY – Public-Verzeichnis anlegen - generate_key_repo_server_post_task.yml
+  ansible.builtin.file:
+    path: /srv/aptly/public
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# --------------------------------------------------------
+# APTLY – Public Keys exportieren
+# --------------------------------------------------------
+- name: APTLY – Public GPG-Key (BINARY) exportieren - generate_key_repo_server_post_task.yml
+  ansible.builtin.shell: >
+    gpg --export {{ aptly_publish_defaults.gpg_apt_key_id }} > /srv/aptly/public/aptly-repo.gpg
+  args:
+    executable: /bin/bash
+  changed_when: false
+  environment:
+    GNUPGHOME: /root/.gnupg
+
+- name: APTLY – Public GPG-Key (ASCII) exportieren - generate_key_repo_server_post_task.yml
+  ansible.builtin.shell: >
+    gpg --armor --export {{ aptly_publish_defaults.gpg_apt_key_id }} > /srv/aptly/public/aptly-repo-ascii.gpg
+  args:
+    executable: /bin/bash
+  changed_when: false
+  environment:
+    GNUPGHOME: /root/.gnupg
+
+- name: APTLY – repo_self Public GPG-Key (ASCII) exportieren - generate_key_repo_server_post_task.yml
+  ansible.builtin.shell: >
+    gpg --armor --export {{ aptly_publish_defaults.gpg_apt_key_id }} > /srv/aptly/public/repo_self_key.gpg
+  args:
+    executable: /bin/bash
+  changed_when: false
+  environment:
+    GNUPGHOME: /root/.gnupg
+
+- name: APTLY – GPG-Key Dateien - Permissions setzen - generate_key_repo_server_post_task.yml
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - /srv/aptly/public/aptly-repo.gpg
+    - /srv/aptly/public/aptly-repo-ascii.gpg
+    - /srv/aptly/public/repo_self_key.gpg
+
+# --------------------------------------------------------
+# GIT – Public Key exportieren (UNVERÄNDERT)
+# --------------------------------------------------------
+- name: GIT – Public GPG-Key (ASCII) exportieren - generate_key_repo_server_post_task.yml
+  ansible.builtin.shell: >
+    gpg --armor --export {{ aptly_publish_defaults.gpg_git_key_id }} > /srv/git/git-server.gpg
+  args:
+    executable: /bin/bash
+  changed_when: false
+  environment:
+    GNUPGHOME: /root/.gnupg
+
+- name: GIT – GPG-Key Datei - Permissions setzen - generate_key_repo_server_post_task.yml
+  ansible.builtin.file:
+    path: /srv/git/git-server.gpg
+    owner: root
+    group: root
+    mode: "0644"
+
+# ============================================================
+# ZUSAMMENFASSUNG
+# ============================================================
+- name: INFO – Importierte GPG-Keys - generate_key_repo_server_post_task.yml
+  ansible.builtin.debug:
+    msg: |
+      ✓ GPG-Keys erfolgreich importiert und exportiert:
+
+      📦 APT REPOSITORY KEY ({{ aptly_publish_defaults.gpg_apt_key_id }}):
+        Binary:  http://{{ ansible_default_ipv4.address }}/aptly/aptly-repo.gpg
+        ASCII:   http://{{ ansible_default_ipv4.address }}/aptly/aptly-repo-ascii.gpg
+        
+      🔧 GIT SIGNING KEY ({{ aptly_publish_defaults.gpg_git_key_id }}):
+        ASCII:   http://{{ ansible_default_ipv4.address }}/git/git-server.gpg
+
+      🔑 Key-IDs für interne Nutzung:
+        APT:  {{ aptly_publish_defaults.gpg_apt_key_id }}
+        Git:  {{ aptly_publish_defaults.gpg_git_key_id }}
