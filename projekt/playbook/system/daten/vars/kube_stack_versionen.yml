@@ -202,7 +202,7 @@ helm_app_versionen:
       chart_version: "2.19.1"
       awx_version: "24.6.1"
       operator_version: "2.19.1"
-      ee_image: "repo.allgemeinhobby.de/awx-custom-ee:24"
+      ee_image: "repo.<domain> .de/awx-custom-ee:24"
       namespace: "awx"
       replicas: 1
       db_type: "postgres"
@@ -220,7 +220,7 @@ helm_app_versionen:
     #   chart_version: "X.X.X"
     #   awx_version: "XX.X.X"
     #   operator_version: "X.X.X"
-    #   ee_image: "repo.allgemeinhobby.de/awx-custom-ee:XX"
+    #   ee_image: "repo.<domain> .de/awx-custom-ee:XX"
     #   namespace: "awx"
     #   replicas: 1
     #   db_type: "postgres"
@@ -293,8 +293,6 @@ helm_app_versionen:
       postgres_storage: "20Gi"
       odoo_storage: "20Gi"
       ha_enabled: true
-
-
 
 ###########################################################################
 # 📦 k8s_versionen (kubeadm)

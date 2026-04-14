@@ -136,7 +136,7 @@
 # ============================================================
 # 3) Alte vHost Configs löschen (NUR diese App!)
 #    Beide möglichen Config-Namen entfernen:
-#    - Domain-Config: directus.allgemeinhobby.de.conf
+#    - Domain-Config: directus.<domain> .de.conf
 #    - VPN-Config: awx_vpn.conf
 #    - Legacy VPN-IP: 10.200.0.25.conf (alte Benennung)
 # ============================================================
@@ -250,7 +250,7 @@
     - name: 📊 DEBUG ModSecurity Status - nginx_app_vhost.yml
       ansible.builtin.debug:
         msg:
-          - "==========================================" 
+          - "=========================================="
           - "🛡️ ModSecurity WAF Status"
           - "=========================================="
           - "Aktiv in nginx: {{ '✅ Ja' if (_modsec_active.stdout | default('0') | int) > 0 else '❌ Nein' }}"

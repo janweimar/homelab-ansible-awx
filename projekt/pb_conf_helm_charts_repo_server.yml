@@ -23,7 +23,7 @@
 #     - In 2 Jahren genau die gleichen Chart-Versionen verfügbar
 #
 #   Chart-Liste: os_repo.yml → helm_charts
-#   Auslieferung: https://repo.allgemeinhobby.de/helm/
+#   Auslieferung: https://repo.<domain> .de/helm/
 #
 # Hinweise:
 #   - Voraussetzung: helm muss auf dem Repo-Server installiert sein

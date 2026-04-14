@@ -18,8 +18,8 @@ urls:
   # Wazuh Manager
   <ip_wazuh_server>:
     wazuh:
-      domain: wazuh.allgemeinhobby.de
-      url: https://wazuh.allgemeinhobby.de
+      domain: wazuh.<domain> .de
+      url: https://wazuh.<domain> .de
       port: 443
     msmtp:
       account: "web"
@@ -43,23 +43,23 @@ urls:
   <ip_repo_server>:
     # AWX Execution Environment - Docker Registry
     awx_ee:
-      domain: awx-ee.allgemeinhobby.de
-      url: https://awx-ee.allgemeinhobby.de
+      domain: awx-ee.<domain> .de
+      url: https://awx-ee.<domain> .de
       port: 5000
-      registry: awx-ee.allgemeinhobby.de
+      registry: awx-ee.<domain> .de
 
     # Repo-Server (nginx - gemeinsame Domain fuer cgit + aptly)
     repo_server_apt:
-      domain: repo.allgemeinhobby.de
-      url: https://repo.allgemeinhobby.de/aptly
+      domain: repo.<domain> .de
+      url: https://repo.<domain> .de/aptly
     repo_server_cgit:
-      domain: repo.allgemeinhobby.de
-      url: https://repo.allgemeinhobby.de/cgit
+      domain: repo.<domain> .de
+      url: https://repo.<domain> .de/cgit
 
     # BookStack - Dokumentation
     bookstack:
-      domain: bookstack.allgemeinhobby.de
-      url: https://bookstack.allgemeinhobby.de
+      domain: bookstack.<domain> .de
+      url: https://bookstack.<domain> .de
       port: 8080
 
     # msmtp - SMTP Mail-Versand
@@ -79,8 +79,8 @@ urls:
 
     # Ollama AI Runtime (API Backend, VPN-only)
     ollama:
-      domain: ai.allgemeinhobby.de
-      url: http://ai.allgemeinhobby.de
+      domain: ai.<domain> .de
+      url: http://ai.<domain> .de
       port: 80
 
     # Open WebUI: kein nginx, direkt über NodePort 30080 (http://10.200.0.23:30080)
@@ -101,8 +101,8 @@ urls:
 
     # Odoo ERP (Kubernetes/K3s)
     odoo:
-      domain: odoo.allgemeinhobby.de
-      url: https://odoo.allgemeinhobby.de
+      domain: odoo.<domain> .de
+      url: https://odoo.<domain> .de
       port: 443
 
     msmtp:
@@ -121,31 +121,31 @@ urls:
 
     # AWX Web-UI (Kubernetes/Minikube)
     awx:
-      domain: awx.allgemeinhobby.de
-      url: https://awx.allgemeinhobby.de
+      domain: awx.<domain> .de
+      url: https://awx.<domain> .de
       port: 443
 
     # Directus CMS (Kubernetes/Minikube)
     directus:
-      domain: directus.allgemeinhobby.de
-      url: https://directus.allgemeinhobby.de
+      domain: directus.<domain> .de
+      url: https://directus.<domain> .de
       port: 443
 
     # Stalwart Mail Server Admin-GUI (VPN-only)
     stalwart:
-      domain: mail.allgemeinhobby.de
-      url: http://mail.allgemeinhobby.de
+      domain: mail.<domain> .de
+      url: http://mail.<domain> .de
       port: 80
-      mail_domain: allgemeinhobby.de
-      hostname: mail.allgemeinhobby.de
+      mail_domain: <domain> .de
+      hostname: mail.<domain> .de
 
     # Mailu Mail-Server Admin-GUI (VPN-only)
     mailu:
-      domain: mailu.allgemeinhobby.de
-      url: http://mailu.allgemeinhobby.de
+      domain: mailu.<domain> .de
+      url: http://mailu.<domain> .de
       port: 80
-      mail_domain: allgemeinhobby.de
-      hostname: mail.allgemeinhobby.de
+      mail_domain: <domain> .de
+      hostname: mail.<domain> .de
 
     msmtp:
       account: "web"

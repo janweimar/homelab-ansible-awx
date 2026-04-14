@@ -24,9 +24,9 @@
 
 ### DNS-Einträge (nach Installation setzen!)
 ```
-MX    allgemeinhobby.de.     10  mail.allgemeinhobby.de.
-A     mail.allgemeinhobby.de. →  {{ ansible_host }}
-TXT   allgemeinhobby.de.     "v=spf1 mx ~all"
-TXT   _dmarc.allgemeinhobby.de. "v=DMARC1; p=quarantine; rua=mailto:postmaster@allgemeinhobby.de"
-# DKIM-Record: Im Admin-GUI unter Management → Domains → allgemeinhobby.de abrufen
+MX    <domain> .de.     10  mail.<domain> .de.
+A     mail.<domain> .de. →  {{ ansible_host }}
+TXT   <domain> .de.     "v=spf1 mx ~all"
+TXT   _dmarc.<domain> .de. "v=DMARC1; p=quarantine; rua=mailto:postmaster@<domain> .de"
+# DKIM-Record: Im Admin-GUI unter Management → Domains → <domain> .de abrufen
 ```

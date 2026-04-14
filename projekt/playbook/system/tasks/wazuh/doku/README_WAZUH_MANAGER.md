@@ -19,6 +19,7 @@
 ## 🛠️ BEFEHLE
 
 **Dienst-Status prüfen:**
+
 ```bash
 systemctl status wazuh-manager
 systemctl status wazuh-indexer
@@ -26,6 +27,7 @@ systemctl status wazuh-dashboard
 ```
 
 **Dienste neustarten:**
+
 ```bash
 systemctl restart wazuh-manager
 systemctl restart wazuh-indexer
@@ -33,12 +35,14 @@ systemctl restart wazuh-dashboard
 ```
 
 **Logs ansehen:**
+
 ```bash
 tail -f /var/ossec/logs/ossec.log
 tail -f /var/log/wazuh-indexer/wazuh-indexer.log
 ```
 
 **Config validieren (VOR Restart!):**
+
 ```bash
 # Prueft ossec.conf auf Fehler ohne den Manager zu starten
 sudo /var/ossec/bin/wazuh-analysisd -t
@@ -49,11 +53,13 @@ sudo systemctl restart wazuh-manager
 ```
 
 **Alle Agents anzeigen:**
+
 ```bash
 /var/ossec/bin/manage_agents -l
 ```
 
 **API testen:**
+
 ```bash
 curl -k -X GET "https://localhost:55000/?pretty=true" \
   -H "Authorization: Bearer $(curl -u admin:admin -k -X GET \
@@ -84,7 +90,7 @@ Wenn `wazuh_nginx_integration: true`:
 
 | Einstellung   | Wert                            |
 |---------------|---------------------------------|
-| Dashboard-URL | https://wazuh.allgemeinhobby.de |
+| Dashboard-URL | <https://wazuh>.<domain> .de |
 | Port extern   | 443                             |
 | Port intern   | 5601                            |
 | SSL           | Let's Encrypt                   |

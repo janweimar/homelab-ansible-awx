@@ -9,13 +9,13 @@ Charts werden von Upstream gezogen und lokal vorgehalten.
 ## Lokales Repo
 
 ```
-https://repo.allgemeinhobby.de/helm/
+https://repo.<domain> .de/helm/
 ```
 
 ## Nutzung auf Ziel-Servern
 
 ```bash
-helm repo add repo_self_helm https://repo.allgemeinhobby.de/helm/
+helm repo add repo_self_helm https://repo.<domain> .de/helm/
 helm install awx-operator repo_self_helm/awx-operator --version 2.19.1
 ```
 

@@ -40,7 +40,7 @@
     "name": "repo_EE",
     "description": "",
     "organization": 2,
-    "image": "repo.allgemeinhobby.de/awx-custom-ee:24",
+    "image": "repo.<domain> .de/awx-custom-ee:24",
     "managed": false,
     "credential": null,
     "pull": "missing"

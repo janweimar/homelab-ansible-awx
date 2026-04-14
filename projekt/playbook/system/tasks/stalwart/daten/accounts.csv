@@ -1,3 +1,3 @@
 name,description,password,email,aliases,quota_bytes,role,groups,lists
-admin,Administrator,CHANGE_ME,admin@allgemeinhobby.de,postmaster@allgemeinhobby.de,0,admin,all,
-max,max Mustermann,CHANGE_ME,max@allgemeinhobby.de,,0,user,all,
+admin,Administrator,CHANGE_ME,admin@<domain> .de,postmaster@<domain> .de,0,admin,all,
+max,max Mustermann,CHANGE_ME,max@<domain> .de,,0,user,all,
