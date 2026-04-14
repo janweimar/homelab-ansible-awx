@@ -37,7 +37,7 @@ This is my personal infrastructure — the playbooks are standalone and not tied
 ## Features
 
 - **Universal App Deploy System** (`pb_setup_app_deploy.yml`) for K3s, Docker, Podman and native deployments
-- **37 Custom AWX Credential Types** for clean variable separation
+- **Custom AWX Credential Types** for clean variable separation
 - **nftables Firewall** with GeoIP blocking, Fail2Ban and automatic rollback
 - **WireGuard VPN** — all internal services accessible via VPN only (optional)
 - **nginx + ModSecurity** as reverse proxy with SSL
