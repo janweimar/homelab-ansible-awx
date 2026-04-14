@@ -20,15 +20,15 @@ The easiest way to get started is to import the AWX backup into a fresh AWX inst
 
 ## Infrastructure
 
-| Server | Role |
-|--------|------|
-| VPN Server | WireGuard Gateway |
-| Wazuh Manager | IDS / Security Monitoring |
-| Mail Server | Stalwart Mail |
-| Repo Server | Aptly + cgit + Helm Registry |
-| AI Server | Ollama + Open WebUI + Qdrant (K3s) |
-| Odoo Server | Odoo ERP (K3s) |
-| AWX Server | AWX + Directus (K3s) |
+| Server        | Role                                   |
+|---------------|----------------------------------------|
+| VPN Server    | WireGuard Gateway                      |
+| Wazuh Manager | IDS / Security Monitoring              |
+| Mail Server   | Stalwart Mail                          |
+| Repo Server   | Aptly + cgit + Helm Registry + AWX EE  |
+| AI Server     | Ollama + Open WebUI + Qdrant (K3s)     |
+| Odoo Server   | Odoo ERP (K3s)                         |
+| AWX Server    | AWX + Directus (K3s)                   |
 
 This is my personal infrastructure — the playbooks are standalone and not tied to this specific server setup.
 
@@ -56,7 +56,7 @@ The playbooks are standalone and can be used independently — there are no hard
 
 ---
 
-## Structure
+## Original Playbook Structure
 
 ```
 projekt/
@@ -70,11 +70,11 @@ komplette_AWX_sicherung/        # AWX export (Credential Types, Job Templates ..
 
 ---
 
-## Universal App Deploy System
+## New Playbook Structure
 
-The core of this project is a single playbook — `pb_setup_app_deploy.yml` — that handles all application deployments regardless of type or target environment.
+The goal is a single playbook — `pb_setup_app_deploy.yml` — that handles all application deployments regardless of type or target environment.
 
-Instead of writing a separate playbook for every app, the deployment is fully controlled through an **AWX credential**. You pick the app, the deployment type, the database and a few options — the playbook takes care of the rest.
+Instead of writing a separate playbook for every app (individual tasks still exist of course), the deployment is fully controlled through an **AWX credential**. You pick the app, the deployment type, the database and a few options — the playbook takes care of the rest.
 
 ### Supported Apps
 
@@ -82,36 +82,36 @@ Instead of writing a separate playbook for every app, the deployment is fully co
 
 ### Supported Deployment Types
 
-| Value | Description |
-|-------|-------------|
-| `k3s` / `k3s_v1_34` / `k3s_v1_35` | Kubernetes via K3s |
-| `minikube` / `minikube_v1_38` | Kubernetes via Minikube |
-| `k8s` / `k8s_v1_34` | Vanilla Kubernetes |
-| `docker` / `docker_v27` | Docker Compose |
-| `podman` / `podman_v5` | Podman Compose |
-| `nativ` | apt + systemd |
+| Value                              | Description              | Status       |
+|------------------------------------|--------------------------|--------------|
+| `k3s` / `k3s_v1_34` / `k3s_v1_35` | Kubernetes via K3s       | ✅ tested    |
+| `minikube` / `minikube_v1_38`      | Kubernetes via Minikube  | ✅ tested    |
+| `k8s` / `k8s_v1_34`               | Vanilla Kubernetes       | 🚧 work in progress |
+| `docker` / `docker_v27`            | Docker Compose           | ✅ tested    |
+| `podman` / `podman_v5`             | Podman Compose           | 🚧 work in progress |
+| `nativ`                            | apt + systemd            | ✅ tested    |
 
 ### Credential Fields
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `app_name` | ✅ | Application to deploy |
-| `app_deploy_type` | ✅ | Deployment type (see above) |
-| `app_db_type` | ✅ | Database: `mariadb`, `postgresql`, `mysql`, `none` |
-| `app_port` | ✅ | Internal port (e.g. 8055=Directus, 8069=Odoo, 11434=Ollama) |
-| `app_db_password` | | Database password |
-| `app_admin_email` | | Admin e-mail address |
-| `app_admin_password` | | Admin password |
-| `app_secret_key` | | JWT/Session secret — generate with `openssl rand -hex 32` |
-| `app_nginx_integration` | | Set up nginx as reverse proxy |
-| `app_ssl` | | Enable HTTPS via Let's Encrypt |
-| `app_modsecurity` | | Enable ModSecurity WAF in nginx |
-| `app_vpn_only` | | App accessible via WireGuard VPN only (no SSL needed) |
-| `app_ha_install` | | High Availability (multiple replicas) |
-| `app_skip_install` | | Skip installation, reconfigure nginx/SSL only |
-| `app_no_update` | | Prevent container image updates |
-| `isolation_app` | | DNS isolation — app cannot reach external domains |
-| `app_bez` | | Optional label/environment tag (e.g. `test`, `prod`) |
+| Field                   | Status       | Description                                                           |
+|-------------------------|--------------|-----------------------------------------------------------------------|
+| `app_name`              | required     | Application to deploy                                                 |
+| `app_deploy_type`       | required     | Deployment type (see above)                                           |
+| `app_db_type`           | required     | Database: `mariadb`, `postgresql`, `mysql`, `none`                    |
+| `app_port`              | required     | Internal port (e.g. 8055=Directus, 8069=Odoo, 11434=Ollama)          |
+| `app_db_password`       |              | Database password                                                     |
+| `app_admin_email`       |              | Admin e-mail address                                                  |
+| `app_admin_password`    |              | Admin password                                                        |
+| `app_secret_key`        |              | JWT/Session secret — generate with `openssl rand -hex 32`             |
+| `app_nginx_integration` |              | Set up nginx as reverse proxy                                         |
+| `app_ssl`               |              | Enable HTTPS via Let's Encrypt                                        |
+| `app_modsecurity`       |              | Enable ModSecurity WAF in nginx                                       |
+| `app_vpn_only`          |              | App accessible via WireGuard VPN only (no SSL needed)                 |
+| `app_ha_install`        | 🚧 work in progress | High Availability (multiple replicas)                          |
+| `app_skip_install`      |              | Skip installation, reconfigure nginx/SSL only                         |
+| `app_no_update`         |              | Prevent container image updates                                       |
+| `isolation_app`         | 🚧 work in progress | DNS isolation — app cannot reach external domains              |
+| `app_bez`               |              | Optional environment tag (e.g. `test`, `prod`)                        |
 
 ---
 
@@ -127,29 +127,28 @@ The base structure is intentionally OS-neutral — all OS-specific values (packa
 
 The following tasks are marked with `# STATUS: NOT TESTED` in the code — this does not mean the others are guaranteed to work, only that these have never been executed at all:
 
-| Task | Folder |
-|------|--------|
-| Kubernetes (k8s) | `tasks/k8s/` |
-| MariaDB WebUI | `tasks/mariadb_webui/` |
-| OpenEMS | `tasks/openems/` |
-| OpenFOAM | `tasks/openfoam/` |
-| Podman | `tasks/podman_include/` |
-| Suricata IDS/IPS | `tasks/suricata/` |
+| Task             | Folder                  |
+|------------------|-------------------------|
+| Kubernetes (k8s) | `tasks/k8s/`            |
+| MariaDB WebUI    | `tasks/mariadb_webui/`  |
+| OpenEMS          | `tasks/openems/`        |
+| OpenFOAM         | `tasks/openfoam/`       |
+| Podman           | `tasks/podman_include/` |
+| Suricata IDS/IPS | `tasks/suricata/`       |
 
 ---
 
-## Requirements
+## Test Environment
 
 - Ubuntu 24.04
-- AWX (tested with AWX 24.6.1 on Minikube WSL/Win10)
+- AWX 24.6.1 on Minikube WSL/Win10
 - Ansible AWX Execution Environment
-- WireGuard VPN for access to internal services (optional)
 
 ---
 
 ## Notes
 
-- All IPs, domains and email addresses have been replaced with placeholders (e.g. `<ip_vpn_server>`)
+- All IPs, domains and email addresses have been replaced with placeholders (e.g. `<ip_vpn_server>`) — easy to adapt using find & replace
 - Private keys and passwords are **not** included in this repository
 - All code comments are in **German** — this project was not originally intended for public release
 
