@@ -1,0 +1,228 @@
+###########################################################################
+# 🔄 Automatische Sicherheitsupdates mit Testmail (Multi-OS, Musteraufbau)
+###########################################################################
+- name: 🔄 Automatische Sicherheitsupdates verwalten
+  hosts: all
+  become: true
+  gather_facts: true
+
+  ###########################################################################
+  # ⚙️ Variablen
+  ###########################################################################
+  vars:
+    allg_status: "{{ allg_status | default('aktiviert') | lower }}"
+    mail_notify: "{{ admin_email | default('root@localhost') }}"
+    auto_reboot: true
+    update_interval: 1 # Intervall in Tagen (1 = täglich, 7 = wöchentlich)
+
+  ###########################################################################
+  # 🔍 Debug & Initialisierung
+  ###########################################################################
+  pre_tasks:
+    - name: 📋 Debug – Eingangsvariablen
+      ansible.builtin.debug:
+        msg:
+          - "🧩 Status: {{ allg_status }}"
+          - "📬 Mail-Benachrichtigung: {{ mail_notify }}"
+          - "🔁 Automatischer Neustart: {{ auto_reboot }}"
+          - "⏱️ Update-Intervall (Tage): {{ update_interval }}"
+
+    - name: 🧩 Ermitteltes Betriebssystem
+      ansible.builtin.debug:
+        msg:
+          - "OS Familie: {{ ansible_os_family }}"
+          - "Distribution: {{ ansible_distribution }}"
+          - "Version: {{ ansible_distribution_major_version }}"
+          - "Paketmanager: {{ ansible_pkg_mgr }}"
+
+    - name: ✅ Unterstützte Systeme prüfen
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family in ['Debian', 'RedHat', 'Suse']
+        fail_msg: "❌ Nicht unterstütztes System erkannt: {{ ansible_os_family }}"
+        success_msg: "✅ Unterstütztes System erkannt ({{ ansible_os_family }})"
+
+  ###########################################################################
+  # 🧰 Hauptlogik – abhängig von allg_status
+  ###########################################################################
+  tasks:
+    #######################################################################
+    # 🟢 Aktivieren
+    #######################################################################
+    - name: 🟢 Automatische Updates aktivieren
+      when: allg_status == "aktiviert"
+      block:
+        ###################################################################
+        # 📦 Pakete installieren (Multi-OS, non-interactive, mit Reboot-Check)
+        ###################################################################
+        - name: 📦 Paketinstallation – Debian/Ubuntu
+          block:
+            - name: 🧩 Apt-Umgebung vorbereiten & Pakete installieren
+              ansible.builtin.shell: |
+                export DEBIAN_FRONTEND=noninteractive
+                apt-get update -qq
+                apt-get install -yq unattended-upgrades apt-listchanges mailutils
+              args:
+                executable: /bin/bash
+
+            - name: 🔍 Prüfen, ob Neustart erforderlich ist (Debian/Ubuntu)
+              ansible.builtin.stat:
+                path: /var/run/reboot-required
+              register: reboot_flag_deb
+
+            - name: 🔄 Neustart durchführen (Debian/Ubuntu)
+              ansible.builtin.reboot:
+                msg: "Systemneustart nach Einrichtung automatischer Updates (Debian/Ubuntu)"
+                pre_reboot_delay: 5
+                reboot_timeout: 600
+                post_reboot_delay: 10
+              when: reboot_flag_deb.stat.exists
+          when: ansible_os_family == 'Debian'
+
+        - name: 📦 Paketinstallation – RedHat/CentOS/Alma/Rocky
+          block:
+            - name: 🧩 Pakete installieren (Yum/DNF)
+              ansible.builtin.shell: |
+                yum -y install epel-release || true
+                yum -y install dnf-automatic mailx gzip
+              args:
+                executable: /bin/bash
+
+            - name: 🔍 Prüfen, ob Neustart erforderlich ist (RedHat)
+              ansible.builtin.shell: needs-restarting -r || echo "no"
+              register: reboot_check_rh
+              ignore_errors: true
+
+            - name: 🔄 Neustart durchführen (RedHat)
+              ansible.builtin.reboot:
+                msg: "Systemneustart nach Einrichtung automatischer Updates (RedHat)"
+                pre_reboot_delay: 5
+                reboot_timeout: 600
+                post_reboot_delay: 10
+              when: reboot_check_rh.stdout is search("Reboot is required")
+          when: ansible_os_family == 'RedHat'
+
+        - name: 📦 Paketinstallation – SUSE
+          block:
+            - name: 🧩 Pakete installieren (Zypper)
+              ansible.builtin.shell: |
+                zypper --non-interactive refresh
+                zypper --non-interactive install dnf-automatic mailx gzip || true
+              args:
+                executable: /bin/bash
+
+            - name: 🔍 Prüfen, ob Neustart erforderlich ist (SUSE)
+              ansible.builtin.shell: zypper ps -s || true
+              register: reboot_check_suse
+
+            - name: 🔄 Neustart durchführen (SUSE)
+              ansible.builtin.reboot:
+                msg: "Systemneustart nach Einrichtung automatischer Updates (SUSE)"
+                pre_reboot_delay: 5
+                reboot_timeout: 600
+                post_reboot_delay: 10
+              when: reboot_check_suse.stdout is search("You may wish to restart")
+          when: ansible_os_family == 'Suse'
+
+        ###################################################################
+        # ⚙️ Konfiguration aktivieren (Debian/Ubuntu)
+        ###################################################################
+        - name: ⚙️ Konfiguration aktivieren (Debian/Ubuntu)
+          ansible.builtin.copy:
+            dest: /etc/apt/apt.conf.d/20auto-upgrades
+            content: |
+              APT::Periodic::Update-Package-Lists "{{ update_interval }}";
+              APT::Periodic::Download-Upgradeable-Packages "{{ update_interval }}";
+              APT::Periodic::AutocleanInterval "7";
+              APT::Periodic::Unattended-Upgrade "{{ update_interval }}";
+              Unattended-Upgrade::Mail "{{ mail_notify }}";
+              Unattended-Upgrade::Automatic-Reboot "{{ 'true' if auto_reboot else 'false' }}";
+            owner: root
+            group: root
+            mode: "0644"
+          when: ansible_os_family == "Debian"
+
+        - name: 🧩 Dienst aktivieren
+          ansible.builtin.systemd:
+            name: unattended-upgrades
+            state: started
+            enabled: true
+          when: ansible_os_family == "Debian"
+
+        - name: ⚙️ Konfiguration anpassen (RedHat/SUSE)
+          ansible.builtin.lineinfile:
+            path: /etc/dnf/automatic.conf
+            regexp: "^apply_updates ="
+            line: "apply_updates = yes"
+            create: yes
+          when: ansible_os_family in ["RedHat", "Suse"]
+
+        - name: 🧩 Dienst aktivieren (RedHat/SUSE)
+          ansible.builtin.systemd:
+            name: dnf-automatic.timer
+            state: started
+            enabled: true
+          when: ansible_os_family in ["RedHat", "Suse"]
+
+        ###################################################################
+        # 📧 Testmail senden
+        ###################################################################
+        - name: 📧 Testmail nach Aktivierung senden
+          ansible.builtin.shell: |
+            echo "Automatische Sicherheitsupdates wurden auf {{ inventory_hostname }} aktiviert." \
+            | mail -s "Test: Unattended-Upgrades aktiv" "{{ mail_notify }}"
+          args:
+            executable: /bin/bash
+          register: mail_test
+          ignore_errors: yes
+
+        - name: 🧩 Debug – Testmail Ergebnis
+          ansible.builtin.debug:
+            msg: >
+              📬 Testmail an {{ mail_notify }} {{ 'erfolgreich gesendet' if mail_test.rc == 0 else 'fehlgeschlagen' }}.
+
+    #######################################################################
+    # 🔴 Deaktivieren
+    #######################################################################
+    - name: 🔴 Automatische Updates deaktivieren
+      when: allg_status == "deaktiviert"
+      block:
+        - name: 🧩 Dienst stoppen (alle OS)
+          ansible.builtin.systemd:
+            name: "{{ 'unattended-upgrades' if ansible_os_family == 'Debian' else 'dnf-automatic.timer' }}"
+            state: stopped
+            enabled: false
+            ignore_errors: yes
+
+        - name: 💤 Meldung
+          ansible.builtin.debug:
+            msg: "🔴 Automatische Updates deaktiviert – keine Änderungen an Paketen."
+
+    #######################################################################
+    # ⚫ Deinstallieren
+    #######################################################################
+    - name: ⚫ Automatische Updates deinstalliert
+      when: allg_status == "deinstalliert"
+      block:
+        - name: ❌ Pakete entfernen
+          ansible.builtin.package:
+            name:
+              - unattended-upgrades
+              - apt-listchanges
+              - dnf-automatic
+              - mailutils
+            state: absent
+            autoremove: yes
+          ignore_errors: yes
+
+        - name: 🧹 Konfigurationsdateien löschen
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /etc/apt/apt.conf.d/20auto-upgrades
+            - /etc/dnf/automatic.conf
+
+        - name: 💤 Meldung
+          ansible.builtin.debug:
+            msg: "⚫ Automatische Updates wurden vollständig deinstalliert."
